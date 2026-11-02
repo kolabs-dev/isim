@@ -11,69 +11,67 @@ import Foundation
 import AVFoundation
 import isim_host
 
+// Objective-C: the classes keep Apple's names and selectors; the delegate protocols are Apple's @objc protocols with
+// optional methods (isim/sdk-src/Frameworks/Speech/Speech.h, issue #700).
 @objc public enum SFSpeechRecognizerAuthorizationStatus: Int, Sendable { case notDetermined = 0, denied, restricted, authorized }
 @objc public enum SFSpeechRecognitionTaskHint: Int, Sendable { case unspecified = 0, dictation, search, confirmation }
 @objc public enum SFSpeechRecognitionTaskState: Int, Sendable { case starting = 0, running, finishing, canceling, completed }
 
-public protocol SFSpeechRecognizerDelegate: NSObjectProtocol {
-    func speechRecognizer(_ speechRecognizer: SFSpeechRecognizer, availabilityDidChange available: Bool)
+@objc(SFSpeechRecognizerDelegate) public protocol SFSpeechRecognizerDelegate: NSObjectProtocol {
+    @objc(speechRecognizer:availabilityDidChange:)
+    optional func speechRecognizer(_ speechRecognizer: SFSpeechRecognizer, availabilityDidChange available: Bool)
 }
-extension SFSpeechRecognizerDelegate {
-    public func speechRecognizer(_ speechRecognizer: SFSpeechRecognizer, availabilityDidChange available: Bool) {}
-}
-public protocol SFSpeechRecognitionTaskDelegate: NSObjectProtocol {
-    func speechRecognitionDidDetectSpeech(_ task: SFSpeechRecognitionTask)
-    func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didHypothesizeTranscription transcription: SFTranscription)
-    func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didFinishRecognition recognitionResult: SFSpeechRecognitionResult)
-    func speechRecognitionTaskFinishedReadingAudio(_ task: SFSpeechRecognitionTask)
-    func speechRecognitionTaskWasCancelled(_ task: SFSpeechRecognitionTask)
-    func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didFinishSuccessfully successfully: Bool)
-}
-extension SFSpeechRecognitionTaskDelegate {
-    public func speechRecognitionDidDetectSpeech(_ task: SFSpeechRecognitionTask) {}
-    public func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didHypothesizeTranscription transcription: SFTranscription) {}
-    public func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didFinishRecognition recognitionResult: SFSpeechRecognitionResult) {}
-    public func speechRecognitionTaskFinishedReadingAudio(_ task: SFSpeechRecognitionTask) {}
-    public func speechRecognitionTaskWasCancelled(_ task: SFSpeechRecognitionTask) {}
-    public func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didFinishSuccessfully successfully: Bool) {}
+@objc(SFSpeechRecognitionTaskDelegate) public protocol SFSpeechRecognitionTaskDelegate: NSObjectProtocol {
+    @objc(speechRecognitionDidDetectSpeech:)
+    optional func speechRecognitionDidDetectSpeech(_ task: SFSpeechRecognitionTask)
+    @objc(speechRecognitionTask:didHypothesizeTranscription:)
+    optional func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didHypothesizeTranscription transcription: SFTranscription)
+    @objc(speechRecognitionTask:didFinishRecognition:)
+    optional func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didFinishRecognition recognitionResult: SFSpeechRecognitionResult)
+    @objc(speechRecognitionTaskFinishedReadingAudio:)
+    optional func speechRecognitionTaskFinishedReadingAudio(_ task: SFSpeechRecognitionTask)
+    @objc(speechRecognitionTaskWasCancelled:)
+    optional func speechRecognitionTaskWasCancelled(_ task: SFSpeechRecognitionTask)
+    @objc(speechRecognitionTask:didFinishSuccessfully:)
+    optional func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didFinishSuccessfully successfully: Bool)
 }
 
-open class SFTranscriptionSegment: NSObject, @unchecked Sendable {
-    public let substring: String
-    public let substringRange: NSRange
-    public let timestamp: TimeInterval
-    public let duration: TimeInterval
-    public let confidence: Float
-    public var alternativeSubstrings: [String] { [] }
+@objc(SFTranscriptionSegment) open class SFTranscriptionSegment: NSObject, @unchecked Sendable {
+    @objc public let substring: String
+    @objc public let substringRange: NSRange
+    @objc public let timestamp: TimeInterval
+    @objc public let duration: TimeInterval
+    @objc public let confidence: Float
+    @objc public var alternativeSubstrings: [String] { [] }
     init(substring: String, range: NSRange, timestamp: TimeInterval, duration: TimeInterval, confidence: Float) {
         self.substring = substring; substringRange = range; self.timestamp = timestamp; self.duration = duration; self.confidence = confidence
     }
 }
-open class SFTranscription: NSObject, @unchecked Sendable {
-    public let formattedString: String
-    public let segments: [SFTranscriptionSegment]
+@objc(SFTranscription) open class SFTranscription: NSObject, @unchecked Sendable {
+    @objc public let formattedString: String
+    @objc public let segments: [SFTranscriptionSegment]
     init(formattedString: String, segments: [SFTranscriptionSegment]) { self.formattedString = formattedString; self.segments = segments }
 }
-open class SFSpeechRecognitionResult: NSObject, @unchecked Sendable {
-    public let bestTranscription: SFTranscription
-    public var transcriptions: [SFTranscription] { [bestTranscription] }
-    public let isFinal: Bool
+@objc(SFSpeechRecognitionResult) open class SFSpeechRecognitionResult: NSObject, @unchecked Sendable {
+    @objc public let bestTranscription: SFTranscription
+    @objc public var transcriptions: [SFTranscription] { [bestTranscription] }
+    @objc public let isFinal: Bool
     init(best: SFTranscription, final: Bool) { bestTranscription = best; isFinal = final }
 }
 
-open class SFSpeechRecognitionRequest: NSObject, @unchecked Sendable {
-    open var taskHint: SFSpeechRecognitionTaskHint = .unspecified
-    open var shouldReportPartialResults = true
-    open var contextualStrings: [String] = []
-    open var requiresOnDeviceRecognition = false
-    open var addsPunctuation = false
+@objc(SFSpeechRecognitionRequest) open class SFSpeechRecognitionRequest: NSObject, @unchecked Sendable {
+    @objc open var taskHint: SFSpeechRecognitionTaskHint = .unspecified
+    @objc open var shouldReportPartialResults = true
+    @objc open var contextualStrings: [String] = []
+    @objc open var requiresOnDeviceRecognition = false
+    @objc open var addsPunctuation = false
     /// a prepared custom language model (isim: its phrases bias whisper.cpp through its prompt, like contextualStrings)
-    open var customizedLanguageModel: SFSpeechLanguageModel.Configuration?
+    @objc open var customizedLanguageModel: SFSpeechLanguageModel.Configuration?
     func _pcm16k() -> [Float]? { nil }
 }
-open class SFSpeechURLRecognitionRequest: SFSpeechRecognitionRequest, @unchecked Sendable {
-    public let url: URL
-    public init(url URL: URL) { url = URL }
+@objc(SFSpeechURLRecognitionRequest) open class SFSpeechURLRecognitionRequest: SFSpeechRecognitionRequest, @unchecked Sendable {
+    @objc(URL) public let url: URL
+    @objc(initWithURL:) public init(url URL: URL) { url = URL }
     override func _pcm16k() -> [Float]? {
         var out: UnsafeMutablePointer<Float>? = nil
         var frames = 0, ch: Int32 = 0, rate = 0.0
@@ -82,20 +80,24 @@ open class SFSpeechURLRecognitionRequest: SFSpeechRecognitionRequest, @unchecked
         return _SFResample.mono16k(UnsafeBufferPointer(start: p, count: frames * Int(ch)), channels: Int(ch), rate: rate)
     }
 }
-open class SFSpeechAudioBufferRecognitionRequest: SFSpeechRecognitionRequest, @unchecked Sendable {
+@objc(SFSpeechAudioBufferRecognitionRequest) open class SFSpeechAudioBufferRecognitionRequest: SFSpeechRecognitionRequest, @unchecked Sendable {
     var _samples: [Float] = []
     var _ended = false
     var _onEnd: (() -> Void)?
     let _lock = NSLock()
     public override init() { super.init() }
-    open var nativeAudioFormat: AVAudioFormat { AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)! }
-    open func append(_ audioPCMBuffer: AVAudioPCMBuffer) {
+    @objc open var nativeAudioFormat: AVAudioFormat { AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)! }
+    @objc(appendAudioPCMBuffer:) open func append(_ audioPCMBuffer: AVAudioPCMBuffer) {
         guard let ch = audioPCMBuffer.floatChannelData else { return }
         let n = Int(audioPCMBuffer.frameLength), c = Int(audioPCMBuffer.format.channelCount)
         var mono = [Float](repeating: 0, count: n)
         for k in 0..<c { for i in 0..<n { mono[i] += ch[k][i] / Float(c) } }
         let r = _SFResample.mono16k(mono, rate: audioPCMBuffer.format.sampleRate)
         _lock.lock(); _samples += r; _lock.unlock()
+    }
+    /// Objective-C passes a CMSampleBufferRef (isim's CMSampleBuffer object)
+    @objc(appendAudioSampleBuffer:) func _objcAppendAudioSampleBuffer(_ sampleBuffer: UnsafeRawPointer) {
+        appendAudioSampleBuffer(Unmanaged<CMSampleBuffer>.fromOpaque(sampleBuffer).takeUnretainedValue())
     }
     open func appendAudioSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
         guard let asbd = sampleBuffer.formatDescription?.audioStreamBasicDescription, let b = sampleBuffer.dataBuffer else { return }
@@ -112,7 +114,7 @@ open class SFSpeechAudioBufferRecognitionRequest: SFSpeechRecognitionRequest, @u
         let r = _SFResample.mono16k(mono, rate: asbd.mSampleRate)
         _lock.lock(); _samples += r; _lock.unlock()
     }
-    open func endAudio() {
+    @objc open func endAudio() {
         _lock.lock(); _ended = true; let f = _onEnd; _onEnd = nil; _lock.unlock()
         f?()
     }
@@ -140,11 +142,11 @@ public let SFSpeechErrorDomain = "SFSpeechErrorDomain"
 @objc public enum SFSpeechErrorCode: Int, Sendable { case internalServiceError = 1, audioReadFailed = 2, undefinedTemplateClassName = 7, malformedSupplementalModel = 8 }
 func _sfError(_ msg: String, code: Int = 1) -> NSError { NSError(domain: SFSpeechErrorDomain, code: code, userInfo: [NSLocalizedDescriptionKey: msg]) }
 
-open class SFSpeechRecognitionTask: NSObject, @unchecked Sendable {
-    open private(set) var state: SFSpeechRecognitionTaskState = .starting
-    open private(set) var isFinishing = false
-    open private(set) var isCancelled = false
-    open private(set) var error: Error?
+@objc(SFSpeechRecognitionTask) open class SFSpeechRecognitionTask: NSObject, @unchecked Sendable {
+    @objc open private(set) var state: SFSpeechRecognitionTaskState = .starting
+    @objc open private(set) var isFinishing = false
+    @objc open private(set) var isCancelled = false
+    @objc open private(set) var error: Error?
     let _request: SFSpeechRecognitionRequest
     let _locale: Locale
     let _queue: OperationQueue
@@ -155,12 +157,12 @@ open class SFSpeechRecognitionTask: NSObject, @unchecked Sendable {
         _request = request; _locale = locale; _queue = queue; _delegate = delegate; _handler = handler
         super.init()
     }
-    open func finish() { isFinishing = true; (_request as? SFSpeechAudioBufferRecognitionRequest)?.endAudio() }
-    open func cancel() {
+    @objc open func finish() { isFinishing = true; (_request as? SFSpeechAudioBufferRecognitionRequest)?.endAudio() }
+    @objc open func cancel() {
         guard state != .completed else { return }
         isCancelled = true; state = .canceling
         _queue.addOperation { [self] in
-            _delegate?.speechRecognitionTaskWasCancelled(self)
+            _delegate?.speechRecognitionTaskWasCancelled?(self)
             state = .completed
         }
     }
@@ -179,13 +181,13 @@ open class SFSpeechRecognitionTask: NSObject, @unchecked Sendable {
             guard !isCancelled else { return }
             error = e; state = .completed
             _handler(nil, e)
-            _delegate?.speechRecognitionTask(self, didFinishSuccessfully: false)
+            _delegate?.speechRecognitionTask?(self, didFinishSuccessfully: false)
         }
     }
     func _recognize() {
         guard !isCancelled else { return }
         state = .finishing
-        _queue.addOperation { [self] in _delegate?.speechRecognitionTaskFinishedReadingAudio(self) }
+        _queue.addOperation { [self] in _delegate?.speechRecognitionTaskFinishedReadingAudio?(self) }
         guard let pcm = _request._pcm16k(), !pcm.isEmpty else { _fail(_sfError("isim could not read the audio for speech recognition", code: 2)); return }
         let lang = _locale.language.languageCode?.identifier ?? "en"
         let prompt = _SpeechEngine.prompt(_request.contextualStrings, model: _request.customizedLanguageModel)
@@ -214,37 +216,37 @@ open class SFSpeechRecognitionTask: NSObject, @unchecked Sendable {
         let result = SFSpeechRecognitionResult(best: t, final: true)
         _queue.addOperation { [self] in
             guard !isCancelled else { return }
-            if !text.isEmpty { _delegate?.speechRecognitionDidDetectSpeech(self) }
+            if !text.isEmpty { _delegate?.speechRecognitionDidDetectSpeech?(self) }
             state = .completed
             _handler(result, nil)
-            _delegate?.speechRecognitionTask(self, didFinishRecognition: result)
-            _delegate?.speechRecognitionTask(self, didFinishSuccessfully: true)
+            _delegate?.speechRecognitionTask?(self, didFinishRecognition: result)
+            _delegate?.speechRecognitionTask?(self, didFinishSuccessfully: true)
         }
     }
 }
 
-open class SFSpeechRecognizer: NSObject, @unchecked Sendable {
-    public let locale: Locale
-    open weak var delegate: SFSpeechRecognizerDelegate?
-    open var queue: OperationQueue = .main
-    open var defaultTaskHint: SFSpeechRecognitionTaskHint = .unspecified
-    open var supportsOnDeviceRecognition: Bool { isAvailable }
+@objc(SFSpeechRecognizer) open class SFSpeechRecognizer: NSObject, @unchecked Sendable {
+    @objc public let locale: Locale
+    @objc open weak var delegate: SFSpeechRecognizerDelegate?
+    @objc open var queue: OperationQueue = .main
+    @objc open var defaultTaskHint: SFSpeechRecognitionTaskHint = .unspecified
+    @objc open var supportsOnDeviceRecognition: Bool { isAvailable }
     static let languages: Set<String> = ["en", "fr", "de", "es", "it", "pt", "nl", "sv", "da", "nb", "fi", "pl", "tr", "ru", "uk", "ja", "ko", "zh", "ar", "he", "hi", "ro", "cs", "el", "vi", "th", "id", "ms", "ca", "hu", "sk", "hr"]
     public convenience override init() { self.init(locale: Locale.current)! }
-    public init?(locale: Locale) {
+    @objc(initWithLocale:) public init?(locale: Locale) {
         guard let l = locale.language.languageCode?.identifier, SFSpeechRecognizer.languages.contains(l) else { return nil }
         self.locale = locale
         super.init()
     }
-    open class func supportedLocales() -> Set<Locale> { Set(languages.map { Locale(identifier: $0) }) }
+    @objc open class func supportedLocales() -> Set<Locale> { Set(languages.map { Locale(identifier: $0) }) }
     /// isim: true when the host has a speech-to-text engine configured (whisper.cpp or Vosk)
-    open var isAvailable: Bool { isim_speech_available() != 0 }
+    @objc open var isAvailable: Bool { isim_speech_available() != 0 }
 
     // MARK: authorization
-    open class func authorizationStatus() -> SFSpeechRecognizerAuthorizationStatus {
+    @objc open class func authorizationStatus() -> SFSpeechRecognizerAuthorizationStatus {
         _Privacy.stored("speech").flatMap { SFSpeechRecognizerAuthorizationStatus(rawValue: $0) } ?? .notDetermined
     }
-    open class func requestAuthorization(_ handler: @escaping @Sendable (SFSpeechRecognizerAuthorizationStatus) -> Void) {
+    @objc(requestAuthorization:) open class func requestAuthorization(_ handler: @escaping @Sendable (SFSpeechRecognizerAuthorizationStatus) -> Void) {
         let s = authorizationStatus()
         if s != .notDetermined { _Privacy.reply { handler(s) }; return }
         guard let purpose = _Privacy.usage("NSSpeechRecognitionUsageDescription", "Speech") else { _Privacy.reply { handler(.denied) }; return }
@@ -262,10 +264,10 @@ open class SFSpeechRecognizer: NSObject, @unchecked Sendable {
     }
 
     // MARK: tasks
-    open func recognitionTask(with request: SFSpeechRecognitionRequest, resultHandler: @escaping (SFSpeechRecognitionResult?, Error?) -> Void) -> SFSpeechRecognitionTask {
+    @objc(recognitionTaskWithRequest:resultHandler:) open func recognitionTask(with request: SFSpeechRecognitionRequest, resultHandler: @escaping (SFSpeechRecognitionResult?, Error?) -> Void) -> SFSpeechRecognitionTask {
         _task(request, nil, resultHandler)
     }
-    open func recognitionTask(with request: SFSpeechRecognitionRequest, delegate: SFSpeechRecognitionTaskDelegate) -> SFSpeechRecognitionTask {
+    @objc(recognitionTaskWithRequest:delegate:) open func recognitionTask(with request: SFSpeechRecognitionRequest, delegate: SFSpeechRecognitionTaskDelegate) -> SFSpeechRecognitionTask {
         _task(request, delegate) { _, _ in }
     }
     func _task(_ request: SFSpeechRecognitionRequest, _ delegate: SFSpeechRecognitionTaskDelegate?, _ handler: @escaping (SFSpeechRecognitionResult?, Error?) -> Void) -> SFSpeechRecognitionTask {

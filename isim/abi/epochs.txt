@@ -52,3 +52,7 @@ usr/lib/swift/libswiftARKit.dylib 0.31.0
 # properties are class vars, and VNDocumentCameraViewControllerDelegate is Apple's Objective-C protocol. Swift apps built
 # with 0.31 or earlier that use VisionKit must be rebuilt.
 usr/lib/swift/libswiftVisionKit.dylib 0.32.0
+# 0.34.0 (issue #700): Speech's Objective-C interface. SFSpeechRecognizerDelegate and SFSpeechRecognitionTaskDelegate are
+# Apple's @objc protocols with optional methods (they were Swift protocols with default implementations), and the
+# classes have Apple's Objective-C names. Swift apps built with 0.33 or earlier that use Speech must be rebuilt.
+usr/lib/swift/libswiftSpeech.dylib 0.34.0

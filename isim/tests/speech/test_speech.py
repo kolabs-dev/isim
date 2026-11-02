@@ -35,3 +35,17 @@ def test_speech_analyzer_without_engine(device_data):
     env = {"PATH": no_engine_path(), "ISIM_WHISPER_MODEL": "", "ISIM_VOSK_MODEL": ""}
     r = selftest("SpeechTest", data=device_data, os_version="26", env=env)
     assert "engine: none" in r.output
+
+
+def test_speech_objc(device_data, tmp_path):
+    """SpeechCTest.app (issue #700): the Objective-C interface, with the stand-in whisper-cli"""
+    need_apps("SpeechCTest")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    shutil.copy(FAKE, bin_dir / "whisper-cli")
+    (bin_dir / "whisper-cli").chmod(0o755)
+    model = tmp_path / "ggml-test.bin"
+    model.write_bytes(b"not a model: fake-whisper-cli ignores it")
+    env = {"PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}", "ISIM_WHISPER_MODEL": str(model),
+           "ISIM_SPEECH_PERMISSION": "allow"}
+    selftest("SpeechCTest", data=device_data, env=env)

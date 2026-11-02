@@ -250,18 +250,18 @@ public class SFCustomLanguageModelData: Hashable, Codable, @unchecked Sendable {
 
 // MARK: - prepared models
 
-open class SFSpeechLanguageModel: NSObject, @unchecked Sendable {
+@objc(SFSpeechLanguageModel) open class SFSpeechLanguageModel: NSObject, @unchecked Sendable {
     @objc(SFSpeechLanguageModelConfiguration)
     public class Configuration: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
-        public let languageModel: URL
-        public let vocabulary: URL?
+        @objc public let languageModel: URL
+        @objc public let vocabulary: URL?
         let _weight: NSNumber?
         @available(iOS 26.0, *)
-        public var weight: NSNumber? { _weight }
-        public convenience init(languageModel: URL) { self.init(languageModel: languageModel, vocabulary: nil, _weight: nil) }
-        public convenience init(languageModel: URL, vocabulary: URL?) { self.init(languageModel: languageModel, vocabulary: vocabulary, _weight: nil) }
+        @objc public var weight: NSNumber? { _weight }
+        @objc(initWithLanguageModel:) public convenience init(languageModel: URL) { self.init(languageModel: languageModel, vocabulary: nil, _weight: nil) }
+        @objc(initWithLanguageModel:vocabulary:) public convenience init(languageModel: URL, vocabulary: URL?) { self.init(languageModel: languageModel, vocabulary: vocabulary, _weight: nil) }
         @available(iOS 26.0, *)
-        public convenience init(languageModel: URL, vocabulary: URL?, weight: NSNumber?) { self.init(languageModel: languageModel, vocabulary: vocabulary, _weight: weight) }
+        @objc(initWithLanguageModel:vocabulary:weight:) public convenience init(languageModel: URL, vocabulary: URL?, weight: NSNumber?) { self.init(languageModel: languageModel, vocabulary: vocabulary, _weight: weight) }
         init(languageModel: URL, vocabulary: URL?, _weight: NSNumber?) { self.languageModel = languageModel; self.vocabulary = vocabulary; self._weight = _weight }
         public func copy(with zone: NSZone? = nil) -> Any { self }
         public static var supportsSecureCoding: Bool { true }
@@ -283,9 +283,11 @@ open class SFSpeechLanguageModel: NSObject, @unchecked Sendable {
         public override var hash: Int { languageModel.hashValue }
     }
 
+    @objc(prepareCustomLanguageModelForUrl:configuration:completion:)
     open class func prepareCustomLanguageModel(for asset: URL, configuration: Configuration, completion: @escaping @Sendable (Error?) -> Void) {
         prepareCustomLanguageModel(for: asset, configuration: configuration, ignoresCache: false, completion: completion)
     }
+    @objc(prepareCustomLanguageModelForUrl:configuration:ignoresCache:completion:)
     open class func prepareCustomLanguageModel(for asset: URL, configuration: Configuration, ignoresCache: Bool, completion: @escaping @Sendable (Error?) -> Void) {
         DispatchQueue.global().async { completion(_prepare(asset, configuration, ignoresCache: ignoresCache)) }
     }
@@ -296,10 +298,12 @@ open class SFSpeechLanguageModel: NSObject, @unchecked Sendable {
         if let e = await Task.detached(operation: { _prepare(asset, configuration, ignoresCache: ignoresCache) }).value { throw e }
     }
     @available(iOS, introduced: 17.0, deprecated: 26.0)
+    @objc(prepareCustomLanguageModelForUrl:clientIdentifier:configuration:completion:)
     open class func prepareCustomLanguageModel(for asset: URL, clientIdentifier: String, configuration: Configuration, completion: @escaping @Sendable (Error?) -> Void) {
         prepareCustomLanguageModel(for: asset, configuration: configuration, ignoresCache: false, completion: completion)
     }
     @available(iOS, introduced: 17.0, deprecated: 26.0)
+    @objc(prepareCustomLanguageModelForUrl:clientIdentifier:configuration:ignoresCache:completion:)
     open class func prepareCustomLanguageModel(for asset: URL, clientIdentifier: String, configuration: Configuration, ignoresCache: Bool, completion: @escaping @Sendable (Error?) -> Void) {
         prepareCustomLanguageModel(for: asset, configuration: configuration, ignoresCache: ignoresCache, completion: completion)
     }
