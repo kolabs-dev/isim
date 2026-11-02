@@ -2,8 +2,9 @@
 //
 // The page is rendered by real WebKit (the host's WebKitGTK, see Engine.swift) and drawn by the web
 // view's scroll view from frames the engine sends. Adapted parts, compared with iOS:
-// - layout: the page is laid out at the view's width in CSS pixels (= points); WebKitGTK has no
-//   mobile 980-px virtual viewport, so pages without <meta name=viewport> are not zoomed out;
+// - layout: a page with <meta name=viewport> is laid out at the view's width in CSS pixels (= points); one without it
+//   980 CSS px wide and scaled to fit, as on iOS (WebKitGTK has no mobile viewport: the page zoom, decided as the page
+//   is parsed);
 // - input: taps, typing and scrolling reach the page as DOM events made from an isolated JavaScript
 //   world (`isTrusted` is false); long-press menus, text selection, <select> menus, pinch zoom and the find
 //   navigator: Interaction.swift;
@@ -69,6 +70,11 @@ import isim_host
     @MainActor @objc(webView:requestMediaCapturePermissionForOrigin:initiatedByFrame:type:asyncDecisionHandler:) optional func webView(_ webView: WKWebView,
                                            requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo,
                                            type: WKMediaCaptureType) async -> WKPermissionDecision
+    // <input type=file> (iOS 18.4): the files to give the page, or nil (none)
+    @available(iOS 18.4, *)
+    @MainActor @objc(webView:runOpenPanelWithParameters:initiatedByFrame:completionHandler:) optional func webView(_ webView: WKWebView,
+                                           runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo,
+                                           completionHandler: @escaping ([URL]?) -> Void)
 }
 
 // MARK: - scroll view
@@ -105,7 +111,7 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
         if !applyingPage, let w = web {
             lastUserScroll = isim_time()
             let o = pageOrigin
-            w._send(["scrollto", _WKProto.num((o.x / w.pageZoom).rounded()), _WKProto.num((o.y / w.pageZoom).rounded())])
+            w._send(["scrollto", _WKProto.num((o.x / w._zoom).rounded()), _WKProto.num((o.y / w._zoom).rounded())])
         }
         _outerDelegate?.scrollViewDidScroll?(scrollView)
     }
@@ -116,7 +122,7 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
     func pageScrolled(x: Double, y: Double, width: Double, height: Double) {
         guard let w = web else { return }
         defer { w._refreshSelection() }
-        let z = w.pageZoom
+        let z = w._zoom
         applyingPage = true
         let cs = CGSize(width: max(bounds.width, width * z), height: max(bounds.height, height * z))
         if contentSize != cs { contentSize = cs }
@@ -128,7 +134,7 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
         setNeedsDisplay()
     }
     func pagePoint(_ t: UITouch) -> CGPoint {
-        let p = t.location(in: self), o = pageOrigin, z = web?.pageZoom ?? 1
+        let p = t.location(in: self), o = pageOrigin, z = web?._zoom ?? 1
         return CGPoint(x: (p.x - o.x) / z, y: (p.y - o.y) / z)
     }
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -206,6 +212,17 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
     @objc open dynamic var interactionState: Any?
     @objc open dynamic var mediaType: String?
     @objc open dynamic var pageZoom: CGFloat = 1 { didSet { _send(["zoom", _WKProto.num(Double(pageZoom))]) } }
+    /// a page without <meta name=viewport> lays out 980 CSS px wide and is scaled to fit, as on iOS
+    var _fit: CGFloat = 1
+    /// points per CSS px: the page zoom and the 980-px viewport's fit
+    var _zoom: CGFloat { pageZoom * _fit }
+    var _hasViewportMeta = true
+    func _updateFit() { _fit = _hasViewportMeta ? 1 : min(1, max(_engineSize.width, 1) / 980) }   /* as isim-webkit computes it */
+    // Panels.swift: element fullscreen
+    var _fullscreenState: FullscreenState = .notInFullscreen
+    var _fullscreenHome: _WKFullscreenHome?
+    var _fullscreenCover: UIView?
+    @objc open dynamic var fullscreenState: FullscreenState { _fullscreenState }
     open override class func automaticallyNotifiesObservers(forKey key: String) -> Bool {
         ["title", "URL", "isLoading", "loading", "estimatedProgress", "canGoBack", "canGoForward", "hasOnlySecureContent", "themeColor"].contains(key) ? false : super.automaticallyNotifiesObservers(forKey: key)
     }
@@ -279,7 +296,9 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
         let js = configuration.defaultWebpagePreferences.allowsContentJavaScript
         _WKEngine.shared.send(["new", String(_engineID), _WKProto.num(Double(size.width)), _WKProto.num(Double(size.height)),
                                _WKProto.num(Double(UIScreen.main.scale)), store.isPersistent ? "0" : "1", dir, _userAgent, js ? "1" : "0", _bgString()])
+        _send(["fsenable", configuration.preferences.isElementFullscreenEnabled ? "1" : "0"])
         for s in configuration.userContentController.userScripts { _installScript(s) }
+        _installExtensionScripts()
         for h in configuration.userContentController._handlers { _installHandler(h) }
         for l in configuration.userContentController._ruleLists { _send(["addrule", l._store, l.identifier]) }
     }
@@ -305,6 +324,13 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
     func _reinstallScripts() {
         _send(["clearscripts"])
         for s in configuration.userContentController.userScripts { _installScript(s) }
+        _installExtensionScripts()
+    }
+    /// the content scripts of the configuration's web extension controller (iOS 18.4)
+    func _installExtensionScripts() {
+        guard #available(iOS 18.4, *), let c = configuration.webExtensionController else { return }
+        c._attach(self)
+        for s in c._userScripts() { _installScript(s) }
     }
     func _installHandler(_ h: WKUserContentController.Handler) { _send(["handler", h.world._engineName, h.name, h.withReply ? "1" : "0"]) }
     func _removeHandler(_ h: WKUserContentController.Handler) { _send(["rmhandler", h.world._engineName, h.name]) }
@@ -323,6 +349,7 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
         if bounds.width >= 1, bounds.height >= 1, size != _engineSize {
             _engineSize = size
             _send(["size", _WKProto.num(Double(size.width)), _WKProto.num(Double(size.height)), _WKProto.num(Double(UIScreen.main.scale))])
+            _updateFit()
         }
     }
     func _drawPage(in sv: _WKScrollView) {
@@ -563,7 +590,7 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
             DispatchQueue.main.async { completionHandler(.failure(WKError(.unknown, userInfo: [NSLocalizedDescriptionKey: "no page"]))) }
             return
         }
-        let width = _engineSize.width, height = max(_engineSize.height, _scroll.contentSize.height / max(pageZoom, 0.01))   /* points = CSS px */
+        let width = _engineSize.width, height = max(_engineSize.height, _scroll.contentSize.height / max(_zoom, 0.01))   /* points = CSS px */
         let r = configuration.rect.isNull ? CGRect.zero : configuration.rect
         _engineRequest(["pdf", _WKProto.num(Double(width)), _WKProto.num(Double(height)),
                         _WKProto.num(Double(r.minX)), _WKProto.num(Double(r.minY)), _WKProto.num(Double(r.width)), _WKProto.num(Double(r.height))]) { b64 in
@@ -667,6 +694,8 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
         case "terminated": _engineExited()
         case "auth": _authEvent(f)
         case "media": _mediaEvent(f)
+        case "files": _filesEvent(f)
+        case "fullscreen": _fullscreenEvent(f)
         default: break
         }
     }
@@ -848,6 +877,9 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
     private func _pageEvent(_ json: String) {
         let o = _wkJSONObject(json)
         switch o["t"] as? String {
+        case "vp":                                            /* the engine applied it; points per CSS px for taps and scrolling */
+            _hasViewportMeta = o["meta"] as? Bool ?? true
+            _updateFit()
         case "scroll":
             _scroll.pageScrolled(x: o["x"] as? Double ?? 0, y: o["y"] as? Double ?? 0, width: o["w"] as? Double ?? 0, height: o["h"] as? Double ?? 0)
         case "select": _showSelect(o)

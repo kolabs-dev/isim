@@ -125,6 +125,12 @@ public struct WKDataDetectorTypes: OptionSet, Sendable {
     @objc open dynamic var allowsInlinePredictions = false
     @objc open dynamic var supportsAdaptiveImageGlyph = false
     var _schemeHandlers: [String: WKURLSchemeHandler] = [:]
+    var _extensionController: AnyObject?
+    /// the web extensions whose content scripts run in these web views (iOS 18.4, WebExtension.swift)
+    @available(iOS 18.4, *)
+    @objc open var webExtensionController: WKWebExtensionController? {
+        get { _extensionController as? WKWebExtensionController } set { _extensionController = newValue }
+    }
     public override init() { super.init() }
     public final func setURLSchemeHandler(_ urlSchemeHandler: WKURLSchemeHandler?, forURLScheme urlScheme: String) {
         let s = urlScheme.lowercased()
@@ -141,7 +147,7 @@ public struct WKDataDetectorTypes: OptionSet, Sendable {
         c.applicationNameForUserAgent = applicationNameForUserAgent; c.allowsInlineMediaPlayback = allowsInlineMediaPlayback
         c.mediaTypesRequiringUserActionForPlayback = mediaTypesRequiringUserActionForPlayback; c.dataDetectorTypes = dataDetectorTypes
         c.ignoresViewportScaleLimits = ignoresViewportScaleLimits; c.limitsNavigationsToAppBoundDomains = limitsNavigationsToAppBoundDomains
-        c._schemeHandlers = _schemeHandlers
+        c._schemeHandlers = _schemeHandlers; c._extensionController = _extensionController
         return c
     }
 }

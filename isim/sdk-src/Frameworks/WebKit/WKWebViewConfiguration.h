@@ -1,6 +1,7 @@
 #pragma once
 #import <WebKit/WKFoundation.h>
 NS_ASSUME_NONNULL_BEGIN
+@class WKWebExtensionController;
 @class WKPreferences, WKProcessPool, WKUserContentController, WKWebpagePreferences, WKWebsiteDataStore;
 @protocol WKURLSchemeHandler;
 typedef NS_ENUM(NSInteger, WKSelectionGranularity) { WKSelectionGranularityDynamic, WKSelectionGranularityCharacter };
@@ -32,6 +33,8 @@ typedef NS_ENUM(NSInteger, WKUserInterfaceDirectionPolicy) { WKUserInterfaceDire
 @property (nonatomic) BOOL limitsNavigationsToAppBoundDomains;
 @property (nonatomic) BOOL upgradeKnownHostsToHTTPS;
 @property (nonatomic) BOOL allowsInlinePredictions;
+/* the web extensions whose content scripts run in the web view */
+@property (nonatomic, nullable, strong) WKWebExtensionController *webExtensionController API_AVAILABLE(ios(18.4));
 - (void)setURLSchemeHandler:(nullable id<WKURLSchemeHandler>)urlSchemeHandler forURLScheme:(NSString *)urlScheme;
 - (nullable id<WKURLSchemeHandler>)urlSchemeHandlerForURLScheme:(NSString *)urlScheme;
 @end

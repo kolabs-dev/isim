@@ -4,6 +4,9 @@ NS_ASSUME_NONNULL_BEGIN
 @class WKDownload, WKWebViewConfiguration, WKBackForwardList, WKBackForwardListItem, WKNavigation, WKSnapshotConfiguration, WKPDFConfiguration,
        WKFindConfiguration, WKFindResult, WKFrameInfo, WKContentWorld;
 @protocol WKNavigationDelegate, WKUIDelegate;
+typedef NS_ENUM(NSInteger, WKFullscreenState) {
+    WKFullscreenStateNotInFullscreen, WKFullscreenStateEnteringFullscreen, WKFullscreenStateInFullscreen, WKFullscreenStateExitingFullscreen,
+} API_AVAILABLE(ios(16.0));
 /* isim: the page is rendered by the host's WebKitGTK (see the Swift overlay's WKWebView.swift for what is adapted) */
 @interface WKWebView : UIView
 @property (nonatomic, readonly, copy) WKWebViewConfiguration *configuration;
@@ -53,6 +56,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL allowsLinkPreview;
 @property (nonatomic, readonly, strong) UIScrollView *scrollView;
 @property (nonatomic) CGFloat pageZoom;
+/* element fullscreen (WKPreferences.elementFullscreenEnabled), KVO-observable */
+@property (nonatomic, readonly) WKFullscreenState fullscreenState API_AVAILABLE(ios(16.0));
 @property (nullable, nonatomic, copy) NSString *mediaType;
 @property (nullable, nonatomic, copy) id interactionState;
 @property (nonatomic, getter=isInspectable) BOOL inspectable;

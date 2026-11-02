@@ -40,6 +40,12 @@
 #import <WebKit/WKDownload.h>
 #import <WebKit/WKWebViewConfiguration.h>
 #import <WebKit/WKNavigationDelegate.h>
+#import <WebKit/WKOpenPanelParameters.h>
+#import <WebKit/WKWebExtensionPermission.h>
+#import <WebKit/WKWebExtensionMatchPattern.h>
+#import <WebKit/WKWebExtension.h>
+#import <WebKit/WKWebExtensionContext.h>
+#import <WebKit/WKWebExtensionController.h>
 #import <WebKit/WKUIDelegate.h>
 #import <WebKit/WKWebView.h>
 #endif

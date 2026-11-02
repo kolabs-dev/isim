@@ -188,18 +188,51 @@ def test_web_webpage(launch, web):
     assert app.quit() == 0
 
 
+@pytest.mark.os_matrix
+def test_web_webpage_decider(launch, web, ios):
+    """WebPage (iOS 26) with a NavigationDeciding and a DialogPresenting (#421): the decider sees each navigation
+    action and response and cancels a link; the presenter answers alert, confirm and prompt."""
+    if float(ios[0] or 18) < 26:
+        pytest.skip("WebPage is iOS 26")
+    port, _ = web
+    app = launch("HelloWeb", args=["-webpage", "-decide", "-server", f"http://127.0.0.1:{port}"])
+    app.wait_log(r"^HelloWeb: decide action -?\d+ /hello\.txt main=true -> allow")
+    app.wait_log(r"^HelloWeb: decide response text/plain canShow=true")
+    app.wait_log(r"^HelloWeb: loaded /hello\.txt")
+    app.wait_tap_id("page-dialogs")
+    app.wait_log(r"^HelloWeb: presenter alert hello main=true")
+    app.wait_log(r"^HelloWeb: presenter confirm Proceed\?")
+    app.wait_log(r"^HelloWeb: presenter prompt Name\? default=nobody")
+    app.wait_log(r"^HelloWeb: dialogs true Ada")
+    app.tap_id("page-blocked")
+    app.wait_log(r"^HelloWeb: decide action -?\d+ /blocked main=true -> cancel")
+    app.tap_id("page-three")
+    app.wait_log(r"^HelloWeb: decide action -?\d+ /page3 main=true -> allow")
+    app.wait_log(r"^HelloWeb: page url /page3")
+    assert "page url /blocked" not in app.log, "the cancelled link is not followed"
+    assert app.quit() == 0
+
+
 def test_web_objc(launch):
     """WebKit from Objective-C (HelloWebObjC, #200): Apple's class names, a WKUserContentController subclass, a category,
-    delegates under Apple's selectors, script messages, KVO on Apple's key paths, JavaScript calls and a snapshot"""
+    delegates under Apple's selectors, script messages, KVO on Apple's key paths, JavaScript calls and a snapshot; web
+    extensions (#421: match patterns, a manifest version 2 extension, a context's permissions, a controller)"""
     if not (ROOT / "out/bin/isim-webkit").exists():
         pytest.skip("no web engine helper (needs WebKitGTK 6.0 and gtk4-broadwayd on the host)")
-    app = launch("HelloWebObjC")
+    app = launch("HelloWebObjC", os_version="18.4")                    # web extensions are iOS 18.4
     app.wait_log(r"^HelloWebObjC: classes WKWebView WKWebViewConfiguration WKUserContentController domain=WKErrorDomain")
     app.wait_log(r"^HelloWebObjC: config media=0 inline=1 persistent=0 scripts=1")
     app.wait_log(r"^HelloWebObjC: scheme handler kept 1")
     app.wait_log(r"^HelloWebObjC: link metadata title=Info\.plist file=1 subresources=1 timeout=30 view=LPLinkView height=64$")
     app.wait_log(r"^HelloWebObjC: link provider one-shot: NSInternalInconsistencyException$")
     app.wait_log(r"^HelloWebObjC: link ftp error LPErrorDomain 2 failed=1$")
+    # issue #421: web extensions and fullscreenState from Objective-C
+    app.wait_log(r"^HelloWebObjC: pattern \*://\*\.example\.com/docs/\* host=\*\.example\.com matches=1,0 bad=\(null\) "
+                 r"error=WKWebExtensionMatchPatternErrorDomain/2 all=1$")
+    app.wait_log(r"^HelloWebObjC: extension Notes 3\.0 mv=2 persistentBackground=1 options=1 permissions=tabs hosts=1 tabs=3 notes=-1 "
+                 r"loaded=1 contexts=1 options=options\.html$")
+    app.wait_log(r"^HelloWebObjC: missing extension \(null\) WKWebExtensionErrorDomain/2$")
+    app.wait_log(r"^HelloWebObjC: fullscreenState 0 open panel 1$")
     app.wait_log(r"^HelloWebObjC: didStartProvisionalNavigation", timeout=30)
     for line in ( "didCommitNavigation", r"didFinishNavigation https://objc\.example/ loading=0",
                  "kvo loading=1", "kvo loading=0", r"kvo estimatedProgress=1\.0", "kvo title=ObjC page",
@@ -302,3 +335,57 @@ def test_web_links(launch, web):
     app.tap_id("link-article")
     app.wait_log(r"isim: open URL http://127\.0\.0\.1:\d+/article")
     assert shot and cards and app.quit() == 0
+
+
+
+@pytest.mark.os_matrix
+def test_web_extras(launch, web, ios):
+    """Issue #421: <input type=file> through WKUIDelegate runOpenPanelWith (iOS 18.4: two files, multiple selection) or,
+    before 18.4, iOS's own menu (Photo Library / Choose File, Cancel fires the input's cancel event); element fullscreen
+    (fullscreenState entering -> in, the web view over the window, its close button -> exiting -> not in); the 980-px
+    layout viewport of a page without <meta name=viewport>; from 18.4 a WKWebExtension (manifest, localised name, match
+    patterns, a context's permissions) whose content script and CSS run on the page its context was granted."""
+    version = float(ios[0] or 18)
+    app = launch("HelloWeb", args=["-extras"])
+    if version >= 18.4:                                   # a web extension: its content script and CSS on the granted page
+        app.wait_log(r"^HelloWeb: extension Highlighter version 1\.2 mv 3 action Highlight permissions scripting,storage "
+                     r"hosts \[\"https://\*\.example/\*\"\] injected true errors 0")
+        app.wait_log(r"^HelloWeb: pattern matches true false")
+        app.wait_log(r"^HelloWeb: context loaded true storage true tabs 0 access true false")
+        app.wait_log(r"^HelloWeb: load again: error 2")
+        app.wait_log(r"^HelloWeb: narrow banner Added by Highlighter rgb\(255, 159, 10\)")
+        app.wait_still()
+        app.screenshot("web-extension-banner")
+    m = app.wait_log(r"^HelloWeb: narrow innerWidth (\d+)")
+    assert 300 < int(m.group(1)) < 600, "a page with a viewport tag lays out at the device width"
+    m = app.wait_log(r"^HelloWeb: control files at (\d+),(\d+)")
+    app.tap(int(m.group(1)), int(m.group(2)))
+    if version >= 18.4:
+        app.wait_log(r"^HelloWeb: open panel multiple=true directories=false main=true")
+        app.wait_log(r"^HelloWeb: page files notes\.txt:5,list\.txt:8")
+    else:
+        menu = app.wait_view(r"text=Choose File")
+        app.wait_still()
+        app.screenshot("web-file-menu")
+        assert "text=Photo Library" in menu, "iOS's file input menu"
+        app.tap_text("Cancel")
+        app.wait_log(r"^HelloWeb: page files cancelled")
+    m = app.wait_log(r"^HelloWeb: control fullscreen at (\d+),(\d+)")
+    app.tap(int(m.group(1)), int(m.group(2)))
+    app.wait_log(r"^HelloWeb: fullscreenState 1")
+    app.wait_log(r"^HelloWeb: fullscreenState 2")
+    app.wait_log(r"^HelloWeb: page fullscreen in box")
+    app.wait_view(r"id=isim-web-fullscreen-close")
+    app.wait_still()
+    app.screenshot("web-fullscreen")
+    app.tap_id("isim-web-fullscreen-close")
+    app.wait_log(r"^HelloWeb: fullscreenState 3")
+    app.wait_log(r"^HelloWeb: fullscreenState 0")
+    app.wait_log(r"^HelloWeb: page fullscreen out")
+    app.wait_view(r"id=isim-web-fullscreen", gone=True)
+    app.tap_id("wide")
+    app.wait_log(r"^HelloWeb: wide innerWidth 980")
+    app.wait_log(r"^HelloWeb: wide banner none")             # excluded, and not granted
+    app.wait_still()
+    app.screenshot("web-wide-page")
+    assert app.quit() == 0
