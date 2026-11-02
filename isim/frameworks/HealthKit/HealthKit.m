@@ -74,3 +74,13 @@ NSString * const HKQuantityTypeIdentifierDistanceSwimming = @"HKQuantityTypeIden
 NSString * const HKQuantityTypeIdentifierSwimmingStrokeCount = @"HKQuantityTypeIdentifierSwimmingStrokeCount";
 NSString * const HKQuantityTypeIdentifierDistanceWheelchair = @"HKQuantityTypeIdentifierDistanceWheelchair";
 NSString * const HKQuantityTypeIdentifierDistanceDownhillSnowSports = @"HKQuantityTypeIdentifierDistanceDownhillSnowSports";
+/* the Health profile, activity summaries, correlations and states of mind (issue #419) */
+NSString * const HKCorrelationTypeIdentifierBloodPressure = @"HKCorrelationTypeIdentifierBloodPressure";
+NSString * const HKCorrelationTypeIdentifierFood = @"HKCorrelationTypeIdentifierFood";
+NSString * const HKCharacteristicTypeIdentifierFitzpatrickSkinType = @"HKCharacteristicTypeIdentifierFitzpatrickSkinType";
+NSString * const HKCharacteristicTypeIdentifierWheelchairUse = @"HKCharacteristicTypeIdentifierWheelchairUse";
+NSString * const HKCharacteristicTypeIdentifierActivityMoveMode = @"HKCharacteristicTypeIdentifierActivityMoveMode";
+NSString * const HKQuantityTypeIdentifierAppleMoveTime = @"HKQuantityTypeIdentifierAppleMoveTime";
+NSString * const HKQuantityTypeIdentifierAppleStandTime = @"HKQuantityTypeIdentifierAppleStandTime";
+NSString * const HKActivitySummaryTypeIdentifier = @"HKActivitySummaryTypeIdentifier";
+NSString * const HKDataTypeStateOfMind = @"HKDataTypeStateOfMind";

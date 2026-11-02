@@ -143,6 +143,14 @@ a new one nearby (with a setup code) for HMAccessoryBrowser and the Add Accessor
 within half a second; their delegates and automations see them as iOS reports an accessory's change. `isim home clear`
 removes everything.
 
+**Health profile** (HealthKit; the device's, like the Health app's profile): `isim health profile dob=1990-04-12
+sex=female blood=O+ skin=III wheelchair=no move=energy` sets the characteristics apps read (`dateOfBirthComponents()`,
+`biologicalSex()`, `bloodType()`, `fitzpatrickSkinType()`, `wheelchairUse()`, `activityMoveMode()`; any key, `none`
+unsets), `isim health goals move=KCAL movetime=MIN exercise=MIN stand=HOURS` the activity rings' goals, and `isim health
+add TYPE VALUE [MINUTES_AGO]` adds a sample from the Health app (`activeEnergyBurned 120`, `appleExerciseTime 15`,
+`heartRate 72`, `standHour 1`; quantities in their stored unit), so activity summaries and queries have data. `isim
+health list` prints the profile, the goals and how many samples of each type the device keeps.
+
 **Alarms** (AlarmKit; the shell rings the apps' alarms and timers, also in Silent Mode): an alarm going off is a
 banner while the device is in use (`alarm-banner`: tap for the full-screen alert; `alarm-secondary`, the alarm's
 secondary button such as Snooze or Repeat; `alarm-stop`) or the full-screen alert on the Lock Screen and in StandBy

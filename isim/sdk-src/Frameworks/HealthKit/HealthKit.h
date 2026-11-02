@@ -552,5 +552,143 @@ API_AVAILABLE(ios(26.0))
 - (void)startWatchAppWithWorkoutConfiguration:(HKWorkoutConfiguration *)workoutConfiguration completion:(void (^)(BOOL success, NSError * _Nullable error))completion;
 @end
 
+/* the Health profile, activity summaries, correlations and states of mind (issue #419). Not from Objective-C: activity
+   summaries' date components and the predicates built from them (isim's Foundation has no NSDateComponents) */
+typedef NS_ENUM(NSInteger, HKBloodType) {
+    HKBloodTypeNotSet = 0, HKBloodTypeAPositive, HKBloodTypeANegative, HKBloodTypeBPositive, HKBloodTypeBNegative, HKBloodTypeABPositive,
+    HKBloodTypeABNegative, HKBloodTypeOPositive, HKBloodTypeONegative,
+};
+typedef NS_ENUM(NSInteger, HKFitzpatrickSkinType) {
+    HKFitzpatrickSkinTypeNotSet = 0, HKFitzpatrickSkinTypeI, HKFitzpatrickSkinTypeII, HKFitzpatrickSkinTypeIII, HKFitzpatrickSkinTypeIV,
+    HKFitzpatrickSkinTypeV, HKFitzpatrickSkinTypeVI,
+};
+typedef NS_ENUM(NSInteger, HKWheelchairUse) { HKWheelchairUseNotSet = 0, HKWheelchairUseNo, HKWheelchairUseYes };
+typedef NS_ENUM(NSInteger, HKActivityMoveMode) { HKActivityMoveModeActiveEnergy = 1, HKActivityMoveModeAppleMoveTime } API_AVAILABLE(ios(14.0));
+typedef NS_ENUM(NSInteger, HKCategoryValueAppleStandHour) { HKCategoryValueAppleStandHourStood = 0, HKCategoryValueAppleStandHourIdle };
+typedef NSString * HKCorrelationTypeIdentifier NS_TYPED_ENUM;
+FOUNDATION_EXPORT HKCorrelationTypeIdentifier const HKCorrelationTypeIdentifierBloodPressure;
+FOUNDATION_EXPORT HKCorrelationTypeIdentifier const HKCorrelationTypeIdentifierFood;
+FOUNDATION_EXPORT HKCharacteristicTypeIdentifier const HKCharacteristicTypeIdentifierFitzpatrickSkinType;
+FOUNDATION_EXPORT HKCharacteristicTypeIdentifier const HKCharacteristicTypeIdentifierWheelchairUse;
+FOUNDATION_EXPORT HKCharacteristicTypeIdentifier const HKCharacteristicTypeIdentifierActivityMoveMode;
+FOUNDATION_EXPORT HKQuantityTypeIdentifier const HKQuantityTypeIdentifierAppleMoveTime;
+FOUNDATION_EXPORT HKQuantityTypeIdentifier const HKQuantityTypeIdentifierAppleStandTime;
+FOUNDATION_EXPORT NSString * const HKActivitySummaryTypeIdentifier;
+FOUNDATION_EXPORT NSString * const HKDataTypeStateOfMind;
+
+@interface HKBloodTypeObject : NSObject <NSCopying, NSSecureCoding>
+@property (readonly) HKBloodType bloodType;
+@end
+@interface HKFitzpatrickSkinTypeObject : NSObject <NSCopying, NSSecureCoding>
+@property (readonly) HKFitzpatrickSkinType skinType;
+@end
+@interface HKWheelchairUseObject : NSObject <NSCopying, NSSecureCoding>
+@property (readonly) HKWheelchairUse wheelchairUse;
+@end
+API_AVAILABLE(ios(14.0))
+@interface HKActivityMoveModeObject : NSObject <NSCopying, NSSecureCoding>
+@property (readonly) HKActivityMoveMode activityMoveMode;
+@end
+@interface HKHealthStore (HKCharacteristics)
+- (nullable HKBloodTypeObject *)bloodTypeWithError:(NSError **)error;
+- (nullable HKFitzpatrickSkinTypeObject *)fitzpatrickSkinTypeWithError:(NSError **)error;
+- (nullable HKWheelchairUseObject *)wheelchairUseWithError:(NSError **)error;
+- (nullable HKActivityMoveModeObject *)activityMoveModeWithError:(NSError **)error API_AVAILABLE(ios(14.0));
+@end
+
+@interface HKActivitySummaryType : HKObjectType
+@end
+@interface HKCorrelationType : HKSampleType
+@end
+@interface HKObjectType (HKSummariesAndCorrelations)
++ (HKActivitySummaryType *)activitySummaryType;
++ (nullable HKCorrelationType *)correlationTypeForIdentifier:(HKCorrelationTypeIdentifier)identifier;
+@end
+@interface HKActivitySummary : NSObject <NSCopying, NSSecureCoding>
+@property (assign) HKActivityMoveMode activityMoveMode API_AVAILABLE(ios(14.0));
+@property (assign, getter=isPaused) BOOL paused API_AVAILABLE(ios(18.0));
+@property (strong) HKQuantity *activeEnergyBurned;
+@property (strong) HKQuantity *activeEnergyBurnedGoal;
+@property (strong) HKQuantity *appleMoveTime API_AVAILABLE(ios(14.0));
+@property (strong) HKQuantity *appleMoveTimeGoal API_AVAILABLE(ios(14.0));
+@property (strong) HKQuantity *appleExerciseTime;
+@property (strong, nullable) HKQuantity *exerciseTimeGoal API_AVAILABLE(ios(16.0));
+@property (strong) HKQuantity *appleStandHours;
+@property (strong, nullable) HKQuantity *standHoursGoal API_AVAILABLE(ios(16.0));
+@end
+@interface HKActivitySummaryQuery : HKQuery
+@property (nonatomic, copy, nullable) void (^updateHandler)(HKActivitySummaryQuery *query, NSArray<HKActivitySummary *> * _Nullable updatedActivitySummaries,
+                                                           NSError * _Nullable error);
+- (instancetype)initWithPredicate:(nullable NSPredicate *)predicate
+                   resultsHandler:(void (^)(HKActivitySummaryQuery *query, NSArray<HKActivitySummary *> * _Nullable activitySummaries,
+                                            NSError * _Nullable error))handler;
+@end
+
+@interface HKCorrelation : HKSample
+@property (readonly) HKCorrelationType *correlationType;
+@property (readonly, copy) NSSet<__kindof HKSample *> *objects;
++ (instancetype)correlationWithType:(HKCorrelationType *)correlationType startDate:(NSDate *)startDate endDate:(NSDate *)endDate
+                            objects:(NSSet<HKSample *> *)objects;
++ (instancetype)correlationWithType:(HKCorrelationType *)correlationType startDate:(NSDate *)startDate endDate:(NSDate *)endDate
+                            objects:(NSSet<HKSample *> *)objects metadata:(nullable NSDictionary<NSString *, id> *)metadata;
+- (NSSet<__kindof HKSample *> *)objectsForType:(HKObjectType *)objectType;
+@end
+@interface HKCorrelationQuery : HKQuery
+@property (readonly, copy) HKCorrelationType *correlationType;
+@property (readonly, copy, nullable) NSDictionary<__kindof HKSampleType *, NSPredicate *> *samplePredicates;
+- (instancetype)initWithType:(HKCorrelationType *)correlationType predicate:(nullable NSPredicate *)predicate
+            samplePredicates:(nullable NSDictionary<__kindof HKSampleType *, NSPredicate *> *)samplePredicates
+                  completion:(void (^)(HKCorrelationQuery *query, NSArray<HKCorrelation *> * _Nullable correlations, NSError * _Nullable error))completion;
+@end
+@interface HKQuery (HKQuantityPredicates)
++ (NSPredicate *)predicateForQuantitySamplesWithOperatorType:(NSPredicateOperatorType)operatorType quantity:(HKQuantity *)quantity;
+@end
+
+typedef NS_ENUM(NSInteger, HKStateOfMindKind) { HKStateOfMindKindMomentaryEmotion = 1, HKStateOfMindKindDailyMood } API_AVAILABLE(ios(18.0));
+typedef NS_ENUM(NSInteger, HKStateOfMindValenceClassification) {
+    HKStateOfMindValenceClassificationVeryUnpleasant = 1, HKStateOfMindValenceClassificationUnpleasant,
+    HKStateOfMindValenceClassificationSlightlyUnpleasant, HKStateOfMindValenceClassificationNeutral,
+    HKStateOfMindValenceClassificationSlightlyPleasant, HKStateOfMindValenceClassificationPleasant, HKStateOfMindValenceClassificationVeryPleasant,
+} API_AVAILABLE(ios(18.0));
+typedef NS_ENUM(NSInteger, HKStateOfMindLabel) {
+    HKStateOfMindLabelAmazed = 1, HKStateOfMindLabelAmused, HKStateOfMindLabelAngry, HKStateOfMindLabelAnxious, HKStateOfMindLabelAshamed,
+    HKStateOfMindLabelBrave, HKStateOfMindLabelCalm, HKStateOfMindLabelContent, HKStateOfMindLabelDisappointed, HKStateOfMindLabelDiscouraged,
+    HKStateOfMindLabelDisgusted, HKStateOfMindLabelEmbarrassed, HKStateOfMindLabelExcited, HKStateOfMindLabelFrustrated, HKStateOfMindLabelGrateful,
+    HKStateOfMindLabelGuilty, HKStateOfMindLabelHappy, HKStateOfMindLabelHopeless, HKStateOfMindLabelIrritated, HKStateOfMindLabelJealous,
+    HKStateOfMindLabelJoyful, HKStateOfMindLabelLonely, HKStateOfMindLabelPassionate, HKStateOfMindLabelPeaceful, HKStateOfMindLabelProud,
+    HKStateOfMindLabelRelieved, HKStateOfMindLabelSad, HKStateOfMindLabelScared, HKStateOfMindLabelStressed, HKStateOfMindLabelSurprised,
+    HKStateOfMindLabelWorried, HKStateOfMindLabelAnnoyed, HKStateOfMindLabelConfident, HKStateOfMindLabelDrained, HKStateOfMindLabelHopeful,
+    HKStateOfMindLabelIndifferent, HKStateOfMindLabelOverwhelmed, HKStateOfMindLabelSatisfied,
+} API_AVAILABLE(ios(18.0));
+typedef NS_ENUM(NSInteger, HKStateOfMindAssociation) {
+    HKStateOfMindAssociationCommunity = 1, HKStateOfMindAssociationCurrentEvents, HKStateOfMindAssociationDating, HKStateOfMindAssociationEducation,
+    HKStateOfMindAssociationFamily, HKStateOfMindAssociationFitness, HKStateOfMindAssociationFriends, HKStateOfMindAssociationHealth,
+    HKStateOfMindAssociationHobbies, HKStateOfMindAssociationIdentity, HKStateOfMindAssociationMoney, HKStateOfMindAssociationPartner,
+    HKStateOfMindAssociationSelfCare, HKStateOfMindAssociationSpirituality, HKStateOfMindAssociationTasks, HKStateOfMindAssociationTravel,
+    HKStateOfMindAssociationWork, HKStateOfMindAssociationWeather,
+} API_AVAILABLE(ios(18.0));
+API_AVAILABLE(ios(18.0))
+@interface HKStateOfMindType : HKSampleType
+@end
+@interface HKObjectType (HKStateOfMind)
++ (HKStateOfMindType *)stateOfMindType API_AVAILABLE(ios(18.0));
+@end
+API_AVAILABLE(ios(18.0))
+@interface HKStateOfMind : HKSample
+@property (readonly) HKStateOfMindKind kind;
+@property (readonly) double valence;
+@property (readonly) HKStateOfMindValenceClassification valenceClassification;
+@property (readonly, copy) NSArray<NSNumber *> *labels;
+@property (readonly, copy) NSArray<NSNumber *> *associations;
++ (instancetype)stateOfMindWithDate:(NSDate *)date kind:(HKStateOfMindKind)kind valence:(double)valence labels:(NSArray<NSNumber *> *)labels
+                       associations:(NSArray<NSNumber *> *)associations;
+@end
+@interface HKQuery (HKStateOfMind)
++ (NSPredicate *)predicateForStatesOfMindWithValence:(double)valence operatorType:(NSPredicateOperatorType)operatorType API_AVAILABLE(ios(18.0));
++ (NSPredicate *)predicateForStatesOfMindWithKind:(HKStateOfMindKind)kind API_AVAILABLE(ios(18.0));
++ (NSPredicate *)predicateForStatesOfMindWithLabel:(HKStateOfMindLabel)label API_AVAILABLE(ios(18.0));
++ (NSPredicate *)predicateForStatesOfMindWithAssociation:(HKStateOfMindAssociation)association API_AVAILABLE(ios(18.0));
+@end
+
 NS_ASSUME_NONNULL_END
 #endif

@@ -8,6 +8,8 @@ struct _HKRecord: Codable {
     var seq: Int?
     /// a workout's details or a route's locations (JSON), and the workout a sample belongs to
     var extra: String? = nil, workout: String? = nil
+    /// the correlation a sample is part of (its UUID)
+    var correlation: String? = nil
 }
 /// a deleted sample (HKDeletedObject), kept for anchored object queries
 struct _HKTombstone: Codable { var uuid: String, type: String, seq: Int, bundle: String, metadata: [String: String]? }
@@ -24,10 +26,19 @@ enum _HKDB {
         max(records.compactMap(\.seq).max() ?? 0, gone.map(\.seq).max() ?? 0)
     }
     static func canSee(_ type: String, _ bundle: String) -> Bool { _HKAuth.read(type) == true || bundle == _Privacy.bundleID }
-    static func sample(_ r: _HKRecord) -> HKSample {
+    static func sample(_ r: _HKRecord) -> HKSample { sample(r, in: nil) }
+    /// a record as its sample; a correlation's objects come from the records that name it (`all`, else the database)
+    static func sample(_ r: _HKRecord, in all: [_HKRecord]?) -> HKSample {
         let s: HKSample
         let start = Date(timeIntervalSince1970: r.start), end = Date(timeIntervalSince1970: r.end)
-        if r.kind == "w" {
+        if r.kind == "k" {
+            let members = (all ?? load()).filter { $0.correlation == r.uuid }.map { sample($0, in: all) }
+            s = HKCorrelation(type: HKCorrelationType(r.type), start: start, end: end, objects: Set(members), metadata: r.metadata)
+        } else if r.kind == "m", #available(iOS 18.0, *) {
+            let d = _HKWorkoutData.decode(_HKMindData.self, r.extra) ?? _HKMindData(kind: 1, labels: [], associations: [])
+            s = HKStateOfMind(start, HKStateOfMind.Kind(rawValue: d.kind) ?? .momentaryEmotion, r.value, d.labels.compactMap { HKStateOfMind.Label(rawValue: $0) },
+                              d.associations.compactMap { HKStateOfMind.Association(rawValue: $0) }, r.metadata)
+        } else if r.kind == "w" {
             let d = _HKWorkoutData.decode(_HKWorkoutData.self, r.extra) ?? _HKWorkoutData(activity: HKWorkoutActivityType.other.rawValue, events: nil, activities: [], stats: [])
             s = d.workout(start, end, duration: r.value, metadata: r.metadata)
         } else if r.kind == "r" {
@@ -55,6 +66,16 @@ enum _HKDB {
             return _HKRecord(uuid: s.uuid.uuidString, kind: "q", type: s.sampleType.identifier, start: s.startDate.timeIntervalSince1970,
                              end: s.endDate.timeIntervalSince1970, value: q.quantity.doubleValue(for: unit), bundle: _Privacy.bundleID, source: _Privacy.appName, metadata: md)
         }
+        if let c = s as? HKCorrelation {
+            return _HKRecord(uuid: s.uuid.uuidString, kind: "k", type: c.sampleType.identifier, start: s.startDate.timeIntervalSince1970,
+                             end: s.endDate.timeIntervalSince1970, value: 0, bundle: _Privacy.bundleID, source: _Privacy.appName, metadata: md)
+        }
+        if #available(iOS 18.0, *), let m = s as? HKStateOfMind {
+            guard (-1...1).contains(m.valence) else { return nil }
+            return _HKRecord(uuid: s.uuid.uuidString, kind: "m", type: HKDataTypeStateOfMind, start: s.startDate.timeIntervalSince1970,
+                             end: s.endDate.timeIntervalSince1970, value: m.valence, bundle: _Privacy.bundleID, source: _Privacy.appName, metadata: md,
+                             extra: _HKWorkoutData.encode(_HKMindData(kind: m.kind.rawValue, labels: m.labels.map(\.rawValue), associations: m.associations.map(\.rawValue))))
+        }
         if let w = s as? HKWorkout {
             return _HKRecord(uuid: s.uuid.uuidString, kind: "w", type: HKWorkoutTypeIdentifier, start: s.startDate.timeIntervalSince1970,
                              end: s.endDate.timeIntervalSince1970, value: w.duration, bundle: _Privacy.bundleID, source: _Privacy.appName, metadata: md,
@@ -74,7 +95,13 @@ enum _HKDB {
     /// samples of `type` this app may see: all when read access was granted, otherwise only its own (iOS hides denial)
     static func visible(_ type: HKObjectType) -> [HKSample] {
         let canRead = _HKAuth.read(type.identifier) == true
-        return load().filter { $0.type == type.identifier && (canRead || $0.bundle == _Privacy.bundleID) }.map(sample)
+        let all = load()
+        if type is HKCorrelationType {           // a correlation: when the app may read its objects' types, or it saved it
+            return all.filter { r in
+                r.type == type.identifier && (r.bundle == _Privacy.bundleID || all.filter { $0.correlation == r.uuid }.allSatisfy { _HKAuth.read($0.type) == true })
+            }.map { sample($0, in: all) }
+        }
+        return all.filter { $0.type == type.identifier && (canRead || $0.bundle == _Privacy.bundleID) }.map { sample($0, in: all) }
     }
 }
 
@@ -104,6 +131,11 @@ public typealias HKObserverQueryCompletionHandler = () -> Void
         let read = (typesToRead ?? []).sorted { $0.identifier < $1.identifier }
         func finish(_ ok: Bool, _ e: Error?) { _Privacy.reply { completion(ok, e) } }
         if share.isEmpty && read.isEmpty { finish(false, HKError(.errorInvalidArgument, "Must request authorization for at least one data type")); return }
+        // correlations are authorized through their objects' types
+        let disallowed: [HKObjectType] = share.filter { $0 is HKCorrelationType } + read.filter { $0 is HKCorrelationType }
+        if !disallowed.isEmpty {
+            finish(false, HKError(.errorInvalidArgument, "Authorization to share the following types is disallowed: \(disallowed.map(\.identifier).joined(separator: ", "))")); return
+        }
         if !share.isEmpty && _Privacy.usage("NSHealthUpdateUsageDescription", "HealthKit") == nil {
             finish(false, HKError(.errorInvalidArgument, "NSHealthUpdateUsageDescription must be set in the app's Info.plist in order to request write authorization.")); return
         }
@@ -175,8 +207,15 @@ public typealias HKObserverQueryCompletionHandler = () -> Void
     open func save(_ object: HKObject, withCompletion completion: @escaping (Bool, Error?) -> Void) { save([object], withCompletion: completion) }
     open func save(_ objects: [HKObject], withCompletion completion: @escaping (Bool, Error?) -> Void) {
         var records: [_HKRecord] = []
+        // a correlation is saved with its objects, which name it; its own type needs no permission, its objects' types do
+        var parts: [(HKSample, String?)] = []
         for o in objects {
             guard let s = o as? HKSample else { _Privacy.reply { completion(false, HKError(.errorInvalidArgument, "Unsupported object")) }; return }
+            parts.append((s, nil))
+            if let c = s as? HKCorrelation { parts += c.objects.map { ($0, c.uuid.uuidString) } }
+        }
+        for (s, owner) in parts {
+            if s is HKCorrelation, let r = _HKDB.record(s) { records.append(r); continue }
             switch _HKAuth.share(s.sampleType.identifier) {
             case nil:
                 _Privacy.reply { completion(false, HKError(.errorAuthorizationNotDetermined, "Authorization is not determined")) }; return
@@ -184,9 +223,10 @@ public typealias HKObserverQueryCompletionHandler = () -> Void
                 _Privacy.reply { completion(false, HKError(.errorAuthorizationDenied, "Authorization is denied")) }; return
             default: break
             }
-            guard let r = _HKDB.record(s) else {
+            guard var r = _HKDB.record(s) else {
                 _Privacy.reply { completion(false, HKError(.errorInvalidArgument, "Quantity is not compatible with \(s.sampleType.identifier)")) }; return
             }
+            r.correlation = owner
             records.append(r)
         }
         DispatchQueue.main.async {
@@ -194,7 +234,7 @@ public typealias HKObserverQueryCompletionHandler = () -> Void
             var seq = _HKDB.lastSeq(all, _HKDB.deleted())
             for i in records.indices { seq += 1; records[i].seq = seq }
             _HKDB.save(all + records)
-            for o in objects { o.sourceRevision = HKSourceRevision(source: .default(), version: nil) }
+            for (o, _) in parts { o.sourceRevision = HKSourceRevision(source: .default(), version: nil) }
             _HKObservers.changed(Set(records.map(\.type)))
             _Privacy.reply { completion(true, nil) }
         }
@@ -208,8 +248,9 @@ public typealias HKObserverQueryCompletionHandler = () -> Void
     open func delete(_ object: HKObject, withCompletion completion: @escaping (Bool, Error?) -> Void) { delete([object], withCompletion: completion) }
     open func delete(_ objects: [HKObject], withCompletion completion: @escaping (Bool, Error?) -> Void) {
         DispatchQueue.main.async {
-            let ids = Set(objects.map(\.uuid.uuidString))
+            var ids = Set(objects.map(\.uuid.uuidString))
             let all = _HKDB.load()
+            ids.formUnion(all.filter { $0.correlation.map(ids.contains) ?? false }.map(\.uuid))   // a correlation's objects
             // apps can delete only the samples they saved; each leaves a tombstone for anchored object queries
             let gone = all.filter { ids.contains($0.uuid) && $0.bundle == _Privacy.bundleID }
             var tombs = _HKDB.deleted()
@@ -226,8 +267,18 @@ public typealias HKObserverQueryCompletionHandler = () -> Void
     }
 
     // MARK: characteristics (not set on the simulated device)
-    open func biologicalSex() throws -> HKBiologicalSexObject { HKBiologicalSexObject() }
-    open func dateOfBirthComponents() throws -> DateComponents { throw HKError(.errorNoData, "No data available for the specified predicate.") }
+    open func biologicalSex() throws -> HKBiologicalSexObject {
+        HKBiologicalSexObject(try _HKProfile.readable(.biologicalSex) ? HKBiologicalSex(rawValue: _HKProfile.load().sex) ?? .notSet : .notSet)
+    }
+    /// the date of birth in the Gregorian calendar (year, month and day), as the Health profile has it
+    open func dateOfBirthComponents() throws -> DateComponents {
+        guard try _HKProfile.readable(.dateOfBirth), let s = _HKProfile.load().dateOfBirth else {
+            throw HKError(.errorNoData, "No data available for the specified predicate.")
+        }
+        let p = s.split(separator: "-").compactMap { Int($0) }
+        guard p.count == 3 else { throw HKError(.errorNoData, "No data available for the specified predicate.") }
+        return DateComponents(calendar: Calendar(identifier: .gregorian), year: p[0], month: p[1], day: p[2])
+    }
 
     // MARK: queries
     open func execute(_ query: HKQuery) {
@@ -237,7 +288,16 @@ public typealias HKObserverQueryCompletionHandler = () -> Void
     open func stop(_ query: HKQuery) { query.running = false; _HKObservers.remove(query) }
 }
 
-@objc(HKBiologicalSexObject) open class HKBiologicalSexObject: NSObject, @unchecked Sendable { open var biologicalSex: HKBiologicalSex { .notSet } }
+@objc(HKBiologicalSexObject) open class HKBiologicalSexObject: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
+    open var biologicalSex: HKBiologicalSex { _sex }
+    let _sex: HKBiologicalSex
+    public override init() { _sex = .notSet }
+    init(_ s: HKBiologicalSex) { _sex = s }
+    public static var supportsSecureCoding: Bool { true }
+    open func encode(with coder: NSCoder) { coder.encode(_sex.rawValue, forKey: "value") }
+    public required init?(coder: NSCoder) { _sex = HKBiologicalSex(rawValue: coder.decodeInteger(forKey: "value")) ?? .notSet }
+    public func copy(with zone: OpaquePointer? = nil) -> Any { self }
+}
 
 // MARK: - Queries
 
@@ -280,6 +340,10 @@ public typealias HKObserverQueryCompletionHandler = () -> Void
     open class func predicateForObject(with uuid: UUID) -> NSPredicate { NSPredicate { obj, _ in (obj as? HKObject)?.uuid == uuid } }
     open class func predicateForObjects(with uuids: Set<UUID>) -> NSPredicate { NSPredicate { obj, _ in uuids.contains((obj as? HKObject)?.uuid ?? UUID()) } }
     open class func predicateForObjects(withMetadataKey key: String) -> NSPredicate { NSPredicate { obj, _ in (obj as? HKObject)?.metadata?[key] != nil } }
+    /// quantity samples whose quantity compares with the given one (in a compatible unit)
+    open class func predicateForQuantitySamples(with operatorType: NSComparisonPredicate.Operator, quantity: HKQuantity) -> NSPredicate {
+        NSPredicate { obj, _ in _quantity(operatorType, (obj as? HKQuantitySample)?.quantity, quantity) }
+    }
     open class func predicateForCategorySamples(with op: NSComparisonPredicate.Operator, value: Int) -> NSPredicate {
         NSPredicate { obj, _ in
             guard let v = (obj as? HKCategorySample)?.value else { return false }
@@ -468,6 +532,9 @@ enum _HKObservers {
     static func add(_ q: HKQuery) { DispatchQueue.main.async { queries.append(q) } }
     static func remove(_ q: HKQuery) { DispatchQueue.main.async { queries.removeAll { $0 === q } } }
     static func changed(_ types: Set<String>) {
+        for case let a as HKActivitySummaryQuery in queries where a.running && !types.isDisjoint(with: HKActivitySummary.sources) {
+            DispatchQueue.global().async { a.update() }
+        }
         for q in queries where q.running && types.contains(q.objectType?.identifier ?? "") {
             DispatchQueue.global().async {
                 if let o = q as? HKObserverQuery { o.handler(o, {}, nil) }

@@ -2,7 +2,8 @@
 // pedometer, headphone motion, batched sensors, sensor recorder, absolute altitude or water submersion, like the
 // Simulator), Core Bluetooth (unsupported, like the Simulator), Core NFC (no reader) and
 // HealthKit (the Health Access sheet, saving samples, statistics and sample queries, anchored object queries and
-// their descriptors, source queries, background delivery).
+// their descriptors, source queries, background delivery; with -profile the Health profile's characteristics, activity
+// summaries, blood pressure and food correlations and, from iOS 18, states of mind: issue #419).
 import SwiftUI
 import CoreMotion
 import CoreBluetooth
@@ -272,6 +273,98 @@ final class SensorModel: NSObject, ObservableObject, CBCentralManagerDelegate, C
     }
 }
 
+// MARK: the Health profile, activity rings, correlations and states of mind (issue #419)
+extension SensorModel {
+    func healthProfile() async {
+        let systolic = HKQuantityType(.bloodPressureSystolic), diastolic = HKQuantityType(.bloodPressureDiastolic)
+        let kcal = HKQuantityType(.dietaryEnergyConsumed), protein = HKQuantityType(.dietaryProtein)
+        let energy = HKQuantityType(.activeEnergyBurned), exercise = HKQuantityType(.appleExerciseTime), stand = HKCategoryType(.appleStandHour)
+        var share: Set<HKSampleType> = [systolic, diastolic, kcal, protein, energy, exercise, stand]
+        var read: Set<HKObjectType> = Set(share.map { $0 as HKObjectType })
+        read.formUnion([HKCharacteristicType(.dateOfBirth), HKCharacteristicType(.biologicalSex), HKCharacteristicType(.bloodType),
+                        HKCharacteristicType(.fitzpatrickSkinType), HKCharacteristicType(.wheelchairUse), HKCharacteristicType(.activityMoveMode),
+                        HKObjectType.activitySummaryType()])
+        if #available(iOS 18.0, *) { share.insert(HKObjectType.stateOfMindType()); read.insert(HKObjectType.stateOfMindType()) }
+        do {
+            try await health.requestAuthorization(toShare: [HKCorrelationType(.bloodPressure)], read: [])
+        } catch { print("profile correlation authorization \((error as? HKError)?.code == .errorInvalidArgument ? "disallowed" : "\(error)")") }
+        do { try await health.requestAuthorization(toShare: share, read: read) } catch { print("profile authorization error \(error)") }
+
+        // characteristics: the device's Health profile (isim health profile)
+        let born = (try? health.dateOfBirthComponents()).map { String(format: "%04d-%02d-%02d", $0.year ?? 0, $0.month ?? 0, $0.day ?? 0) } ?? "none"
+        let sex = (try? health.biologicalSex().biologicalSex.rawValue) ?? -1, blood = (try? health.bloodType().bloodType) ?? .notSet
+        let skin = (try? health.fitzpatrickSkinType().skinType) ?? .notSet, chair = (try? health.wheelchairUse().wheelchairUse) ?? .notSet
+        let mode = (try? health.activityMoveMode().activityMoveMode) ?? .activeEnergy
+        print("profile born \(born) sex \(sex) blood \(blood == .oPositive ? "O+" : "\(blood.rawValue)") skin \(skin == .III ? "III" : "\(skin.rawValue)") wheelchair \(chair == .no ? "no" : "\(chair.rawValue)") move \(mode == .activeEnergy ? "energy" : "time")")
+
+        // today's activity: the rings from the day's samples
+        let now = Date(), hourAgo = now.addingTimeInterval(-3600), minuteAgo = now.addingTimeInterval(-60)
+        try? await health.save([
+            HKQuantitySample(type: energy, quantity: HKQuantity(unit: .kilocalorie(), doubleValue: 180), start: minuteAgo, end: now),
+            HKQuantitySample(type: exercise, quantity: HKQuantity(unit: .minute(), doubleValue: 25), start: minuteAgo, end: now),
+            HKCategorySample(type: stand, value: HKCategoryValueAppleStandHour.stood.rawValue, start: minuteAgo, end: now),
+        ])
+        let today = Calendar.current.dateComponents([.era, .year, .month, .day], from: now)
+        if let s = try? await HKActivitySummaryQueryDescriptor(predicate: HKQuery.predicateForActivitySummary(with: today)).result(for: health).first {
+            print(String(format: "profile rings move %.0f/%.0f kcal exercise %.0f/%.0f min stand %.0f/%.0f h mode %d", s.activeEnergyBurned.doubleValue(for: .kilocalorie()),
+                         s.activeEnergyBurnedGoal.doubleValue(for: .kilocalorie()), s.appleExerciseTime.doubleValue(for: .minute()),
+                         s.exerciseTimeGoal?.doubleValue(for: .minute()) ?? 0, s.appleStandHours.doubleValue(for: .count()),
+                         s.standHoursGoal?.doubleValue(for: .count()) ?? 0, s.activityMoveMode.rawValue))
+        } else { print("profile rings none") }
+        // the rings follow new samples while the query runs
+        await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in
+            let rings = HKActivitySummaryQuery(predicate: HKQuery.predicateForActivitySummary(with: today)) { _, _, _ in k.resume() }
+            rings.updateHandler = { q, s, _ in
+                print(String(format: "profile rings update move %.0f", s?.first?.activeEnergyBurned.doubleValue(for: .kilocalorie()) ?? 0))
+                self.health.stop(q)
+            }
+            health.execute(rings)
+        }
+        try? await health.save(HKQuantitySample(type: energy, quantity: HKQuantity(unit: .kilocalorie(), doubleValue: 70), start: now, end: now.addingTimeInterval(60)))
+
+        // correlations: a blood pressure (saved with its two readings) and a meal
+        let bp = HKCorrelation(type: HKCorrelationType(.bloodPressure), start: now, end: now, objects: [
+            HKQuantitySample(type: systolic, quantity: HKQuantity(unit: .millimeterOfMercury(), doubleValue: 118), start: now, end: now),
+            HKQuantitySample(type: diastolic, quantity: HKQuantity(unit: .millimeterOfMercury(), doubleValue: 76), start: now, end: now),
+        ])
+        let lunch = HKCorrelation(type: HKCorrelationType(.food), start: hourAgo, end: hourAgo, objects: [
+            HKQuantitySample(type: kcal, quantity: HKQuantity(unit: .kilocalorie(), doubleValue: 640), start: hourAgo, end: hourAgo),
+            HKQuantitySample(type: protein, quantity: HKQuantity(unit: .gram(), doubleValue: 32), start: hourAgo, end: hourAgo),
+        ], metadata: ["HKFoodType": "Lunch"])
+        do { try await health.save([bp, lunch]) } catch { print("profile correlation error \(error)") }
+        let high = HKQuery.predicateForQuantitySamples(with: .greaterThan, quantity: HKQuantity(unit: .millimeterOfMercury(), doubleValue: 110))
+        let found: [HKCorrelation] = await withCheckedContinuation { k in
+            health.execute(HKCorrelationQuery(type: HKCorrelationType(.bloodPressure), predicate: nil, samplePredicates: [systolic: high]) { _, c, _ in k.resume(returning: c ?? []) })
+        }
+        if let c = found.first, let s = c.objects(for: systolic).first as? HKQuantitySample, let d = c.objects(for: diastolic).first as? HKQuantitySample {
+            print(String(format: "profile blood pressure %.0f/%.0f objects %d", s.quantity.doubleValue(for: .millimeterOfMercury()),
+                         d.quantity.doubleValue(for: .millimeterOfMercury()), c.objects.count))
+        }
+        let meals = (try? await HKSampleQueryDescriptor(predicates: [.correlation(type: HKCorrelationType(.food))], sortDescriptors: []).result(for: health)) ?? []
+        let readings = (try? await HKSampleQueryDescriptor(predicates: [.quantitySample(type: systolic)], sortDescriptors: []).result(for: health)) ?? []
+        print("profile meals \(meals.count) \(meals.first?.metadata?["HKFoodType"] as? String ?? "-") systolic readings \(readings.count)")
+        if let c = found.first { try? await health.delete(c) }
+        let after = (try? await HKSampleQueryDescriptor(predicates: [.quantitySample(type: systolic)], sortDescriptors: []).result(for: health)) ?? []
+        print("profile deleted blood pressure: systolic readings \(after.count)")
+
+        // states of mind (iOS 18)
+        if #available(iOS 18.0, *) {
+            let mood = HKStateOfMind(date: now, kind: .dailyMood, valence: 0.6, labels: [.happy, .grateful], associations: [.family, .fitness])
+            let moment = HKStateOfMind(date: hourAgo, kind: .momentaryEmotion, valence: -0.4, labels: [.stressed], associations: [.work])
+            do { try await health.save([mood, moment]) } catch { print("profile state of mind error \(error)") }
+            let pleasant = HKQuery.predicateForStatesOfMind(withValence: 0, operatorType: .greaterThan)
+            let family = HKQuery.predicateForStatesOfMind(with: HKStateOfMind.Association.family)
+            let both = NSCompoundPredicate(andPredicateWithSubpredicates: [pleasant, family])
+            let all = (try? await HKSampleQueryDescriptor(predicates: [.stateOfMind()], sortDescriptors: [SortDescriptor(\.startDate)]).result(for: health)) ?? []
+            let happy = (try? await HKSampleQueryDescriptor(predicates: [.stateOfMind(both)], sortDescriptors: []).result(for: health)) ?? []
+            let classes = all.map { "\($0.valenceClassification.rawValue)" }.joined(separator: ",")
+            print("profile states of mind \(all.count) classes \(classes) pleasant-with-family \(happy.count) labels \(happy.first?.labels.count ?? 0) kind \(happy.first?.kind == .dailyMood ? "daily" : "-")")
+        } else {
+            print("profile states of mind need iOS 18")
+        }
+    }
+}
+
 struct ContentView: View {
     @ObservedObject var model: SensorModel
     var body: some View {
@@ -297,6 +390,7 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("Sensors")
+            .task { if ProcessInfo.processInfo.arguments.contains("-profile") { await model.healthProfile() } }
         }
     }
 }

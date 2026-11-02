@@ -23,6 +23,10 @@ def test_sensors_objc(launch):
     app.wait_log(r"^po workout saved type 13 duration 1800 kcal 300 events 1 indoor 1 error nil$")
     app.wait_log(r"^po workout route 3 count 3 last 37\.35 error nil$")
     app.wait_log(r"^po workout rides 1$")
+    app.wait_log(r"^po profile blood 0 error nil$")                                     # issue #419: the profile is unset
+    app.wait_log(r"^po profile correlation saved 1 found 1 objects 2 diastolic 79$")
+    app.wait_log(r"^po profile summaries 1 goal 500 error nil$")
+    app.wait_log(r"^po profile state of mind saved 1 found 1 class 7 labels 21$")       # very pleasant; joyful
     app.wait_log(r"^po motion steps 0 floors 0 activity 0 altimeter 0 status 0")
     app.wait_log(r"^po motion pedometer \(null\) error CMErrorDomain/104")
     app.wait_log(r"^po motion altimeter \(null\) error CMErrorDomain/109")

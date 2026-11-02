@@ -147,6 +147,8 @@ extension HKQuery {
     @objc(predicateForObjectWithUUID:) class func _objc_predicate(_ u: UUID) -> NSPredicate { predicateForObject(with: u) }
     @objc(predicateForObjectsWithUUIDs:) class func _objc_predicate(_ u: Set<UUID>) -> NSPredicate { predicateForObjects(with: u) }
     @objc(predicateForObjectsWithMetadataKey:) class func _objc_predicate(_ k: String) -> NSPredicate { predicateForObjects(withMetadataKey: k) }
+    @objc(predicateForQuantitySamplesWithOperatorType:quantity:)
+    class func _objc_predicate(_ op: NSComparisonPredicate.Operator, quantity: HKQuantity) -> NSPredicate { predicateForQuantitySamples(with: op, quantity: quantity) }
 }
 extension HKSampleQuery {
     @objc(initWithSampleType:predicate:limit:sortDescriptors:resultsHandler:)
@@ -187,5 +189,15 @@ extension HKObserverQuery {
     @objc(initWithSampleType:predicate:updateHandler:)
     convenience init(_objcType t: HKSampleType, predicate: NSPredicate?, updateHandler: @escaping (HKObserverQuery, @escaping () -> Void, NSError?) -> Void) {
         self.init(sampleType: t, predicate: predicate) { q, done, e in updateHandler(q, done, e.map { $0 as NSError }) }
+    }
+}
+extension HKActivitySummaryQuery {
+    @objc(initWithPredicate:resultsHandler:)
+    convenience init(_objcPredicate predicate: NSPredicate?, resultsHandler: @escaping (HKActivitySummaryQuery, [HKActivitySummary]?, NSError?) -> Void) {
+        self.init(predicate: predicate) { q, s, e in resultsHandler(q, s, e.map { $0 as NSError }) }
+    }
+    @objc(updateHandler) var _objc_updateHandler: ((HKActivitySummaryQuery, [HKActivitySummary]?, NSError?) -> Void)? {
+        get { updateHandler.map { h in { q, s, e in h(q, s, e) } } }
+        set { updateHandler = newValue.map { h in { q, s, e in h(q, s, e.map { $0 as NSError }) } } }
     }
 }
