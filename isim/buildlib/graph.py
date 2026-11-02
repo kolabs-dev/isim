@@ -180,7 +180,7 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
     ("UserNotifications", "-framework Foundation -framework UIKit -framework CoreGraphics -lisim_host"),
     ("UserNotificationsUI", "-framework Foundation -framework UIKit -framework UserNotifications"),
     ("Social", "-framework Foundation -framework UIKit -framework CoreGraphics"),
-    ("Accessibility", "-framework Foundation"),
+    ("Accessibility", "-framework Foundation -framework CoreGraphics -lisim_host"),   # issue #425: audio graphs play through isim's audio
     ("PDFKit", "-framework Foundation -framework UIKit -framework CoreGraphics"),
     ("PencilKit", "-framework Foundation -framework UIKit -framework CoreGraphics"),
     ("QuickLook", "-framework Foundation -framework UIKit -framework CoreGraphics -framework PDFKit -lisim_host"),   # PDF previews

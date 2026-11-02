@@ -672,3 +672,27 @@ extension View {
     @_disfavoredOverload
     public func accessibilityRotor(_ label: LocalizedStringResource, textRanges: [Range<String.Index>]) -> some View { accessibilityRotor(Text(label), textRanges: textRanges) }
 }
+
+// MARK: - Audio graphs (issue #425)
+
+/// Makes the chart descriptor VoiceOver uses for a view's audio graph (the rotor's Audio Graph).
+@available(iOS 15.0, *)
+public protocol AXChartDescriptorRepresentable {
+    func makeChartDescriptor() -> AXChartDescriptor
+    func updateChartDescriptor(_ descriptor: AXChartDescriptor)
+}
+@available(iOS 15.0, *)
+extension AXChartDescriptorRepresentable {
+    public func updateChartDescriptor(_ descriptor: AXChartDescriptor) {}
+}
+@available(iOS 15.0, *)
+extension View {
+    /// Gives the view's accessibility element a chart descriptor: VoiceOver describes it and plays it as an audio graph.
+    public func accessibilityChartDescriptor<R: AXChartDescriptorRepresentable>(_ representable: R) -> some View {
+        _axApply { v in
+            let d = representable.makeChartDescriptor()
+            representable.updateChartDescriptor(d)
+            v.perform(NSSelectorFromString("_isim_setAccessibilityChartDescriptor:"), with: d)
+        }
+    }
+}

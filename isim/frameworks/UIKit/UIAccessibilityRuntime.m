@@ -233,7 +233,7 @@ static char k_frame, k_path, k_act, k_lang, k_group, k_responds, k_nav, k_inputl
    accessibilityFocused (focus handler: YES when VoiceOver focuses the element, NO when it leaves), accessibilityScrollAction,
    accessibilityZoomAction, accessibilityCustomContent (AXCustomContent objects for an element that is not an
    AXCustomContentProvider) and accessibilityLinkedGroup (elements of one group are visited one after the other) */
-static char k_act_handler, k_adj_handler, k_sort, k_focus_handler, k_scroll_handler, k_zoom_handler, k_custom_content, k_linked, k_direct_active;
+static char k_act_handler, k_adj_handler, k_sort, k_focus_handler, k_scroll_handler, k_zoom_handler, k_custom_content, k_linked, k_direct_active, k_chart;
 @implementation NSObject (IsimAccessibilityHooks)
 - (void)_isim_setAccessibilityActivateHandler:(BOOL (^)(void))h { objc_setAssociatedObject(self, &k_act_handler, h, OBJC_ASSOCIATION_COPY_NONATOMIC); }
 - (void)_isim_setAccessibilityAdjustHandler:(void (^)(NSInteger))h { objc_setAssociatedObject(self, &k_adj_handler, h, OBJC_ASSOCIATION_COPY_NONATOMIC); }
@@ -241,6 +241,7 @@ static char k_act_handler, k_adj_handler, k_sort, k_focus_handler, k_scroll_hand
 - (void)_isim_setAccessibilityFocusHandler:(void (^)(BOOL))h { objc_setAssociatedObject(self, &k_focus_handler, h, OBJC_ASSOCIATION_COPY_NONATOMIC); }
 - (void)_isim_setAccessibilityScrollHandler:(BOOL (^)(UIAccessibilityScrollDirection))h { objc_setAssociatedObject(self, &k_scroll_handler, h, OBJC_ASSOCIATION_COPY_NONATOMIC); }
 - (void)_isim_setAccessibilityZoomHandler:(BOOL (^)(BOOL, CGPoint))h { objc_setAssociatedObject(self, &k_zoom_handler, h, OBJC_ASSOCIATION_COPY_NONATOMIC); }
+- (void)_isim_setAccessibilityChartDescriptor:(id)d { objc_setAssociatedObject(self, &k_chart, d, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
 - (void)_isim_setAccessibilityCustomContent:(NSArray *)a { objc_setAssociatedObject(self, &k_custom_content, a, OBJC_ASSOCIATION_COPY_NONATOMIC); }
 - (void)_isim_setAccessibilityLinkedGroup:(NSString *)g { objc_setAssociatedObject(self, &k_linked, g, OBJC_ASSOCIATION_COPY_NONATOMIC); }
 @end
@@ -631,6 +632,35 @@ static NSArray *rotor_customs(void) {
         for (UIAccessibilityCustomRotor *c in [vc accessibilityCustomRotors] ?: @[]) if (![a containsObject:c]) [a addObject:c];
     return a;
 }
+/* the element's AXChartDescriptor (Accessibility's AXChart protocol: accessibilityChartDescriptor), or nil */
+static id chart_descriptor(id e) {
+    if (!e) return nil;
+    if ([e respondsToSelector:@selector(accessibilityChartDescriptor)]) {
+        id d = ((id (*)(id, SEL))objc_msgSend)(e, @selector(accessibilityChartDescriptor));
+        if (d) return d;
+    }
+    return objc_getAssociatedObject(e, &k_chart);     /* SwiftUI's accessibilityChartDescriptor(_:) */
+}
+/* the Audio Graph rotor's items (iOS: swipe up / down to choose, double-tap to perform) */
+static NSArray<NSString *> *audio_graph_items(void) { return @[@"Describe Chart", @"Play Audio Graph", @"Chart Details"]; }
+static NSInteger audio_graph_item = -1;          /* the chosen item; the first swipe down selects Describe Chart */
+static void audio_graph_perform(void) {
+    id d = chart_descriptor(vo_focus);
+    if (!d) return;
+    NSString *item = audio_graph_items()[(NSUInteger)MAX(audio_graph_item, 0) % audio_graph_items().count];
+    if ([item isEqualToString:@"Describe Chart"]) {
+        NSString *t = ((id (*)(id, SEL))objc_msgSend)(d, NSSelectorFromString(@"_isim_spokenDescription"));
+        NSLog(@"isim: VoiceOver describe chart: %@", t);
+        speak(t);
+    } else if ([item isEqualToString:@"Chart Details"]) {
+        NSString *t = ((id (*)(id, SEL))objc_msgSend)(d, NSSelectorFromString(@"_isim_details"));
+        NSLog(@"isim: VoiceOver chart details: %@", t);
+        speak(t);
+    } else {
+        NSString *t = ((id (*)(id, SEL))objc_msgSend)(d, NSSelectorFromString(@"_isim_playAudioGraph"));
+        NSLog(@"isim: VoiceOver audio graph: %@", t.length ? t : @"no data");
+    }
+}
 static NSArray *rotor_entries(void) {              /* UIAccessibilityCustomRotor or a built-in name */
     NSMutableArray *a = [NSMutableArray arrayWithArray:rotor_customs()];
     BOOL headings = YES;          /* a custom rotor of the Heading system type takes the place of the built-in one */
@@ -639,12 +669,13 @@ static NSArray *rotor_entries(void) {              /* UIAccessibilityCustomRotor
     if ([[vo_focus accessibilityCustomActions] count]) [a addObject:@"Actions"];
     for (id c in custom_content(vo_focus)) if (!content_high(c)) { [a addObject:@"More Content"]; break; }
     if (effective_traits(vo_focus) & UIAccessibilityTraitAdjustable) [a addObject:@"Adjust Value"];
+    if (chart_descriptor(vo_focus)) [a addObject:@"Audio Graph"];
     return a;
 }
 static NSString *rotor_name(id entry) { return [entry isKindOfClass:[UIAccessibilityCustomRotor class]] ? [(UIAccessibilityCustomRotor *)entry name] : entry; }
 static id rotor_current(void) { NSArray *a = rotor_entries(); return a.count ? a[(NSUInteger)(((rotor_index % (NSInteger)a.count) + (NSInteger)a.count) % (NSInteger)a.count)] : nil; }
 static void rotor_turn(int dir) {
-    rotor_index += dir; rotor_action = 0; content_index = -1;
+    rotor_index += dir; rotor_action = 0; content_index = -1; audio_graph_item = -1;
     NSString *n = rotor_name(rotor_current());
     NSLog(@"isim: VoiceOver rotor: %@", n);
     speak(n);
@@ -682,6 +713,11 @@ static void rotor_move(int dir) {
         speak(t);
     } else if ([entry isEqual:@"Adjust Value"]) {
         isim_ui_voiceover_command(dir > 0 ? @"decrement" : @"increment");
+    } else if ([entry isEqual:@"Audio Graph"]) {           /* Describe Chart, Play Audio Graph, Chart Details */
+        NSInteger n = (NSInteger)audio_graph_items().count;
+        audio_graph_item = audio_graph_item < 0 ? (dir > 0 ? 0 : n - 1) : ((audio_graph_item + dir) % n + n) % n;
+        NSLog(@"isim: VoiceOver audio graph item: %@", audio_graph_items()[(NSUInteger)audio_graph_item]);
+        speak(audio_graph_items()[(NSUInteger)audio_graph_item]);
     }
 }
 
@@ -937,6 +973,7 @@ void isim_ui_voiceover_command(NSString *c) {
         NSLog(@"isim: VoiceOver performed action %@", a.name);
         [a _isim_perform];
     }
+    else if ([c isEqualToString:@"activate"] && [rotor_current() isEqual:@"Audio Graph"] && chart_descriptor(vo_focus)) audio_graph_perform();
     else if ([c isEqualToString:@"activate"]) activate();
     else if ([c isEqualToString:@"increment"] || [c isEqualToString:@"decrement"]) {
         id e = vo_focus;
