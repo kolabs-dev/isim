@@ -14,8 +14,8 @@
   - the presentment types are Apple's value types;
   - the request validator decodes ISO 18013-5 DeviceRequests (CBOR).
 - **Objective-C / C interface:** Swift only, like Apple's.
-- **Versus Apple's Simulator:** registrations work the same on any device; there is no Wallet to present documents from yet
-  (IdentityDocumentServicesUI: #744).
+- **Versus Apple's Simulator:** registrations work the same on any device. Websites' requests are presented from the
+  registered documents through [IdentityDocumentServicesUI](IdentityDocumentServicesUI.md) (#744).
 
 ## API
 
