@@ -168,7 +168,7 @@ extension View {
     let mst = (g.storage[mkey] as? _StateStorage<Bool>) ?? { let s = _StateStorage(false); g.storage[mkey] = s; return s }()
     let sst = (g.storage[skey] as? _StateStorage<Bool>) ?? { let s = _StateStorage(false); g.storage[skey] = s; return s }()
     g.usedKeys.insert(mkey); g.usedKeys.insert(skey)
-    let glass = _isimOSMajor() >= 26
+    let glass = _isimGlassLook
     node.minimizeBehavior = glass ? env._tabMinimize : 0
     node.minimized = node.minimizeBehavior >= 2 && mst.value
     node.setMinimized = { [weak g] v in

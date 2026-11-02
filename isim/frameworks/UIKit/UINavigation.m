@@ -29,7 +29,7 @@ static UIColor *tint_for(UIView *v, UIColor *own) { return own ?: v.tintColor ?:
 /* tab bar look: 0 bottom bar (iOS 17/18 iPhone, iOS 17 iPad), 1 floating glass capsule (iPhone, iOS 26+),
    2 top floating capsule (iPad, iOS 18), 3 top glass capsule (iPad, iOS 26+) */
 static int tabbar_mode(void) {
-    BOOL pad = UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad; int os = isim_ui_os_major();
+    BOOL pad = UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad; int os = isim_ui_design_major();
     if (pad && os >= 18) return os >= 26 ? 3 : 2;
     return os >= 26 ? 1 : 0;
 }

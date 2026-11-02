@@ -8,7 +8,17 @@
 @end
 
 int isim_ui_os_major(void) { static int m; if (!m) m = isim_os_version() / 10000; return m; }
-BOOL isim_ui_glass(void) { return isim_ui_os_major() >= 26; }
+/* UIDesignRequiresCompatibility (Info.plist): under iOS 26 the app's controls and bars keep the iOS 18 design. The key
+   is Apple's temporary opt-out, so it is honoured under 26 only. The app's own Liquid Glass (UIGlassEffect, SwiftUI's
+   glassEffect) and the system's UI (status bar, keyboard, alerts drawn by the shell) are unchanged; so are the reported
+   version and #available */
+BOOL isim_ui_design_compat(void) {
+    static int c = -1;
+    if (c < 0) c = isim_ui_os_major() == 26 && [NSBundle.mainBundle.infoDictionary[@"UIDesignRequiresCompatibility"] boolValue];
+    return c == 1;
+}
+BOOL isim_ui_glass(void) { return isim_ui_os_major() >= 26 && !isim_ui_design_compat(); }
+int isim_ui_design_major(void) { return isim_ui_design_compat() ? 18 : isim_ui_os_major(); }
 void isim_ui_draw_glass(CGRect r, CGFloat radius, UIColor *tint, int flags) {
     double t[4] = { 0, 0, 0, 0 };
     if (tint) isim_ui_rgba(tint, t);
