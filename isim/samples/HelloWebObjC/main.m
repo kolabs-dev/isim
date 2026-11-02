@@ -3,7 +3,8 @@
 // script, the navigation delegate (action policy with a cancelled link, start/commit/finish), the UI delegate (alert),
 // KVO on Apple's key paths (estimatedProgress, loading, title), evaluateJavaScript (page and an isolated world),
 // callAsyncJavaScript, takeSnapshot, website data stores and WebKit's constants; LinkPresentation (a provider for a file
-// URL, a link view, an unsupported scheme, a provider started twice). Logs "HelloWebObjC: ...".
+// URL, a link view, an unsupported scheme, a provider started twice); web extensions (issue #421: a match pattern, an
+// extension's manifest, a context's permissions, a controller) and fullscreenState. Logs "HelloWebObjC: ...".
 //   isim run out/apps/HelloWebObjC.app
 #import <UIKit/UIKit.h>
 #import <WebKit/WebKit.h>
@@ -98,6 +99,44 @@ static NSString *const kHTML =
         [self.webView addObserver:self forKeyPath:key options:NSKeyValueObservingOptionNew context:NULL];
     [self.webView loadHTMLString:kHTML baseURL:[NSURL URLWithString:@"https://objc.example/"]];
     [self linkPresentation];
+    if (@available(iOS 18.4, *)) [self webExtensions];
+    say([NSString stringWithFormat:@"fullscreenState %ld open panel %d", (long)self.webView.fullscreenState,
+         [self respondsToSelector:@selector(webView:runOpenPanelWithParameters:initiatedByFrame:completionHandler:)]]);
+}
+
+/* issue #421: an extension written to a temporary directory, loaded into a controller with one host granted */
+- (void)webExtensions API_AVAILABLE(ios(18.4)) {
+    NSError *error = nil;
+    WKWebExtensionMatchPattern *pattern = [[WKWebExtensionMatchPattern alloc] initWithString:@"*://*.example.com/docs/*" error:&error];
+    WKWebExtensionMatchPattern *bad = [[WKWebExtensionMatchPattern alloc] initWithString:@"gopher://x/" error:&error];
+    say([NSString stringWithFormat:@"pattern %@ host=%@ matches=%d,%d bad=%@ error=%@/%ld all=%d", pattern.string, pattern.host,
+         [pattern matchesURL:[NSURL URLWithString:@"https://www.example.com/docs/a.html"]], [pattern matchesURL:[NSURL URLWithString:@"https://example.com/blog/"]],
+         bad, error.domain, (long)error.code, [WKWebExtensionMatchPattern allURLsMatchPattern].matchesAllURLs]);
+    NSURL *dir = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:@"ObjCExtension"]];
+    [NSFileManager.defaultManager createDirectoryAtURL:dir withIntermediateDirectories:YES attributes:nil error:nil];
+    NSString *manifest = @"{\"manifest_version\": 2, \"name\": \"Notes\", \"version\": \"3.0\", \"permissions\": [\"tabs\", \"https://notes.example/*\"],"
+                          "\"background\": {\"scripts\": [\"bg.js\"]}, \"options_page\": \"options.html\"}";
+    [manifest writeToURL:[dir URLByAppendingPathComponent:@"manifest.json"] atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    [WKWebExtension extensionWithResourceBaseURL:dir completionHandler:^(WKWebExtension *extension, NSError *loadError) {
+        WKWebExtensionContext *context = [WKWebExtensionContext contextForExtension:extension];
+        [context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forPermission:WKWebExtensionPermissionTabs expirationDate:nil];
+        WKWebExtensionController *controller = [[WKWebExtensionController alloc] initWithConfiguration:WKWebExtensionControllerConfiguration.nonPersistentConfiguration];
+        NSError *e = nil;
+        BOOL loaded = [controller loadExtensionContext:context error:&e];
+        say([NSString stringWithFormat:@"extension %@ %@ mv=%.0f persistentBackground=%d options=%d permissions=%@ hosts=%lu tabs=%ld notes=%ld loaded=%d contexts=%lu options=%@",
+             extension.displayName, extension.version, extension.manifestVersion, extension.hasPersistentBackgroundContent, extension.hasOptionsPage,
+             [extension.requestedPermissions.allObjects componentsJoinedByString:@","], (unsigned long)extension.requestedPermissionMatchPatterns.count,
+             (long)[context permissionStatusForPermission:WKWebExtensionPermissionTabs],
+             (long)[context permissionStatusForURL:[NSURL URLWithString:@"https://notes.example/a"]], loaded && context.isLoaded,
+             (unsigned long)controller.extensionContexts.count, context.optionsPageURL.lastPathComponent]);
+        [WKWebExtension extensionWithResourceBaseURL:[NSURL fileURLWithPath:@"/nonexistent"] completionHandler:^(WKWebExtension *none, NSError *missing) {
+            say([NSString stringWithFormat:@"missing extension %@ %@/%ld", none, missing.domain, (long)missing.code]);
+        }];
+    }];
+}
+- (void)webView:(WKWebView *)webView runOpenPanelWithParameters:(WKOpenPanelParameters *)parameters initiatedByFrame:(WKFrameInfo *)frame
+        completionHandler:(void (^)(NSArray<NSURL *> *))completionHandler API_AVAILABLE(ios(18.4)) {
+    completionHandler(nil);
 }
 
 - (void)linkPresentation {

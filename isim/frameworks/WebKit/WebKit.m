@@ -22,3 +22,24 @@ NSString * const WKWebsiteDataTypeFileSystem = @"WKWebsiteDataTypeFileSystem";
 NSString * const WKWebsiteDataTypeSearchFieldRecentSearches = @"WKWebsiteDataTypeSearchFieldRecentSearches";
 NSString * const WKWebsiteDataTypeMediaKeys = @"WKWebsiteDataTypeMediaKeys";
 NSString * const WKWebsiteDataTypeHashSalt = @"WKWebsiteDataTypeHashSalt";
+
+// web extensions (iOS 18.4): error domains and permissions (Apple's raw values)
+NSErrorDomain const WKWebExtensionErrorDomain = @"WKWebExtensionErrorDomain";
+NSErrorDomain const WKWebExtensionMatchPatternErrorDomain = @"WKWebExtensionMatchPatternErrorDomain";
+NSErrorDomain const WKWebExtensionContextErrorDomain = @"WKWebExtensionContextErrorDomain";
+WKWebExtensionPermission const WKWebExtensionPermissionActiveTab = @"activeTab";
+WKWebExtensionPermission const WKWebExtensionPermissionAlarms = @"alarms";
+WKWebExtensionPermission const WKWebExtensionPermissionClipboardWrite = @"clipboardWrite";
+WKWebExtensionPermission const WKWebExtensionPermissionContextMenus = @"contextMenus";
+WKWebExtensionPermission const WKWebExtensionPermissionCookies = @"cookies";
+WKWebExtensionPermission const WKWebExtensionPermissionDeclarativeNetRequest = @"declarativeNetRequest";
+WKWebExtensionPermission const WKWebExtensionPermissionDeclarativeNetRequestFeedback = @"declarativeNetRequestFeedback";
+WKWebExtensionPermission const WKWebExtensionPermissionDeclarativeNetRequestWithHostAccess = @"declarativeNetRequestWithHostAccess";
+WKWebExtensionPermission const WKWebExtensionPermissionMenus = @"menus";
+WKWebExtensionPermission const WKWebExtensionPermissionNativeMessaging = @"nativeMessaging";
+WKWebExtensionPermission const WKWebExtensionPermissionScripting = @"scripting";
+WKWebExtensionPermission const WKWebExtensionPermissionStorage = @"storage";
+WKWebExtensionPermission const WKWebExtensionPermissionTabs = @"tabs";
+WKWebExtensionPermission const WKWebExtensionPermissionUnlimitedStorage = @"unlimitedStorage";
+WKWebExtensionPermission const WKWebExtensionPermissionWebNavigation = @"webNavigation";
+WKWebExtensionPermission const WKWebExtensionPermissionWebRequest = @"webRequest";

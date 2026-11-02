@@ -33,7 +33,7 @@ extension WKWebView {
     }
     /// a page rect (client coordinates) in this view's coordinates
     func _viewRect(_ r: CGRect) -> CGRect {
-        let o = _scroll.pageOrigin, z = pageZoom
+        let o = _scroll.pageOrigin, z = _zoom
         return _scroll.convert(CGRect(x: r.minX * z + o.x, y: r.minY * z + o.y, width: r.width * z, height: r.height * z), to: self)
     }
     func _rect(_ o: [String: Any]) -> CGRect {
@@ -170,7 +170,7 @@ final class _WKContextMenus: NSObject, UIContextMenuInteractionDelegate, UIEditM
         hit = w._hit
         guard hit.kind == "link" || hit.kind == "image" else {
             if hit.kind == "text" || hit.kind == "none" {
-                let o = w._scroll.pageOrigin, z = w.pageZoom
+                let o = w._scroll.pageOrigin, z = w._zoom
                 w._selectWord(at: CGPoint(x: (location.x - o.x) / z, y: (location.y - o.y) / z))
             }
             return nil
@@ -272,7 +272,7 @@ final class _WKContextMenus: NSObject, UIContextMenuInteractionDelegate, UIEditM
             guard limits.scalable, w._magnificationAllowed, w._scroll.isScrollEnabled else { return }
             let z = min(max(startZoom * g.scale, max(1, limits.min)), max(1, limits.max))
             let p = g.location(in: w._scroll), o = w._scroll.pageOrigin
-            w._applyPinch(z, focus: CGPoint(x: (p.x - o.x) / w.pageZoom, y: (p.y - o.y) / w.pageZoom))
+            w._applyPinch(z, focus: CGPoint(x: (p.x - o.x) / w._zoom, y: (p.y - o.y) / w._zoom))
             if g.state == .ended { print(String(format: "isim: WKWebView zoom %.2f", Double(z))) }
         default: break
         }

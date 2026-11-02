@@ -4,10 +4,14 @@
 // and an isolated world, evaluateJavaScript / callAsyncJavaScript, KVO on title/URL/progress/canGoBack,
 // back/forward, typing into a page field, scrolling, cookies and snapshots. With -interact: long-press context
 // menus and text selection, <select> menus, pinch zoom, the find navigator, createPDF and web archives. With -webpage
-// (iOS 26): SwiftUI's WebView showing a WebPage, its navigation events, title and callJavaScript. With -transfers: HTTP
+// (iOS 26): SwiftUI's WebView showing a WebPage, its navigation events, title and callJavaScript (with -decide: a
+// NavigationDeciding that cancels a link and a DialogPresenting that answers alert, confirm and prompt). With -transfers: HTTP
 // authentication challenges, downloads (startDownload, a navigation response made a download, cancel and resume) and
 // a camera permission request. With -rules: content rule lists (WKContentRuleListStore) blocking an image and hiding
 // an element. With -links: LinkPresentation (LPMetadataProvider fetching Open Graph metadata, LPLinkView cards, errors).
+// With -extras (issue #421): <input type=file> through runOpenPanelWith (or, with -nopanel, iOS's own menu), element
+// fullscreen and fullscreenState, the 980-px viewport of a page without <meta name=viewport>, and (iOS 18.4) a web
+// extension whose content script and CSS run on the page its context was granted.
 //   isim run out/apps/HelloWeb.app -server http://127.0.0.1:8765   (samples/HelloWeb/server.py)
 import UIKit
 import WebKit
@@ -21,10 +25,12 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window = UIWindow(frame: UIScreen.main.bounds)
         let args = ProcessInfo.processInfo.arguments
         if args.contains("-webpage"), #available(iOS 26.0, *) {
-            window?.rootViewController = UIHostingController(rootView: WebPageScreen())
+            window?.rootViewController = args.contains("-decide") ? UIHostingController(rootView: AnyView(DecidingPageScreen()))
+                : UIHostingController(rootView: AnyView(WebPageScreen()))
         } else {
             let root: UIViewController = args.contains("-interact") ? InteractViewController() : args.contains("-transfers") ? TransfersViewController()
-                : args.contains("-rules") ? RulesViewController() : args.contains("-links") ? LinksViewController() : WebViewController()
+                : args.contains("-rules") ? RulesViewController() : args.contains("-links") ? LinksViewController()
+                : args.contains("-extras") ? ExtrasViewController() : WebViewController()
             window?.rootViewController = UINavigationController(rootViewController: root)
         }
         window?.makeKeyAndVisible()
@@ -389,6 +395,65 @@ struct WebPageScreen: View {
     }
 }
 
+/// cancels navigations to /blocked; logs the rest
+@available(iOS 26.0, *)
+struct PageDecider: WebPage.NavigationDeciding {
+    func decidePolicy(for action: WebPage.NavigationAction, preferences: inout WebPage.NavigationPreferences) async -> WKNavigationActionPolicy {
+        let path = action.request.url?.path ?? ""
+        let policy: WKNavigationActionPolicy = path.hasSuffix("/blocked") ? .cancel : .allow
+        log("decide action \(action.navigationType.rawValue) \(path.isEmpty ? "/" : path) main=\(action.source.isMainFrame) -> \(policy == .allow ? "allow" : "cancel")")
+        preferences.preferredContentMode = .mobile
+        return policy
+    }
+    func decidePolicy(for response: WebPage.NavigationResponse) async -> WKNavigationResponsePolicy {
+        log("decide response \(response.response.mimeType ?? "-") canShow=\(response.canShowMimeType)")
+        return .allow
+    }
+}
+/// answers the page's dialogs
+@available(iOS 26.0, *)
+struct PagePresenter: WebPage.DialogPresenting {
+    func handleJavaScriptAlert(message: String, initiatedBy frame: WebPage.FrameInfo) async { log("presenter alert \(message) main=\(frame.isMainFrame)") }
+    func handleJavaScriptConfirm(message: String, initiatedBy frame: WebPage.FrameInfo) async -> WebPage.JavaScriptConfirmResult {
+        log("presenter confirm \(message)"); return .ok
+    }
+    func handleJavaScriptPrompt(message: String, defaultText: String?, initiatedBy frame: WebPage.FrameInfo) async -> WebPage.JavaScriptPromptResult {
+        log("presenter prompt \(message) default=\(defaultText ?? "-")"); return .ok("Ada")
+    }
+}
+
+@available(iOS 26.0, *)
+struct DecidingPageScreen: View {
+    @State private var page = WebPage(configuration: WebPage.Configuration(), navigationDecider: PageDecider(), dialogPresenter: PagePresenter())
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(page.url?.path ?? "-").font(.headline).padding(8).accessibilityIdentifier("page-path")
+            WebView(page)
+            HStack {
+                Button("Dialogs") {
+                    Task {
+                        let v = try? await page.callJavaScript("alert('hello'); const c = confirm('Proceed?'); const p = prompt('Name?', 'nobody'); return c + ' ' + p")
+                        log("dialogs \(v.map { "\($0)" } ?? "nil")")
+                    }
+                }.accessibilityIdentifier("page-dialogs")
+                Button("Blocked Link") {
+                    Task { _ = try? await page.callJavaScript("location.href = '/blocked'"); log("asked for /blocked") }
+                }.accessibilityIdentifier("page-blocked")
+                Button("Page 3") {
+                    Task { _ = try? await page.callJavaScript("location.href = '/page3'") }
+                }.accessibilityIdentifier("page-three")
+            }.padding(8)
+        }
+        .task {
+            do {
+                for try await _ in page.load(URLRequest(url: URL(string: serverURL + "/hello.txt")!)) {}
+                log("loaded \(page.url?.path ?? "-")")
+            } catch { log("load failed \(error)") }
+        }
+        .onChange(of: page.url) { _, u in log("page url \(u?.path ?? "-")") }
+    }
+}
+
 // MARK: - -transfers: authentication challenges, downloads, camera permission
 
 final class TransfersViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
@@ -500,6 +565,120 @@ final class TransfersViewController: UIViewController, WKNavigationDelegate, WKU
                  type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
         log("media capture \(origin.host) type \(type.rawValue)")
         decisionHandler(.prompt)
+    }
+}
+
+// MARK: - -extras: file inputs, fullscreen, the 980-px viewport
+
+final class ExtrasViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
+    let extensions: AnyObject? = { if #available(iOS 18.4, *) { return WKWebExtensionController(configuration: .nonPersistent()) } else { return nil } }()
+    lazy var web: WKWebView = {
+        let c = WKWebViewConfiguration()
+        c.preferences.isElementFullscreenEnabled = true
+        if #available(iOS 18.4, *) { c.webExtensionController = extensions as? WKWebExtensionController }
+        return WKWebView(frame: .zero, configuration: c)
+    }()
+    var observations: [NSKeyValueObservation] = []
+    var wide = false
+    let page = """
+    <!doctype html><html><head><meta name=viewport content='width=device-width'><title>Extras</title>
+    <style>body{font:17px -apple-system,sans-serif;margin:16px}#box{background:#0a84ff;color:#fff;padding:20px;border-radius:12px}
+    input,button{font-size:17px;margin:10px 0;display:block}</style></head>
+    <body><h2>Extras</h2><input type=file id=files multiple accept='image/*,.txt'><p id=chosen>No files</p>
+    <div id=box>A box that can fill the screen<button id=fs>Full Screen</button></div>
+    <script>
+    files.addEventListener('change',()=>{const n=[...files.files].map(f=>f.name+':'+f.size);chosen.textContent=n.join(', ');document.title='files '+n.join(',')});
+    files.addEventListener('cancel',()=>{document.title='files cancelled'});
+    fs.addEventListener('click',()=>box.requestFullscreen().catch(e=>{document.title='fullscreen error '+e.name}));
+    document.addEventListener('fullscreenchange',()=>{document.title='fullscreen '+(document.fullscreenElement?'in '+document.fullscreenElement.id:'out')});
+    </script></body></html>
+    """
+    let widePage = "<html><head><title>Wide</title></head><body style='margin:0'><div style='height:120px;background:#34c759'>A page without a viewport tag</div></body></html>"
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Extras"
+        view.backgroundColor = .systemBackground
+        web.translatesAutoresizingMaskIntoConstraints = false
+        web.navigationDelegate = self
+        web.uiDelegate = ProcessInfo.processInfo.arguments.contains("-nopanel") ? nil : self
+        view.addSubview(web)
+        let g = view.safeAreaLayoutGuide
+        NSLayoutConstraint.activate([web.topAnchor.constraint(equalTo: g.topAnchor), web.bottomAnchor.constraint(equalTo: g.bottomAnchor),
+                                     web.leadingAnchor.constraint(equalTo: view.leadingAnchor), web.trailingAnchor.constraint(equalTo: view.trailingAnchor)])
+        let w = UIBarButtonItem(title: "Wide Page", style: .plain, target: self, action: #selector(loadWide))
+        w.accessibilityIdentifier = "wide"
+        navigationItem.rightBarButtonItem = w
+        observations = [
+            web.observe(\.title) { w, _ in if let t = w.title, t.hasPrefix("files") || t.hasPrefix("fullscreen") { log("page \(t)") } },
+            web.observe(\.fullscreenState) { w, _ in log("fullscreenState \(w.fullscreenState.rawValue)") },
+        ]
+        if #available(iOS 18.4, *) { Task { await loadExtension(); web.loadHTMLString(page, baseURL: URL(string: "https://extras.example/")) } }
+        else { web.loadHTMLString(page, baseURL: URL(string: "https://extras.example/")) }
+    }
+    /// a small extension written at run time: a localised name, a content script and its CSS for extras.example
+    @available(iOS 18.4, *)
+    func loadExtension() async {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("Highlighter")
+        try? FileManager.default.createDirectory(at: dir.appendingPathComponent("_locales/en"), withIntermediateDirectories: true)
+        let files = [
+            "manifest.json": """
+            {"manifest_version": 3, "name": "__MSG_extName__", "version": "1.2", "default_locale": "en", "description": "Marks pages",
+             "permissions": ["storage", "scripting"], "host_permissions": ["https://*.example/*"], "action": {"default_title": "Highlight"},
+             "content_scripts": [{"matches": ["https://*.example/*"], "exclude_matches": ["https://wide.example/*"], "js": ["content.js"], "css": ["content.css"]}]}
+            """,
+            "_locales/en/messages.json": #"{"extName": {"message": "Highlighter"}}"#,
+            "content.js": "const b = document.createElement('div'); b.id = 'isim-ext-banner'; b.textContent = 'Added by ' + browser.runtime.getManifest().name; document.body.prepend(b);",
+            "content.css": "#isim-ext-banner { background: #ff9f0a; color: #000; padding: 8px; font-weight: 600 }",
+        ]
+        for (name, text) in files { try? text.write(to: dir.appendingPathComponent(name), atomically: true, encoding: .utf8) }
+        do {
+            let ext = try await WKWebExtension(resourceBaseURL: dir)
+            log("extension \(ext.displayName ?? "-") version \(ext.version ?? "-") mv \(Int(ext.manifestVersion)) action \(ext.displayActionLabel ?? "-") "
+                + "permissions \(ext.requestedPermissions.map(\.rawValue).sorted().joined(separator: ",")) hosts \(ext.requestedPermissionMatchPatterns.map(\.string).sorted()) "
+                + "injected \(ext.hasInjectedContent) errors \(ext.errors.count)")
+            let p = try WKWebExtension.MatchPattern(string: "https://*.example/*")
+            log("pattern matches \(p.matches(URL(string: "https://a.example/x"))) \(p.matches(URL(string: "https://example.org/")))")
+            let context = WKWebExtensionContext(for: ext)
+            context.setPermissionStatus(.grantedExplicitly, for: .storage)
+            context.setPermissionStatus(.grantedExplicitly, for: URL(string: "https://extras.example/")!)
+            try (extensions as? WKWebExtensionController)?.load(context)
+            log("context loaded \(context.isLoaded) storage \(context.hasPermission(.storage)) tabs \(context.permissionStatus(for: .tabs).rawValue) "
+                + "access \(context.hasAccess(to: URL(string: "https://extras.example/")!)) \(context.hasAccess(to: URL(string: "https://wide.example/")!))")
+            do { try (extensions as? WKWebExtensionController)?.load(context) } catch { log("load again: error \((error as NSError).code)") }
+        } catch { log("extension error \(error)") }
+    }
+    @objc func loadWide() { wide = true; web.loadHTMLString(widePage, baseURL: URL(string: "https://wide.example/")) }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        webView.evaluateJavaScript("[innerWidth, document.documentElement.clientWidth]") { r, _ in
+            let a = r as? [Any] ?? []
+            log("\(self.wide ? "wide" : "narrow") innerWidth \(a.first.map { "\($0)" } ?? "-")")
+        }
+        webView.evaluateJavaScript("(e => e ? e.textContent + ' ' + getComputedStyle(e).backgroundColor : 'none')(document.getElementById('isim-ext-banner'))") { r, _ in
+            log("\(self.wide ? "wide" : "narrow") banner \(r as? String ?? "-")")
+        }
+        guard !wide else { return }
+        // where the page's controls are, in window points, for the test's taps
+        webView.evaluateJavaScript("[files,fs].map(e=>{const r=e.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]})") { r, _ in
+            guard let pts = r as? [[Double]] else { return }
+            for (name, p) in zip(["files", "fullscreen"], pts) {
+                let q = webView.convert(CGPoint(x: p[0], y: p[1]), to: nil)
+                log("control \(name) at \(Int(q.x)),\(Int(q.y))")
+            }
+        }
+    }
+
+    // <input type=file>: two files the app made
+    @available(iOS 18.4, *)
+    func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo,
+                 completionHandler: @escaping ([URL]?) -> Void) {
+        log("open panel multiple=\(parameters.allowsMultipleSelection) directories=\(parameters.allowsDirectories) main=\(frame.isMainFrame)")
+        let dir = FileManager.default.temporaryDirectory
+        let a = dir.appendingPathComponent("notes.txt"), b = dir.appendingPathComponent("list.txt")
+        try? "hello".write(to: a, atomically: true, encoding: .utf8)
+        try? "one\ntwo\n".write(to: b, atomically: true, encoding: .utf8)
+        completionHandler(parameters.allowsMultipleSelection ? [a, b] : [a])
     }
 }
 

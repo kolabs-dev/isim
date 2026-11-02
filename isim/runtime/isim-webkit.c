@@ -95,7 +95,7 @@ struct view {
     WebKitWebView *wv;
     GtkWidget *win;
     WebKitUserContentManager *ucm;
-    double w, h, scale, zoom;
+    double w, h, scale, zoom, fit;   /* fit: the 980-px viewport of a page without <meta name=viewport> */
     int pw, ph;                      /* frame pixel size */
     int memfd; unsigned char *mem; size_t memsize;
     unsigned char *last;             /* previous frame, to skip unchanged ones */
@@ -125,7 +125,7 @@ static int next_dl = 1;
 /* content rule lists (WKContentRuleListStore): stores by directory, compiled filters by "directory\nidentifier" */
 static GHashTable *filter_stores, *filters;
 
-enum { P_POLICY = 1, P_DIALOG, P_REPLY, P_AUTH, P_PERM };
+enum { P_POLICY = 1, P_DIALOG, P_REPLY, P_AUTH, P_PERM, P_FILES };
 struct pend { int kind; gpointer obj; };
 
 static struct view *view_get(int id) { return views ? g_hash_table_lookup(views, GINT_TO_POINTER(id)) : NULL; }
@@ -443,6 +443,26 @@ static gboolean on_authenticate(WebKitWebView *wv, WebKitAuthenticationRequest *
     g_string_free(j, TRUE);
     return TRUE;
 }
+/* <input type=file> (WKUIDelegate runOpenPanelWith): the app answers with "files req n paths"; the page gets the files */
+static gboolean on_file_chooser(WebKitWebView *wv, WebKitFileChooserRequest *r, gpointer data) {
+    struct view *v = view_get(GPOINTER_TO_INT(data)); if (!v) return FALSE;
+    const gchar * const *m = webkit_file_chooser_request_get_mime_types(r);
+    char *mimes = m ? g_strjoinv(",", (gchar **)m) : g_strdup("");
+    g_object_ref(r);
+    int req = pend_add(v, P_FILES, r);
+    SEND(v->id, "files", itoa_(req), webkit_file_chooser_request_get_select_multiple(r) ? "1" : "0", mimes, webkit_web_view_get_uri(wv) ?: "");
+    g_free(mimes);
+    return TRUE;
+}
+/* element fullscreen (WKWebView.fullscreenState): the app shows the view full screen; the toplevel stays as it is */
+static gboolean on_enter_fullscreen(WebKitWebView *wv, gpointer data) {
+    struct view *v = view_get(GPOINTER_TO_INT(data)); if (v) SEND(v->id, "fullscreen", "1");
+    return TRUE;
+}
+static gboolean on_leave_fullscreen(WebKitWebView *wv, gpointer data) {
+    struct view *v = view_get(GPOINTER_TO_INT(data)); if (v) SEND(v->id, "fullscreen", "0");
+    return TRUE;
+}
 /* camera and microphone (getUserMedia: WKUIDelegate requestMediaCapturePermissionFor); other requests keep the default */
 static gboolean on_permission(WebKitWebView *wv, WebKitPermissionRequest *r, gpointer data) {
     struct view *v = view_get(GPOINTER_TO_INT(data)); if (!v) return FALSE;
@@ -571,6 +591,18 @@ static void on_download_started(WebKitNetworkSession *ns, WebKitDownload *d, gpo
 /* messages from the private "isim" world: scroll position, focus */
 static void on_isim_message(WebKitUserContentManager *m, JSCValue *val, gpointer data) {
     struct view *v = view_get(GPOINTER_TO_INT(data)); if (!v) return;
+    /* the page's viewport, decided while it is parsed: without <meta name=viewport> it lays out 980 CSS px wide, scaled to fit (iOS) */
+    if (jsc_value_is_object(val)) {
+        JSCValue *t = jsc_value_object_get_property(val, "t");
+        char *ts = jsc_value_is_string(t) ? jsc_value_to_string(t) : NULL;
+        if (ts && !strcmp(ts, "vp")) {
+            JSCValue *mv = jsc_value_object_get_property(val, "meta");
+            v->fit = jsc_value_to_boolean(mv) ? 1 : MIN(1, v->w / 980);
+            webkit_web_view_set_zoom_level(v->wv, v->scale * v->zoom * v->fit);
+            g_object_unref(mv);
+        }
+        g_free(ts); g_object_unref(t);
+    }
     int un; char *j = value_json(val, &un);
     if (j) SEND(v->id, "page", j);
     g_free(j);
@@ -631,6 +663,10 @@ static const char *isim_world_script =
     "var queued=false;function sc(){if(queued)return;queued=true;requestAnimationFrame(function(){queued=false;"
     "var d=document.documentElement,b=document.body;"
     "post({t:'scroll',x:window.scrollX,y:window.scrollY,w:Math.max(d?d.scrollWidth:0,b?b.scrollWidth:0),h:Math.max(d?d.scrollHeight:0,b?b.scrollHeight:0),vw:window.innerWidth,vh:window.innerHeight})})}"
+    "var vpd=false;function vp(){if(vpd)return;var m=!!document.querySelector('meta[name=viewport]');"
+    "if(!m&&!document.body&&document.readyState==='loading')return;vpd=true;post({t:'vp',meta:m})}"
+    "var vmo=new MutationObserver(function(){vp();if(vpd)vmo.disconnect()});vmo.observe(document,{childList:true,subtree:true});"
+    "document.addEventListener('DOMContentLoaded',vp);"
     "window.addEventListener('scroll',sc,{passive:true});window.addEventListener('resize',sc);window.addEventListener('load',sc);"
     "document.addEventListener('DOMContentLoaded',sc);"
     "function ed(e){if(!e)return false;if(e.isContentEditable)return true;var t=(e.tagName||'').toLowerCase();"
@@ -708,7 +744,7 @@ static void view_new(int id, double w, double h, double scale, int ephem, const 
         ns = persistent;
     }
     struct view *v = g_new0(struct view, 1);
-    v->id = id; v->w = w; v->h = h; v->scale = scale; v->zoom = 1;
+    v->id = id; v->w = w; v->h = h; v->scale = scale; v->zoom = 1; v->fit = 1;
     v->pending = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
     v->alt_html = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
     v->ucm = webkit_user_content_manager_new();
@@ -751,6 +787,9 @@ static void view_new(int id, double w, double h, double scale, int ephem, const 
     g_signal_connect(v->wv, "web-process-terminated", G_CALLBACK(on_crash), GINT_TO_POINTER(id));
     g_signal_connect(v->wv, "authenticate", G_CALLBACK(on_authenticate), GINT_TO_POINTER(id));
     g_signal_connect(v->wv, "permission-request", G_CALLBACK(on_permission), GINT_TO_POINTER(id));
+    g_signal_connect(v->wv, "run-file-chooser", G_CALLBACK(on_file_chooser), GINT_TO_POINTER(id));
+    g_signal_connect(v->wv, "enter-fullscreen", G_CALLBACK(on_enter_fullscreen), GINT_TO_POINTER(id));
+    g_signal_connect(v->wv, "leave-fullscreen", G_CALLBACK(on_leave_fullscreen), GINT_TO_POINTER(id));
     g_signal_connect(webkit_web_view_get_back_forward_list(v->wv), "changed", G_CALLBACK(on_bf), GINT_TO_POINTER(id));
 
     /* an undecorated window on the private display; the view gets its full pixel size inside a scrolled
@@ -765,17 +804,18 @@ static void view_new(int id, double w, double h, double scale, int ephem, const 
     gtk_window_set_child(GTK_WINDOW(v->win), sw);
     v->pw = (int)(w * scale + 0.5); v->ph = (int)(h * scale + 0.5);
     gtk_widget_set_size_request(GTK_WIDGET(v->wv), MAX(1, v->pw), MAX(1, v->ph));
-    webkit_web_view_set_zoom_level(v->wv, scale * v->zoom);
+    webkit_web_view_set_zoom_level(v->wv, scale * v->zoom * v->fit);
     gtk_window_present(GTK_WINDOW(v->win));
     g_hash_table_insert(views, GINT_TO_POINTER(id), v);
     hot(v);
     SEND(id, "ready", "");
 }
 static void view_resize(struct view *v, double w, double h, double scale) {
+    if (v->fit < 1) v->fit = MIN(1, w / 980);
     v->w = w; v->h = h; v->scale = scale;
     v->pw = (int)(w * scale + 0.5); v->ph = (int)(h * scale + 0.5);
     gtk_widget_set_size_request(GTK_WIDGET(v->wv), MAX(1, v->pw), MAX(1, v->ph));
-    webkit_web_view_set_zoom_level(v->wv, scale * v->zoom);
+    webkit_web_view_set_zoom_level(v->wv, scale * v->zoom * v->fit);
     v->awaiting_ack = 0; v->next_snap = 0;
     hot(v);
 }
@@ -791,6 +831,7 @@ static void view_close(struct view *v) {
         else if (p->kind == P_DIALOG) { webkit_script_dialog_close(p->obj); webkit_script_dialog_unref(p->obj); }
         else if (p->kind == P_AUTH) { webkit_authentication_request_cancel(p->obj); g_object_unref(p->obj); }
         else if (p->kind == P_PERM) { webkit_permission_request_deny(p->obj); g_object_unref(p->obj); }
+        else if (p->kind == P_FILES) { webkit_file_chooser_request_cancel(p->obj); g_object_unref(p->obj); }
         else { webkit_script_message_reply_return_error_message(p->obj, "web view closed"); webkit_script_message_reply_unref(p->obj); }
     }
     g_hash_table_destroy(v->pending);
@@ -1230,6 +1271,19 @@ static void cmd(char **f, int n) {
         WebKitDownload *d = webkit_web_view_download_uri(v->wv, ARG(3));
         if (d) { dl_track(d, v->id, atoi(ARG(2)), "api"); g_object_unref(d); }
     }
+    else if (!strcmp(c, "files")) {           /* req n paths (one per line; n 0: cancelled) */
+        struct pend *p = pend_take(v, atoi(ARG(2)));
+        if (!p) return;
+        if (atoi(ARG(3)) > 0) {
+            gchar **paths = g_strsplit(ARG(4), "\n", -1);
+            webkit_file_chooser_request_select_files(p->obj, (const gchar * const *)paths);
+            g_strfreev(paths);
+        } else webkit_file_chooser_request_cancel(p->obj);
+        g_object_unref(p->obj);
+        g_free(p);
+    }
+    else if (!strcmp(c, "fsenable")) webkit_settings_set_enable_fullscreen(webkit_web_view_get_settings(v->wv), atoi(ARG(2)));
+    else if (!strcmp(c, "exitfs")) input_js(v, "if(document.fullscreenElement)document.exitFullscreen()");
     else if (!strcmp(c, "dialog")) {          /* req ok text */
         struct pend *p = pend_take(v, atoi(ARG(2)));
         if (!p) return;
@@ -1272,7 +1326,7 @@ static void cmd(char **f, int n) {
         webkit_web_view_save(v->wv, WEBKIT_SAVE_MODE_MHTML, NULL, archive_done, q);
         hot(v);
     }
-    else if (!strcmp(c, "zoom")) { v->zoom = g_ascii_strtod(ARG(2), NULL) > 0 ? g_ascii_strtod(ARG(2), NULL) : 1; webkit_web_view_set_zoom_level(v->wv, v->scale * v->zoom); }
+    else if (!strcmp(c, "zoom")) { v->zoom = g_ascii_strtod(ARG(2), NULL) > 0 ? g_ascii_strtod(ARG(2), NULL) : 1; webkit_web_view_set_zoom_level(v->wv, v->scale * v->zoom * v->fit); }
     else if (!strcmp(c, "js-enabled")) webkit_settings_set_enable_javascript(webkit_web_view_get_settings(v->wv), atoi(ARG(2)));
     else if (!strcmp(c, "bg")) { GdkRGBA col; if (gdk_rgba_parse(&col, ARG(2))) webkit_web_view_set_background_color(v->wv, &col); }
     else if (!strcmp(c, "cookies")) {
