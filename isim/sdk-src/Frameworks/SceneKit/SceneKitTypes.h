@@ -1,31 +1,10 @@
 #pragma once
 /* isim SceneKit: SCNVector3, SCNVector4 (SCNQuaternion), SCNMatrix4 and their functions (SCNFloat is float on iOS), the
  * same layout as the SceneKit Swift overlay's structs; the exported functions are in SceneKit.framework. The simd types
- * come from <simd/simd.h> when the SDK has it, else from the minimal typedefs below (Apple's layout). */
+ * come from <simd/simd.h>. */
 #import <Foundation/Foundation.h>
 #if !defined(__swift__)
-#if __has_include(<simd/simd.h>)
 #include <simd/simd.h>
-#else
-typedef float simd_float2 __attribute__((__ext_vector_type__(2)));
-typedef float simd_float3 __attribute__((__ext_vector_type__(3)));
-typedef float simd_float4 __attribute__((__ext_vector_type__(4)));
-#ifndef ISIM_SIMD_MATRIX_TYPES   /* the matrices, shared with other frameworks' fallbacks (Vision) */
-#define ISIM_SIMD_MATRIX_TYPES 1
-typedef struct { simd_float3 columns[3]; } simd_float3x3;
-typedef struct { simd_float4 columns[4]; } simd_float4x4;
-#endif
-#ifndef ISIM_SIMD_QUATF   /* shared with PHASE's fallback */
-#define ISIM_SIMD_QUATF 1
-typedef struct { simd_float4 vector; } simd_quatf;
-#endif
-typedef simd_float2 vector_float2;
-typedef simd_float3 vector_float3;
-typedef simd_float4 vector_float4;
-typedef simd_float3x3 matrix_float3x3;
-typedef simd_float4x4 matrix_float4x4;
-static const simd_float4x4 matrix_identity_float4x4 = {{{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}}};
-#endif
 NS_ASSUME_NONNULL_BEGIN
 #ifdef __cplusplus
 #define SCN_EXPORT extern "C"

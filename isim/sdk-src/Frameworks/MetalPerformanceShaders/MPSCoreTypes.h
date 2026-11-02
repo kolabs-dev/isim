@@ -2,20 +2,7 @@
 #pragma once
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
-/* the vector types: <simd/simd.h> when the SDK has it, else Apple's layout */
-#if __has_include(<simd/simd.h>)
 #include <simd/simd.h>
-#elif !defined(MPS_ISIM_SIMD)
-#define MPS_ISIM_SIMD 1
-typedef float simd_float2 __attribute__((__ext_vector_type__(2)));
-typedef float simd_float3 __attribute__((__ext_vector_type__(3)));
-typedef float simd_float4 __attribute__((__ext_vector_type__(4)));
-typedef unsigned char simd_uchar16 __attribute__((__ext_vector_type__(16)));
-typedef simd_float2 vector_float2;
-typedef simd_float3 vector_float3;
-typedef simd_float4 vector_float4;
-typedef simd_uchar16 vector_uchar16;
-#endif
 
 #define MPS_EXPORT extern __attribute__((visibility("default")))
 
