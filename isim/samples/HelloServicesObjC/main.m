@@ -16,6 +16,7 @@
 #import <SafariServices/SafariServices.h>
 #import <Social/Social.h>
 #import <NetworkExtension/NetworkExtension.h>
+#import <Accessibility/Accessibility.h>
 #import <MultipeerConnectivity/MultipeerConnectivity.h>
 #import <Messages/Messages.h>
 #import <BackgroundAssets/BackgroundAssets.h>
@@ -424,6 +425,16 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
     say(@"ne vpn status %ld server %@ dh %ld rule %ld enabled %d hotspot %@ %@", (long)vpn.connection.status,
         vpn.protocolConfiguration.serverAddress, (long)ike.IKESecurityAssociationParameters.diffieHellmanGroup, (long)rule.action,
         vpn.isEnabled, hotspot.SSID, NEVPNErrorDomain);
+    // issue #425: an audio graph's chart descriptor from Objective-C
+    AXNumericDataAxisDescriptor *ax = [[AXNumericDataAxisDescriptor alloc] initWithTitle:@"Steps" lowerBound:0 upperBound:10000
+                                                                       gridlinePositions:@[@0, @5000] valueDescriptionProvider:^NSString *(double v) { return [NSString stringWithFormat:@"%.0f steps", v]; }];
+    AXCategoricalDataAxisDescriptor *days = [[AXCategoricalDataAxisDescriptor alloc] initWithTitle:@"Day" categoryOrder:@[@"Mon", @"Tue"]];
+    AXDataSeriesDescriptor *steps = [[AXDataSeriesDescriptor alloc] initWithName:@"Steps" isContinuous:NO dataPoints:@[
+        [[AXDataPoint alloc] initWithX:[AXDataPointValue valueWithCategory:@"Mon"] y:[AXDataPointValue valueWithNumber:4200]],
+        [[AXDataPoint alloc] initWithX:[AXDataPointValue valueWithCategory:@"Tue"] y:[AXDataPointValue valueWithNumber:8100]]]];
+    AXChartDescriptor *chart = [[AXChartDescriptor alloc] initWithTitle:@"Steps" summary:nil xAxisDescriptor:days yAxisDescriptor:ax series:@[steps]];
+    say(@"ax chart %@ %lu points y %@ dir %ld", chart.title, (unsigned long)chart.series.firstObject.dataPoints.count,
+        chart.yAxis.valueDescriptionProvider(chart.yAxis.upperBound), (long)chart.contentDirection);
     BOOL settings = NO; NSString *domain = @"-";
     if (@available(iOS 26.0, *)) {
         settings = [SFSafariSettings respondsToSelector:@selector(openExportBrowsingDataSettingsWithCompletionHandler:)];

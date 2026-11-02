@@ -587,7 +587,8 @@ def _(a):
                                           "-framework", "Messages", "-framework", "BackgroundAssets", "-framework", "FileProvider",
                                           "-framework", "FileProviderUI", "-framework", "UniformTypeIdentifiers", "-framework", "CarPlay",
                                           "-framework", "Intents", "-framework", "CoreLocation", "-framework", "HomeKit",
-                                          "-framework", "Social", "-framework", "NetworkExtension"])
+                                          "-framework", "Social", "-framework", "NetworkExtension",
+                                          "-framework", "Accessibility"])
     a.copy("HelloServicesObjC.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # HomeKit (issue #416)
 
 
