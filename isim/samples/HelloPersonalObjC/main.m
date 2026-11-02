@@ -1,7 +1,7 @@
 // Sample: location and personal data from Objective-C (issue #232): CoreLocation (the permission prompt, location
 // updates, CLLocation, region monitoring, CLGeocoder), MapKit (MKMapView with a region, MKPointAnnotation and an app
 // annotation class, MKMarkerAnnotationView from the delegate, an MKPolyline overlay with its renderer, MKLocalSearch),
-// Contacts (saving and finding a contact with labeled values), ContactsUI (the contact picker) and EventKit /
+// Contacts (saving and finding a contact with labeled values, groups and the change history), ContactsUI (the contact picker) and EventKit /
 // EventKitUI (saving and finding an event, the event editor). Each step prints a "po ..." line the test checks.
 #import <UIKit/UIKit.h>
 #import <CoreLocation/CoreLocation.h>
@@ -21,6 +21,22 @@ static void say(NSString *fmt, ...) {
 static NSString *errText(NSError *e) { return e ? [NSString stringWithFormat:@"%@/%ld", e.domain, (long)e.code] : @"nil"; }
 
 /// an app's own annotation class, as Objective-C apps write them
+/// a change history visitor that names each event: drop, add:<given name>, update:..., delete, group:<name>, member:<given name>
+@interface ISIMHistoryLog : NSObject <CNChangeHistoryEventVisitor>
+@property (nonatomic, strong) NSMutableArray<NSString *> *events;
+@end
+@implementation ISIMHistoryLog
+- (instancetype)init { if ((self = [super init])) _events = [NSMutableArray array]; return self; }
+- (void)visitDropEverythingEvent:(CNChangeHistoryDropEverythingEvent *)event { [_events addObject:@"drop"]; }
+- (void)visitAddContactEvent:(CNChangeHistoryAddContactEvent *)event { [_events addObject:[@"add:" stringByAppendingString:event.contact.givenName]]; }
+- (void)visitUpdateContactEvent:(CNChangeHistoryUpdateContactEvent *)event { [_events addObject:[@"update:" stringByAppendingString:event.contact.givenName]]; }
+- (void)visitDeleteContactEvent:(CNChangeHistoryDeleteContactEvent *)event { [_events addObject:@"delete"]; }
+- (void)visitAddGroupEvent:(CNChangeHistoryAddGroupEvent *)event { [_events addObject:[@"group:" stringByAppendingString:event.group.name]]; }
+- (void)visitAddMemberToGroupEvent:(CNChangeHistoryAddMemberToGroupEvent *)event {
+    [_events addObject:[NSString stringWithFormat:@"member:%@>%@", event.member.givenName, event.group.name]];
+}
+@end
+
 @interface Cafe : NSObject <MKAnnotation>
 @property (nonatomic) CLLocationCoordinate2D coordinate;
 @property (nonatomic, copy) NSString *title;
@@ -162,6 +178,46 @@ static NSString *errText(NSError *e) { return e ? [NSString stringWithFormat:@"%
 }
 
 #pragma mark Contacts
+- (void)history:(CNContactStore *)store contact:(CNContact *)dana {
+    // issue #420: the change history, from nothing and then since a token, with group changes and an excluded author
+    NSError *e = nil;
+    CNChangeHistoryFetchRequest *all = [[CNChangeHistoryFetchRequest alloc] init];
+    CNFetchResult<NSEnumerator<CNChangeHistoryEvent *> *> *r = [store enumeratorForChangeHistoryFetchRequest:all error:&e];
+    ISIMHistoryLog *first = [[ISIMHistoryLog alloc] init];
+    for (CNChangeHistoryEvent *ev in r.value) [ev acceptEventVisitor:first];
+    NSData *token = r.currentHistoryToken;
+
+    CNMutableGroup *friends = [[CNMutableGroup alloc] init];
+    friends.name = @"Friends";
+    CNSaveRequest *save = [[CNSaveRequest alloc] init];
+    [save addGroup:friends toContainerWithIdentifier:nil];
+    [save addMember:dana toGroup:friends];
+    [store executeSaveRequest:save error:&e];
+    CNMutableContact *m = [dana mutableCopy];
+    m.givenName = @"Dana";
+    CNSaveRequest *sync = [[CNSaveRequest alloc] init];
+    sync.transactionAuthor = @"dev.isim.sync";
+    [sync updateContact:m];
+    [store executeSaveRequest:sync error:&e];
+
+    CNChangeHistoryFetchRequest *since = [[CNChangeHistoryFetchRequest alloc] init];
+    since.startingToken = token;
+    since.includeGroupChanges = YES;
+    since.excludedTransactionAuthors = @[@"dev.isim.sync"];
+    ISIMHistoryLog *grouped = [[ISIMHistoryLog alloc] init];
+    for (CNChangeHistoryEvent *ev in [store enumeratorForChangeHistoryFetchRequest:since error:&e].value) [ev acceptEventVisitor:grouped];
+    CNChangeHistoryFetchRequest *plain = [[CNChangeHistoryFetchRequest alloc] init];
+    plain.startingToken = token;
+    CNFetchResult *latest = [store enumeratorForChangeHistoryFetchRequest:plain error:&e];
+    ISIMHistoryLog *contactsOnly = [[ISIMHistoryLog alloc] init];
+    for (CNChangeHistoryEvent *ev in latest.value) [ev acceptEventVisitor:contactsOnly];
+    NSArray<CNGroup *> *groups = [store groupsMatchingPredicate:nil error:&e];
+    say(@"history first=%@ since=%@ contacts=%@ groups=%@ current=%d error=%@", [first.events componentsJoinedByString:@","],
+        [grouped.events componentsJoinedByString:@","], [contactsOnly.events componentsJoinedByString:@","], groups.firstObject.name,
+        [latest.currentHistoryToken isEqualToData:store.currentHistoryToken], errText(e));
+    CNContactsUserDefaults *d = [CNContactsUserDefaults sharedDefaults];
+    say(@"contacts defaults sortOrder=%ld country=%@", (long)d.sortOrder, d.countryCode);
+}
 - (void)contacts {
     CNContactStore *store = [[CNContactStore alloc] init];
     [store requestAccessForEntityType:CNEntityTypeContacts completionHandler:^(BOOL granted, NSError *error) {
@@ -181,6 +237,7 @@ static NSString *errText(NSError *e) { return e ? [NSString stringWithFormat:@"%
         say(@"contacts granted=%d saved=%d found=%lu name=%@ phone=%@ label=%@ email=%@ error=%@", granted, ok, (unsigned long)found.count,
             [CNContactFormatter stringFromContact:f style:CNContactFormatterStyleFullName], phone.value.stringValue,
             [phone.label isEqualToString:CNLabelPhoneNumberMobile] ? @"mobile" : phone.label, f.emailAddresses.firstObject.value, errText(e));
+        if (f) [self history:store contact:f];
     }];
 }
 - (void)pickContact {

@@ -15,7 +15,7 @@
 | API / feature | Status | iOS | Notes |
 | Objective-C interface (`ContactsUI.framework`): `CNContactPickerViewController` and `CNContactPickerDelegate`, `CNContactViewController` and `CNContactViewControllerDelegate`, `CNContactProperty` | ✅ | ≤17 | adapted: headers over the Swift overlay's classes (Apple's Objective-C names). `CNContactViewControllerDelegate`'s selectors are now Apple's (`contactViewController:didCompleteWithContact:`); Swift apps built with 0.22 or earlier still get the call. Tested (HelloPersonalObjC: the picker, tests/ui/test_personal_objc.py) |
 |---|---|---|---|
-| Types not yet in isim (iOS 18) | ❌ | 18.0 | not implemented, found by the 2026-10 sweep: `ContactAccessButton` (1 type; with its members under "Not yet in isim") |
+| `ContactAccessButton` (`init(queryString:ignoredEmails:ignoredPhoneNumbers:approvalCallback:)`, `Caption`, `Style`), `contactAccessButtonCaption(_:)`, `contactAccessButtonStyle(_:)`, `contactAccessPicker(isPresented:completionHandler:)` | ✅ | 18.0 | adapted: for apps with limited Contacts access. The button shows the device contact that best matches the search (by name, then phone number, then email) and that the app cannot read yet, with its email or phone number, and a plus; a tap shares it (an app that has not asked yet gets limited access to it, as on iOS), says Added and calls the callback with its identifier. Contacts with an ignored email or phone number are skipped. The picker is the limited-access selection list over the contacts not shared yet; the handler gets the ones added. Like iOS's, both run outside the app's permission. Tested (HelloPersonal: Limited Access, tests/ui/test_personal.py `test_contact_access_button`, `os_matrix`) |
 
 ## Not yet in isim
 

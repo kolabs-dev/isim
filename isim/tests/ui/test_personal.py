@@ -132,6 +132,49 @@ def test_eventkit_write_only_and_editor_without_access(launch):
     assert app.quit() == 0
 
 
+@pytest.mark.os_matrix
+def test_contact_access_button(launch, ios):
+    """Limited Contacts access (iOS 18, issue #420): ContactAccessButton offers the contact matching a search that the
+    app cannot read yet, with its email, and shares it when tapped; the contact access picker adds more; the history
+    token and the Contacts settings. iOS 17 has no limited access: the scripted answer gives full access, no button."""
+    major = int(float(ios[0] or 18))
+    app = launch("HelloPersonal", env={"ISIM_CONTACTS_PERMISSION": "limited"})
+    app.wait_tap_id("contactsAccess")
+    if major < 18:
+        app.wait_log(r"^contacts access true status 3")
+        app.wait_log(r"^contacts 6:")
+        assert "id=accessQuery" not in app.view_dump(), "no limited access before iOS 18"
+        assert app.quit() == 0
+        return
+    app.wait_log(r"^contacts access true status 4")
+    app.wait_log(r"^contacts 0: $")
+    app.tap_id("contactSettings")
+    app.wait_log(r"^contacts defaults sortOrder 3 country [a-z]{2} token isim-contacts-history:0$")
+    app.tap_id("accessQuery")
+    app.type("Ann")
+    app.send("key return")                                            # the keyboard goes; the button is in view
+    button = app.wait_view(r"text=anna-haro@mac.com")
+    app.wait_still()
+    app.screenshot("contact-access-button")
+    app.tap_id("contact-access-button")
+    app.wait_log(r"^access button approved 1$")
+    app.wait_log(r"^contacts 1: Anna Haro$")
+    added = app.wait_view(r"text=Added")
+    app.tap_id("moreContacts")
+    picker = app.wait_view(r"text=Kate Bell")
+    app.wait_still()
+    app.screenshot("contact-access-picker")
+    app.tap_text("Kate Bell")
+    app.tap_id("contacts-select-done")
+    app.wait_log(r"^access picker added 1$")
+    app.wait_log(r"^contacts 2: Anna Haro, Kate Bell$")
+    assert app.quit() == 0
+    assert "text=anna-haro@mac.com" in button, "the button shows the match's email"
+    assert "text=Anna Haro" in added, "the button says the contact was added"
+    assert picker.count("text=Anna Haro") == 1 and "text=John Appleseed" in picker, \
+        "the picker offers only contacts not shared yet (Anna Haro is the button underneath)"
+
+
 def test_personal_ios17(launch):
     app = launch("HelloPersonal", device="iphone15", os_version="17.5")
     app.wait_tap_id("contactsAccess")

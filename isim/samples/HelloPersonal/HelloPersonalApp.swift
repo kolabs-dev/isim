@@ -1,5 +1,6 @@
 // Sample: personal data on isim — Contacts (permission alert, the seeded address book, predicates, save requests,
-// unfetched-key safety), ContactsUI (contact picker, new-contact form), EventKit (calendar/reminders access, saving
+// unfetched-key safety, the history token, the Contacts settings), ContactsUI (contact picker, new-contact form, and
+// for limited access from iOS 18 ContactAccessButton and the contact access picker), EventKit (calendar/reminders access, saving
 // events and reminders, predicates, recurring events and their occurrences, structured locations, alarms, attendees)
 // and EventKitUI (the New Event form, the calendar chooser).
 import SwiftUI
@@ -57,6 +58,11 @@ final class PersonalModel: NSObject, ObservableObject, CNContactPickerDelegate, 
             print("contacts error \((error as? CNError)?.code.rawValue ?? -1)")
             contactText = "No access"
         }
+    }
+    func contactSettings() {
+        let d = CNContactsUserDefaults.shared()
+        let token = contacts.currentHistoryToken.flatMap { String(data: $0, encoding: .utf8) } ?? "-"
+        print("contacts defaults sortOrder \(d.sortOrder.rawValue) country \(d.countryCode) token \(token)")
     }
     func addContact() {
         let c = CNMutableContact()
@@ -300,7 +306,9 @@ struct ContentView: View {
                     Button("Add Ada") { model.addContact() }.accessibilityIdentifier("addContact")
                     Button("Pick a Contact") { model.pickContact() }.accessibilityIdentifier("pickContact")
                     Button("New Contact Form") { model.newContact() }.accessibilityIdentifier("newContact")
+                    Button("Contacts Settings") { model.contactSettings() }.accessibilityIdentifier("contactSettings")
                 }
+                if #available(iOS 18.0, *) { LimitedAccessSection(model: model) }
                 Section("Calendar") {
                     Text(model.calendarText).accessibilityIdentifier("calendarText")
                     Button("Access Calendar") { model.requestCalendar() }.accessibilityIdentifier("calendarAccess")
@@ -313,6 +321,34 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("Personal")
+        }
+    }
+}
+
+/// limited access (iOS 18): a search that offers matching contacts the app cannot read yet, and the picker that adds more
+@available(iOS 18.0, *)
+struct LimitedAccessSection: View {
+    @ObservedObject var model: PersonalModel
+    @State private var query = ""
+    @State private var picking = false
+    @FocusState private var searching: Bool
+    var body: some View {
+        Section("Limited Access") {
+            TextField("Search contacts", text: $query)
+                .focused($searching)
+                .onSubmit { searching = false }
+                .accessibilityIdentifier("accessQuery")
+            ContactAccessButton(queryString: query, ignoredEmails: ["d-higgins@mac.com"]) { ids in
+                print("access button approved \(ids.count)")
+                model.listContacts()
+            }
+            .contactAccessButtonCaption(.defaultText)
+            .contactAccessButtonStyle(ContactAccessButton.Style(imageWidth: 26))
+            Button("Add More Contacts") { picking = true }.accessibilityIdentifier("moreContacts")
+        }
+        .contactAccessPicker(isPresented: $picking) { ids in
+            print("access picker added \(ids.count)")
+            model.listContacts()
         }
     }
 }

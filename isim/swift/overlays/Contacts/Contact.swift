@@ -75,6 +75,7 @@ public struct CNError: CustomNSError, LocalizedError, Sendable {
         case recordIdentifierInvalid = 205, recordNotWritable = 206, parentContainerNotWritable = 207
         case validationMultipleErrors = 300, validationTypeMismatch = 301, validationConfigurationError = 302
         case predicateInvalid = 400, policyViolation = 500, vCardMalformed = 700, vCardSummarizationError = 701
+        case changeHistoryExpired = 603, changeHistoryInvalidAnchor = 604, changeHistoryInvalidFetchRequest = 605
     }
     public let code: Code
     public init(_ code: Code) { self.code = code }
@@ -90,6 +91,9 @@ public struct CNError: CustomNSError, LocalizedError, Sendable {
     }
     public static var authorizationDenied: Code { .authorizationDenied }
     public static var recordDoesNotExist: Code { .recordDoesNotExist }
+    public static var changeHistoryExpired: Code { .changeHistoryExpired }
+    public static var changeHistoryInvalidAnchor: Code { .changeHistoryInvalidAnchor }
+    public static var changeHistoryInvalidFetchRequest: Code { .changeHistoryInvalidFetchRequest }
 }
 
 // MARK: - Values

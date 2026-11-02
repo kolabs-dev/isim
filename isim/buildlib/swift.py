@@ -857,7 +857,7 @@ OBJC_NAMES["MapKit"] = {**{c: c for c in """MKMapView MKAnnotationView MKMarkerA
                        "MKLocalSearch.Request": "MKLocalSearchRequest", "MKLocalSearch.Response": "MKLocalSearchResponse",
                        "MKDirections.Request": "MKDirectionsRequest", "MKDirections.Response": "MKDirectionsResponse"}
 OBJC_NAMES["Contacts"] = {c: c for c in """CNContact CNMutableContact CNPhoneNumber CNPostalAddress CNMutablePostalAddress CNContactFormatter
-    CNContactStore CNFetchRequest CNContactFetchRequest CNSaveRequest""".split()}
+    CNContactStore CNFetchRequest CNContactFetchRequest CNSaveRequest CNGroup CNMutableGroup""".split()}
 OBJC_NAMES["ContactsUI"] = {c: c for c in "CNContactProperty CNContactPickerViewController CNContactViewController".split()}
 OBJC_NAMES["EventKit"] = {c: c for c in """EKObject EKSource EKCalendar EKAlarm EKRecurrenceEnd EKRecurrenceRule EKCalendarItem EKEvent EKReminder
     EKEventStore""".split()}
@@ -1000,7 +1000,7 @@ CoreBluetooth -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Fou
 CoreNFC -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -framework Foundation -framework UIKit
 HealthKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftCoreLocation -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 Contacts -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
-ContactsUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftContacts -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
+ContactsUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftContacts -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 EventKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswiftCoreLocation -lswiftContacts -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics
 EventKitUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftEventKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 Photos -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -lswiftAVFoundation -lswiftCoreMedia -lswiftCoreLocation -lswiftUniformTypeIdentifiers -framework Foundation -framework UIKit -framework CoreGraphics -framework CoreLocation
