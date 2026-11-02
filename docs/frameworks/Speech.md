@@ -11,7 +11,9 @@
 - **Passthrough** to whisper.cpp or Vosk when installed (`ISIM_WHISPER_MODEL`, `ISIM_VOSK_MODEL`); otherwise unavailable.
 - **SpeechAnalyzer** (iOS 26) runs on the same engines: isim finalizes stretches of audio and hands each to the engine, so
   every result is final. Contextual strings and custom language models bias whisper.cpp through its prompt.
-- **Swift only:** the Objective-C interface (`<Speech/Speech.h>`) is not there yet (#700).
+- **Objective-C:** `<Speech/Speech.h>` declares Apple's interface over the Swift classes (`@objc` names, the delegate
+  protocols with `@optional` methods, `SFSpeechErrorDomain` and `SFSpeechErrorCode`). Making the classes `@objc` changed
+  the Swift overlay's ABI: Swift apps that use Speech and were built with isim 0.33 or earlier must be rebuilt (0.34.0).
 
 ## API
 
@@ -25,6 +27,7 @@
 | `AnalyzerInputConverter`, `AssetInputSequenceProvider`, `CaptureInputSequenceProvider`, `AnalyzerInput.bufferDuration` / `bufferFormat`, `Options(…ignoresResourceLimits:)` | ✅ | 27.0 | adapted: the converter mixes and resamples into the analyzer's format with isim's own code (the configuration handler gets an AVAudioConverter between the formats); assets are read with AVAssetReader as linear PCM; capture adds an AVCaptureAudioDataOutput to the session and starts it when the inputs are first read. Tested (SpeechTest, iOS 27) |
 | `SFCustomLanguageModelData` (phrase counts, templates, pronunciations, builders), `SFSpeechLanguageModel`, `SFSpeechLanguageModel.Configuration`, `SFSpeechRecognitionRequest.customizedLanguageModel` | 🟡 | ≤17 | adapted: `export(to:)` writes isim's JSON (phrases with templates expanded, pronunciations), `prepareCustomLanguageModel` writes the model (phrases by weight) and the vocabulary (terms), and recognition with it puts the terms and leading phrases in whisper.cpp's prompt (Vosk ignores it). Phonemes are kept but not used. Tested (SpeechTest) |
 | `SFSpeechError`, `SFSpeechError.Code` | ✅ | ≤17 | the iOS 17 codes keep Apple's raw values; the iOS 26/27 codes (`noModel`, `audioDisordered`, …) use isim's; `catch SFSpeechError.noModel` matches. Tested (SpeechTest) |
+| Objective-C interface `<Speech/Speech.h>`: `SFSpeechRecognizer`, the requests, `SFSpeechRecognitionTask`, results, transcriptions and segments, `SFSpeechLanguageModel` (+ `Configuration`), `SFSpeechRecognizerDelegate`, `SFSpeechRecognitionTaskDelegate`, `SFSpeechErrorDomain`, `SFSpeechErrorCode` | 🟡 | ≤17 | adapted: the Swift classes exported under Apple's Objective-C names and selectors; the delegate protocols are `@objc` with optional methods; `appendAudioSampleBuffer:` takes a `CMSampleBufferRef`. Recognition is the same passthrough as Swift. Tested (SpeechCTest, `test_speech_objc`) |
 | Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `SFAcousticFeature`, `SFSpeechRecognitionMetadata`, `SFVoiceAnalytics` (3 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim

@@ -1401,9 +1401,12 @@ def _(a):
     a.swift_app("VideoCompositionTest", srcs=["VideoCompositionTest.swift"], plist="Info.plist")
 
 
-@app("tests/speech", products=["SpeechTest.app"])
+@app("tests/speech", products=["SpeechTest.app", "SpeechCTest.app"])
 def _(a):
     a.swift_app("SpeechTest", srcs=["SpeechTest.swift"], plist="Info.plist")
+    b = a.objc_app(["main.m"], "C-Info.plist", ["-framework", "Foundation", "-framework", "Speech", "-framework", "AVFAudio"],
+                   name="SpeechCTest")   # issue #700: Speech from Objective-C
+    os.replace(os.path.join(b, "C-Info.plist"), os.path.join(b, "Info.plist"))
 
 
 @app("tests/naturallanguage", products=["NaturalLanguageTest.app"])

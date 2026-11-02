@@ -281,6 +281,7 @@ SWIFT_FRAMEWORKS = [
     ("GameSave", "-framework Foundation -framework UIKit"),   # issue #393
     ("HomeKit", "-framework Foundation -framework UIKit -framework CoreLocation"),   # issue #416: simulated homes
     ("NetworkExtension", "-framework Foundation -framework UIKit"),   # issue #424: VPN, hotspot and app push managers
+    ("Speech", "-framework Foundation -framework UIKit -framework AVFAudio -framework CoreMedia"),   # issue #700: recognizers, requests, tasks
 ]
 
 GUEST_CFLAGS = ["-target", f"x86_64-apple-ios{MINOS}-simulator", "-nostdlibinc", "-isystem", f"{SDK}/usr/include",
