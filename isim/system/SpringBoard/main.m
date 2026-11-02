@@ -140,6 +140,27 @@ static NSArray<HSApp *> *scan(NSString *dir, BOOL system) {
     return out;
 }
 
+/* web clips the share sheet's "Add to Home Screen" saved (<isim data>/Library/WebClips/<id>.webclip: Info.plist, icon.png) */
+static NSArray<HSApp *> *scanWebClips(void) {
+    extern NSString *isim_data_dir(void);
+    NSString *dir = [isim_data_dir() stringByAppendingPathComponent:@"Library/WebClips"];
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSString *n in [NSFileManager.defaultManager contentsOfDirectoryAtPath:dir error:NULL]) {
+        if (![n hasSuffix:@".webclip"]) continue;
+        NSString *path = [dir stringByAppendingPathComponent:n];
+        NSDictionary *info = [NSDictionary dictionaryWithContentsOfFile:[path stringByAppendingPathComponent:@"Info.plist"]];
+        if (![info[@"URL"] length]) continue;
+        HSApp *a = [HSApp new];
+        a.path = path; a.info = info; a.webClipURL = info[@"URL"];
+        a.name = info[@"Title"] ?: [NSURL URLWithString:info[@"URL"]].host ?: @"Web Clip";
+        a.bundleID = [@"webclip." stringByAppendingString:n.stringByDeletingPathExtension];
+        NSString *icon = [path stringByAppendingPathComponent:@"icon.png"];
+        a.iconPath = [NSFileManager.defaultManager fileExistsAtPath:icon] ? icon : nil;
+        [out addObject:a];
+    }
+    return out;
+}
+
 NSString *HSCategoryName(NSString *c) {
     NSDictionary *m = @{ @"utilities": @"Utilities", @"productivity": @"Productivity", @"games": @"Games", @"social-networking": @"Social",
         @"entertainment": @"Entertainment", @"education": @"Education", @"finance": @"Finance", @"healthcare-fitness": @"Health & Fitness",
@@ -315,6 +336,7 @@ static NSString *icon_state_file(void) {
     NSMutableArray *apps = [NSMutableArray array];
     [apps addObjectsFromArray:scan(isim_ui_system_apps_dir(), YES)];
     [apps addObjectsFromArray:scan(isim_ui_installed_apps_dir(), NO)];
+    [apps addObjectsFromArray:scanWebClips()];
     [self setInstalledAppClips:[apps filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"appClip == YES"]]];
     [apps filterUsingPredicate:[NSPredicate predicateWithFormat:@"appClip == NO"]];
     _apps = apps;
@@ -612,6 +634,7 @@ static void item_span(id it, NSInteger cols, NSInteger *cw, NSInteger *ch) {
 
 - (void)launch:(HSApp *)a { [self launch:a url:nil]; }
 - (void)launch:(HSApp *)a url:(NSString *)url {
+    if (a.webClipURL) { NSLog(@"SpringBoard: web clip %@ opens %@", a.name, a.webClipURL); [self openURLString:a.webClipURL]; return; }
     if (a.appClip && !url) url = [self appClipRelaunchURL:a];        /* from the App Library: the last invocation */
     if ([self screenTimeShield:a]) return;                            /* Screen Time: the app's shield instead */
     NSLog(@"SpringBoard: launching %@ (%@)%@%@", a.name, a.bundleID, url ? @" with " : @"", url ?: @"");
@@ -1000,6 +1023,12 @@ static void item_span(id it, NSInteger cols, NSInteger *cw, NSInteger *ch) {
 }
 - (void)deleteApp:(HSApp *)a {
     NSLog(@"SpringBoard: deleting %@ (%@)", a.name, a.bundleID);
+    if (a.webClipURL) {                                               /* a web clip: its folder only */
+        [NSFileManager.defaultManager removeItemAtPath:a.path error:NULL];
+        [self reload];
+        if (_editing) [self setEditingMode:YES];
+        return;
+    }
     isim_shell_request(ISIM_SHELL_TERMINATE_APP, a.path.UTF8String, NULL, NULL);
     extern NSString *isim_data_dir(void);
     NSFileManager *fm = NSFileManager.defaultManager;

@@ -143,3 +143,99 @@
 - (void)didSelectCancel { [self.extensionContext cancelRequestWithError:[NSError errorWithDomain:NSCocoaErrorDomain code:3072 userInfo:nil]]; }
 - (void)cancel { [self didSelectCancel]; }
 @end
+
+/* ---- SLComposeViewController and SLRequest: unavailable, like the Simulator (no accounts for these services) ---- */
+NSString * const SLServiceTypeTwitter = @"com.apple.social.twitter";
+NSString * const SLServiceTypeFacebook = @"com.apple.social.facebook";
+NSString * const SLServiceTypeSinaWeibo = @"com.apple.social.sinaweibo";
+NSString * const SLServiceTypeTencentWeibo = @"com.apple.social.tencentweibo";
+NSString * const SLServiceTypeLinkedIn = @"com.apple.social.linkedin";
+
+@implementation SLComposeViewController {
+    NSString *_serviceType; NSString *_text; NSMutableArray *_images, *_urls; BOOL _presented;
+}
++ (BOOL)isAvailableForServiceType:(NSString *)serviceType { return NO; }
++ (SLComposeViewController *)composeViewControllerForServiceType:(NSString *)serviceType {
+    SLComposeViewController *c = [[self alloc] initWithNibName:nil bundle:nil];
+    c->_serviceType = [serviceType copy]; c->_images = [NSMutableArray array]; c->_urls = [NSMutableArray array];
+    return c;
+}
+- (NSString *)serviceType { return _serviceType; }
+/* like iOS: the content can be set only before the composer is presented */
+- (BOOL)setInitialText:(NSString *)text { if (_presented) return NO; _text = [text copy]; return YES; }
+- (BOOL)addImage:(UIImage *)image { if (_presented || !image) return NO; [_images addObject:image]; return YES; }
+- (BOOL)removeAllImages { if (_presented) return NO; [_images removeAllObjects]; return YES; }
+- (BOOL)addURL:(NSURL *)url { if (_presented || !url) return NO; [_urls addObject:url]; return YES; }
+- (BOOL)removeAllURLs { if (_presented) return NO; [_urls removeAllObjects]; return YES; }
+- (void)viewDidLoad { [super viewDidLoad]; self.view.backgroundColor = UIColor.clearColor; }
+/* presented anyway: no account for the service, so it finishes at once as cancelled */
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    if (_presented) return;
+    _presented = YES;
+    NSLog(@"isim: SLComposeViewController for %@: no account for the service (like the Simulator); cancelled", _serviceType ?: @"-");
+    SLComposeViewControllerCompletionHandler h = self.completionHandler;   /* it dismisses itself, as since iOS 7 */
+    [self dismissViewControllerAnimated:YES completion:^{ if (h) h(SLComposeViewControllerResultCancelled); }];
+}
+@end
+
+@implementation SLRequest {
+    NSString *_serviceType; NSURL *_url; NSDictionary *_parameters; SLRequestMethod _method;
+    NSMutableArray<NSArray *> *_parts;                    /* [data, name, type, filename] */
+}
++ (SLRequest *)requestForServiceType:(NSString *)serviceType requestMethod:(SLRequestMethod)requestMethod URL:(NSURL *)url parameters:(NSDictionary *)parameters {
+    SLRequest *r = [self new];
+    r->_serviceType = [serviceType copy]; r->_method = requestMethod; r->_url = [url copy]; r->_parameters = [parameters copy] ?: @{};
+    r->_parts = [NSMutableArray array];
+    return r;
+}
+- (SLRequestMethod)requestMethod { return _method; }
+- (NSURL *)URL { return _url; }
+- (NSDictionary *)parameters { return _parameters; }
+- (void)addMultipartData:(NSData *)data withName:(NSString *)name type:(NSString *)type filename:(NSString *)filename {
+    if (data && name) [_parts addObject:@[data, name, type ?: @"application/octet-stream", filename ?: @""]];
+}
+- (void)addMultipartData:(NSData *)data withName:(NSString *)name type:(NSString *)type { [self addMultipartData:data withName:name type:type filename:nil]; }
+static NSString *form_escape(id v) {
+    NSMutableCharacterSet *ok = [NSCharacterSet.alphanumericCharacterSet mutableCopy]; [ok addCharactersInString:@"-._~"];
+    return [[v description] stringByAddingPercentEncodingWithAllowedCharacters:ok];
+}
+/* the HTTP request the service would get: parameters in the query (GET, DELETE) or the body (POST, PUT; multipart with
+   parts); isim has no account to sign it with OAuth */
+- (NSURLRequest *)preparedURLRequest {
+    NSArray *keys = [_parameters.allKeys sortedArrayUsingSelector:@selector(compare:)];
+    NSMutableArray *pairs = [NSMutableArray array];
+    for (id k in keys) [pairs addObject:[NSString stringWithFormat:@"%@=%@", form_escape(k), form_escape(_parameters[k])]];
+    NSString *query = [pairs componentsJoinedByString:@"&"];
+    NSString *methods[] = { @"GET", @"POST", @"DELETE", @"PUT" };
+    NSURL *u = _url;
+    BOOL body = _method == SLRequestMethodPOST || _method == SLRequestMethodPUT;
+    if (!body && query.length) u = [NSURL URLWithString:[_url.absoluteString stringByAppendingFormat:@"%@%@", _url.query.length ? @"&" : @"?", query]];
+    NSMutableURLRequest *r = [NSMutableURLRequest requestWithURL:u];
+    r.HTTPMethod = methods[(NSUInteger)_method < 4 ? _method : 0];
+    if (body && _parts.count) {
+        NSString *boundary = @"isim-SLRequest-boundary";
+        NSMutableData *d = [NSMutableData data];
+        for (id k in keys) [d appendData:[[NSString stringWithFormat:@"--%@\r\nContent-Disposition: form-data; name=\"%@\"\r\n\r\n%@\r\n", boundary, k, _parameters[k]] dataUsingEncoding:NSUTF8StringEncoding]];
+        for (NSArray *p in _parts) {
+            NSString *file = [p[3] length] ? [NSString stringWithFormat:@"; filename=\"%@\"", p[3]] : @"";
+            [d appendData:[[NSString stringWithFormat:@"--%@\r\nContent-Disposition: form-data; name=\"%@\"%@\r\nContent-Type: %@\r\n\r\n", boundary, p[1], file, p[2]] dataUsingEncoding:NSUTF8StringEncoding]];
+            [d appendData:p[0]];
+            [d appendData:[@"\r\n" dataUsingEncoding:NSUTF8StringEncoding]];
+        }
+        [d appendData:[[NSString stringWithFormat:@"--%@--\r\n", boundary] dataUsingEncoding:NSUTF8StringEncoding]];
+        r.HTTPBody = d;
+        [r setValue:[@"multipart/form-data; boundary=" stringByAppendingString:boundary] forHTTPHeaderField:@"Content-Type"];
+    } else if (body) {
+        r.HTTPBody = [query dataUsingEncoding:NSUTF8StringEncoding];
+        [r setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
+    }
+    return r;
+}
+- (void)performRequestWithHandler:(SLRequestHandler)handler {
+    NSLog(@"isim: SLRequest %@ %@ (%@) sent without an account", self.preparedURLRequest.HTTPMethod, _url.absoluteString, _serviceType ?: @"-");
+    [[NSURLSession.sharedSession dataTaskWithRequest:self.preparedURLRequest completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        if (handler) handler(data, [response isKindOfClass:[NSHTTPURLResponse class]] ? (NSHTTPURLResponse *)response : nil, error);
+    }] resume];
+}
+@end

@@ -11,6 +11,7 @@ NSString *isim_data_dir(void);
 @property (nonatomic, copy) NSDictionary *info;
 @property (nonatomic) BOOL system;
 @property (nonatomic) BOOL appClip;                            /* an App Clip (Info.plist NSAppClip): not on the home screen */
+@property (nonatomic, copy) NSString *webClipURL;               /* a web clip (Add to Home Screen): opens this URL in Safari */
 @property (nonatomic, readonly) NSString *containerPath;       /* <isim data>/Containers/<bundle id> */
 @end
 
@@ -98,6 +99,7 @@ NSString *HSCategoryName(NSString *category);
 
 @interface HomeViewController (System)
 - (void)installSystemObservers;          /* shell system events: openurl, bgtask, reload */
+- (void)openURLString:(NSString *)s;     /* the app (or Safari) that opens a URL */
 - (void)publishAppInfo;                  /* names + icons for the shell's app switcher / notification lists */
 @end
 @interface HomeViewController (Folders)

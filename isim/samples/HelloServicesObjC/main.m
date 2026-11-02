@@ -14,6 +14,7 @@
 #import <BackgroundTasks/BackgroundTasks.h>
 #import <CoreSpotlight/CoreSpotlight.h>
 #import <SafariServices/SafariServices.h>
+#import <Social/Social.h>
 #import <MultipeerConnectivity/MultipeerConnectivity.h>
 #import <Messages/Messages.h>
 #import <BackgroundAssets/BackgroundAssets.h>
@@ -404,6 +405,19 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
                                                                        title:nil previewText:nil error:&e2];
     say(@"reading list ok=%d refused=%d error=%@ supports=%d", ok, !bad, errText(e2),
         [SSReadingList supportsURL:[NSURL URLWithString:@"https://example.com"]]);
+    // issue #423: a Safari extension's button in the configuration, SFSafariSettings, Social without accounts
+    SFSafariViewControllerConfiguration *c = [[SFSafariViewControllerConfiguration alloc] init];
+    c.activityButton = [[SFSafariViewControllerActivityButton alloc] initWithTemplateImage:[UIImage systemImageNamed:@"star"]
+                                                                        extensionIdentifier:@"dev.isim.samples.Action"];
+    SLRequest *r = [SLRequest requestForServiceType:SLServiceTypeFacebook requestMethod:SLRequestMethodGET
+                                                URL:[NSURL URLWithString:@"https://graph.example.com/me"] parameters:@{ @"fields": @"name" }];
+    BOOL settings = NO; NSString *domain = @"-";
+    if (@available(iOS 26.0, *)) {
+        settings = [SFSafariSettings respondsToSelector:@selector(openExportBrowsingDataSettingsWithCompletionHandler:)];
+        domain = SFSafariSettingsErrorDomain;
+    }
+    say(@"activity button %@ settings %d domain %@ social %d request %@ %@", c.activityButton.extensionIdentifier, settings, domain,
+        [SLComposeViewController isAvailableForServiceType:SLServiceTypeFacebook], r.preparedURLRequest.HTTPMethod, r.preparedURLRequest.URL.absoluteString);
     // no content blocker extension in this app: SFErrorNoExtensionFound
     [SFContentBlockerManager getStateOfContentBlockerWithIdentifier:@"dev.isim.samples.HelloServicesObjC.Blocker"
                                                   completionHandler:^(SFContentBlockerState *state, NSError *error) {

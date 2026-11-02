@@ -244,7 +244,9 @@ enum _SFCompass {
     @objc(SFSafariViewControllerConfiguration) open class Configuration: NSObject, @unchecked Sendable {
         open var entersReaderIfAvailable = false
         open var barCollapsingEnabled = true
-        open var activityButton: AnyObject?
+        open var activityButton: SFSafariViewController.ActivityButton?
+        /// activityButton as AnyObject? (before #423), for apps built against it (aliased in buildlib/swift.py)
+        open var _isimActivityButtonV1: AnyObject? { get { activityButton } set { activityButton = newValue as? ActivityButton } }
         open var eventAttribution: AnyObject?
         public override init() { super.init() }
     }

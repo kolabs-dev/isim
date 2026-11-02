@@ -4,13 +4,16 @@
 // (canSendMail/canSendText; mail and message sheets when the device has accounts), universal links
 // (associated domains in HelloSafari.entitlements -> application(_:continue:restorationHandler:)) and a custom
 // URL scheme (application(_:open:options:)), and a Safari content blocker extension (Blocker: blockerList.json)
-// reloaded with SFContentBlockerManager and applied in SFSafariViewController.
+// reloaded with SFContentBlockerManager and applied in SFSafariViewController. Also (issue #423): a configuration's
+// ActivityButton, sharing an SFAddToHomeScreenActivityItem (the share sheet's Add to Home Screen saves a web clip),
+// SFSafariSettings (Safari's pages in Settings) and Social's SLComposeViewController / SLRequest (no accounts on isim).
 //   isim run out/apps/HelloSafari.app -server http://127.0.0.1:8765   (samples/HelloWeb/server.py)
 import UIKit
 import SafariServices
 import AuthenticationServices
 import MessageUI
 import SwiftUI
+import Social
 
 func log(_ s: String) { print("HelloSafari: " + s) }
 
@@ -84,7 +87,11 @@ final class HomeViewController: UIViewController, SFSafariViewControllerDelegate
                              ("Compose mail", "mail", #selector(composeMail)),
                              ("Compose message", "message", #selector(composeMessage)),
                              ("Reload content blocker", "blocker", #selector(reloadBlocker)),
-                             ("Open a page with ads", "safari-ads", #selector(openAdPage))] as [(String, String, Selector)] {
+                             ("Open a page with ads", "safari-ads", #selector(openAdPage)),
+                             ("Add to Home Screen", "home-screen", #selector(addToHomeScreen)),
+                             ("Export browsing data", "safari-settings", #selector(openSafariSettings)),
+                             ("Safari extensions", "safari-extensions", #selector(openExtensionsSettings)),
+                             ("Post (Social)", "social", #selector(postSocial))] as [(String, String, Selector)] {
             var c = UIButton.Configuration.filled(); c.title = t; c.cornerStyle = .large; c.baseBackgroundColor = .systemBlue
             let b = UIButton(configuration: c); b.accessibilityIdentifier = id
             b.addTarget(self, action: sel, for: .touchUpInside)
@@ -109,7 +116,11 @@ final class HomeViewController: UIViewController, SFSafariViewControllerDelegate
 
     // MARK: SFSafariViewController
     @objc func openSafari() {
-        let vc = SFSafariViewController(url: URL(string: serverURL + "/redirect")!)
+        let config = SFSafariViewController.Configuration()
+        config.activityButton = SFSafariViewController.ActivityButton(templateImage: UIImage(systemName: "star")!,
+                                                                      extensionIdentifier: "dev.isim.samples.HelloSafari.Action")
+        let vc = SFSafariViewController(url: URL(string: serverURL + "/redirect")!, configuration: config)
+        log("activity button \(vc.configuration.activityButton?.extensionIdentifier ?? "-")")
         vc.delegate = self
         present(vc, animated: true)
     }
@@ -135,6 +146,53 @@ final class HomeViewController: UIViewController, SFSafariViewControllerDelegate
         let vc = SFSafariViewController(url: URL(string: serverURL + "/rules")!)
         vc.delegate = self
         present(vc, animated: true)
+    }
+
+    // MARK: Add to Home Screen (SFAddToHomeScreenActivityItem, iOS 17.4)
+    @objc func addToHomeScreen(_ sender: UIButton) {
+        guard #available(iOS 17.4, *) else { log("add to home screen needs iOS 17.4"); return }
+        let item = WebClipItem(url: URL(string: serverURL + "/")!, title: "Hello Web")
+        let vc = UIActivityViewController(activityItems: [item], applicationActivities: nil)
+        vc.completionWithItemsHandler = { [weak self] type, done, _, _ in
+            log("share finished \(type?.rawValue ?? "-") completed=\(done)")
+            if done { self?.status.text = "added to Home Screen" }
+        }
+        vc.popoverPresentationController?.sourceView = sender
+        present(vc, animated: true)
+    }
+
+    // MARK: SFSafariSettings (iOS 26)
+    @objc func openSafariSettings() {
+        guard #available(iOS 26.0, *) else { log("SFSafariSettings needs iOS 26"); status.text = "needs iOS 26"; return }
+        SFSafariSettings.checkAutoFillUserNamesAndPasswordsEnabled { on, _ in log("safari autofill enabled=\(on)") }
+        SFSafariSettings.openExportBrowsingDataSettings { error in
+            log("safari export settings error \(error.map { "\(($0 as NSError).code)" } ?? "none")")
+        }
+    }
+
+    @objc func openExtensionsSettings() {
+        guard #available(iOS 26.2, *) else { log("SFSafariSettings extensions need iOS 26.2"); status.text = "needs iOS 26.2"; return }
+        SFSafariSettings.openExtensionsSettings(forIdentifiers: ["dev.isim.samples.HelloSafari.Blocker", "dev.example.Missing"]) { error in
+            log("safari extensions settings error \(error.map { "\(($0 as NSError).code)" } ?? "none")")
+        }
+    }
+
+    // MARK: Social (no social accounts on isim, as in the Simulator)
+    @objc func postSocial() {
+        let available = SLComposeViewController.isAvailable(forServiceType: SLServiceTypeTwitter)
+        log("social available=\(available)")
+        if let vc = SLComposeViewController(forServiceType: SLServiceTypeTwitter) {
+            log("social text set=\(vc.setInitialText("Hello from isim"))")
+            vc.completionHandler = { [weak self] result in
+                log("social result=\(result.rawValue)")
+                self?.status.text = result == .done ? "posted" : "post cancelled"
+            }
+            present(vc, animated: true)
+        }
+        let request = SLRequest(forServiceType: SLServiceTypeTwitter, requestMethod: .POST,
+                                url: URL(string: serverURL + "/echo"), parameters: ["status": "hi isim"])
+        let prepared = request?.preparedURLRequest()
+        log("social request \(prepared?.httpMethod ?? "-") body=\(prepared?.httpBody.map { String(decoding: $0, as: UTF8.self) } ?? "-")")
     }
 
     // MARK: ASWebAuthenticationSession
@@ -188,4 +246,23 @@ final class HomeViewController: UIViewController, SFSafariViewControllerDelegate
         status.text = ["message cancelled", "message sent", "message failed"][result.rawValue]
         controller.dismiss(animated: true)
     }
+}
+
+/// a web page the share sheet can add to the Home Screen as a web clip
+@available(iOS 17.4, *)
+final class WebClipItem: NSObject, SFAddToHomeScreenActivityItem {
+    let url: URL
+    let title: String
+    init(url: URL, title: String) { self.url = url; self.title = title }
+    var iconItemProvider: NSItemProvider? {
+        let r = UIGraphicsImageRenderer(size: CGSize(width: 120, height: 120))
+        let icon = r.image { ctx in
+            UIColor.systemTeal.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 120, height: 120))
+            let a: [NSAttributedString.Key: Any] = [.font: UIFont.boldSystemFont(ofSize: 64), .foregroundColor: UIColor.white]
+            ("W" as NSString).draw(at: CGPoint(x: 36, y: 22), withAttributes: a)
+        }
+        return NSItemProvider(object: icon)
+    }
+    func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any { url }
+    func activityViewController(_ activityViewController: UIActivityViewController, itemForActivityType activityType: UIActivity.ActivityType?) -> Any? { url }
 }

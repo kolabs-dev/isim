@@ -3,3 +3,4 @@
 
 NSString * const SSReadingListErrorDomain = @"SSReadingListErrorDomain";
 NSErrorDomain const SFErrorDomain = @"SFErrorDomain";
+NSErrorDomain const SFSafariSettingsErrorDomain = @"SFSafariSettingsErrorDomain";

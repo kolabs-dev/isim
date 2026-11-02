@@ -219,12 +219,100 @@ static BOOL rule_accepts(id rule, NSArray *items) {
 - (void)setHighlighted:(BOOL)h { [super setHighlighted:h]; _icon.alpha = h ? 0.6 : 1; }
 @end
 
+/* "Add to Home Screen" (SFAddToHomeScreenActivityItem): the icon, an editable name and the URL; Add saves a web clip in the
+   device data (Library/WebClips/<id>.webclip: Info.plist with Title and URL, icon.png) and the home screen shows it */
+NSString *isim_data_dir(void);
+@interface __IsimAddToHomeScreen : UIViewController <UITextFieldDelegate>
+@property (nonatomic, copy) void (^done)(BOOL added);
+- (instancetype)initWithItem:(id)item;
+@end
+@implementation __IsimAddToHomeScreen { id _item; NSURL *_url; UIImageView *_iconView; UITextField *_name; UILabel *_urlLabel, *_footer; UIView *_group; UIImage *_icon; }
+- (instancetype)initWithItem:(id)item {
+    if ((self = [super initWithNibName:nil bundle:nil])) {
+        _item = item;
+        _url = [item valueForKey:@"URL"];
+        self.title = @"Add to Home Screen";
+    }
+    return self;
+}
++ (UIImage *)letterIcon:(NSString *)title {
+    CGFloat s = 180;
+    UIGraphicsImageRenderer *r = [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(s, s)];
+    return [r imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
+        [[UIColor colorWithRed:0.56 green:0.58 blue:0.62 alpha:1] setFill];
+        UIRectFill(CGRectMake(0, 0, s, s));
+        NSString *letter = title.length ? [[title substringToIndex:1] uppercaseString] : @"?";
+        NSDictionary *a = @{ NSFontAttributeName: [UIFont systemFontOfSize:96 weight:UIFontWeightMedium], NSForegroundColorAttributeName: UIColor.whiteColor };
+        CGSize ls = [letter sizeWithAttributes:a];
+        [letter drawAtPoint:CGPointMake((s - ls.width) / 2, (s - ls.height) / 2) withAttributes:a];
+    }];
+}
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = UIColor.systemGroupedBackgroundColor;
+    UIBarButtonItem *cancel = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCancel target:self action:@selector(_isim_cancel)];
+    cancel.accessibilityIdentifier = @"add-home-cancel";
+    UIBarButtonItem *add = [[UIBarButtonItem alloc] initWithTitle:@"Add" style:UIBarButtonItemStyleDone target:self action:@selector(_isim_add)];
+    add.accessibilityIdentifier = @"add-home-add";
+    self.navigationItem.leftBarButtonItem = cancel; self.navigationItem.rightBarButtonItem = add;
+    NSString *title = [_item valueForKey:@"title"] ?: _url.host ?: @"";
+    _icon = [__IsimAddToHomeScreen letterIcon:title];
+    _group = [UIView new]; _group.backgroundColor = UIColor.secondarySystemGroupedBackgroundColor; _group.layer.cornerRadius = 10; _group.layer.cornerCurve = kCACornerCurveContinuous;
+    [self.view addSubview:_group];
+    _iconView = [[UIImageView alloc] initWithImage:_icon]; _iconView.layer.cornerRadius = 13; _iconView.layer.cornerCurve = kCACornerCurveContinuous; _iconView.clipsToBounds = YES;
+    _iconView.accessibilityIdentifier = @"add-home-icon";
+    [_group addSubview:_iconView];
+    _name = [UITextField new]; _name.text = title; _name.font = [UIFont systemFontOfSize:17]; _name.clearButtonMode = UITextFieldViewModeWhileEditing;
+    _name.returnKeyType = UIReturnKeyDone; _name.delegate = self; _name.accessibilityIdentifier = @"add-home-name";
+    [_group addSubview:_name];
+    _urlLabel = [UILabel new]; _urlLabel.text = _url.absoluteString; _urlLabel.font = [UIFont systemFontOfSize:15]; _urlLabel.textColor = UIColor.secondaryLabelColor;
+    _urlLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
+    [_group addSubview:_urlLabel];
+    _footer = [UILabel new]; _footer.numberOfLines = 0; _footer.font = [UIFont systemFontOfSize:13]; _footer.textColor = UIColor.secondaryLabelColor;
+    _footer.text = @"An icon will be added to your Home Screen so you can quickly access this website.";
+    [self.view addSubview:_footer];
+    /* the item's own icon, when it has one */
+    NSItemProvider *p = [_item respondsToSelector:@selector(iconItemProvider)] ? [_item valueForKey:@"iconItemProvider"] : nil;
+    if ([p canLoadObjectOfClass:[UIImage class]]) {
+        __weak __IsimAddToHomeScreen *weakSelf = self;
+        [p loadObjectOfClass:[UIImage class] completionHandler:^(id<NSItemProviderReading> obj, NSError *e) {
+            if (![(id)obj isKindOfClass:[UIImage class]]) return;
+            dispatch_async(dispatch_get_main_queue(), ^{ __IsimAddToHomeScreen *me = weakSelf; if (!me) return; me->_icon = (UIImage *)obj; me->_iconView.image = me->_icon; });
+        }];
+    }
+}
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    CGFloat w = self.view.bounds.size.width, top = self.view.safeAreaInsets.top + 20, x = 16 + self.view.safeAreaInsets.left;
+    _group.frame = CGRectMake(x, top, w - 2 * x, 88);
+    _iconView.frame = CGRectMake(14, 14, 60, 60);
+    _name.frame = CGRectMake(88, 14, _group.bounds.size.width - 100, 30);
+    _urlLabel.frame = CGRectMake(88, 50, _group.bounds.size.width - 100, 22);
+    CGSize fs = [_footer sizeThatFits:CGSizeMake(w - 2 * x - 32, 1000)];
+    _footer.frame = CGRectMake(x + 16, CGRectGetMaxY(_group.frame) + 8, w - 2 * x - 32, fs.height);
+}
+- (BOOL)textFieldShouldReturn:(UITextField *)f { [f resignFirstResponder]; return NO; }
+- (void)_isim_cancel { [self dismissViewControllerAnimated:YES completion:^{ if (self.done) self.done(NO); }]; }
+- (void)_isim_add {
+    NSString *title = _name.text.length ? _name.text : _url.host ?: @"Web Clip";
+    NSString *dir = [[isim_data_dir() stringByAppendingPathComponent:@"Library/WebClips"]
+                     stringByAppendingPathComponent:[NSUUID.UUID.UUIDString stringByAppendingString:@".webclip"]];
+    [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:NULL];
+    [@{ @"Title": title, @"URL": _url.absoluteString ?: @"", @"IconIsPrecomposed": @YES } writeToFile:[dir stringByAppendingPathComponent:@"Info.plist"] atomically:YES];
+    [UIImagePNGRepresentation(_icon) writeToFile:[dir stringByAppendingPathComponent:@"icon.png"] atomically:YES];
+    NSLog(@"isim: added %@ (%@) to the Home Screen", title, _url.absoluteString);
+    if (isim_shell_present()) isim_shell_request(ISIM_SHELL_SYSTEM, "reload-home", NULL, NULL);
+    [self dismissViewControllerAnimated:YES completion:^{ if (self.done) self.done(YES); }];
+}
+@end
+
 @implementation UIActivityViewController {
     NSArray *_items; NSArray<UIActivity *> *_appActivities;
     UIView *_header, *_list, *_appRow; UILabel *_titleLabel, *_subtitleLabel; UIImageView *_icon; UIButton *_close;
     NSMutableArray<__IsimShareRow *> *_rows;
     NSMutableArray<__IsimShareApp *> *_shareApps;
     NSArray<__IsimAppExtension *> *_actionExtensions;
+    id _homeScreenItem;                                   /* an SFAddToHomeScreenActivityItem (SafariServices, iOS 17.4) */
     BOOL _finished;
 }
 - (instancetype)initWithActivityItems:(NSArray *)items applicationActivities:(NSArray *)acts {
@@ -285,6 +373,10 @@ static BOOL rule_accepts(id rule, NSArray *items) {
     for (id i in [self _isim_itemsFor:UIActivityTypePrint]) if ([i isKindOfClass:[UIImage class]] || ([i isKindOfClass:[NSURL class]] && [(NSURL *)i isFileURL])) printable = YES;
     if (images && ![self _isim_excluded:UIActivityTypeSaveToCameraRoll]) [self _isim_row:@"Save Image" icon:[UIImage systemImageNamed:@"square.and.arrow.down"] tag:-2];
     if (printable && ![self _isim_excluded:UIActivityTypePrint]) [self _isim_row:@"Print" icon:[UIImage systemImageNamed:@"printer"] tag:-3];
+    Protocol *home = NSProtocolFromString(@"SFAddToHomeScreenActivityItem");
+    for (id i in _items) if (home && [i conformsToProtocol:home] && [i respondsToSelector:@selector(URL)]) { _homeScreenItem = i; break; }
+    if (_homeScreenItem && ![self _isim_excluded:UIActivityTypeAddToHomeScreen])
+        [self _isim_row:@"Add to Home Screen" icon:[UIImage systemImageNamed:@"plus.square"] tag:-4];
     /* app extensions that accept the items: Share extensions in the app row, Action extensions in the list */
     NSArray *raw = [self _isim_itemsFor:nil];
     NSMutableArray *actions = [NSMutableArray array];
@@ -410,6 +502,15 @@ static BOOL rule_accepts(id rule, NSArray *items) {
         if (items.count == 1) pc.printingItem = items[0]; else pc.printingItems = items;
         NSLog(@"isim: share sheet prints %lu item(s)", (unsigned long)items.count);
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.45 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [pc presentAnimated:YES completionHandler:nil]; });
+        return;
+    }
+    if (r.tag == -4) {                                     /* Add to Home Screen: iOS's sheet, then a web clip */
+        __IsimAddToHomeScreen *add = [[__IsimAddToHomeScreen alloc] initWithItem:_homeScreenItem];
+        __weak UIActivityViewController *weakSelf = self;
+        add.done = ^(BOOL added) { [weakSelf _isim_finish:UIActivityTypeAddToHomeScreen completed:added]; };
+        UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:add];
+        nav.modalPresentationStyle = UIModalPresentationFormSheet;
+        [self presentViewController:nav animated:YES completion:nil];
         return;
     }
     if (r.tag < 0) {                                       /* Copy */
