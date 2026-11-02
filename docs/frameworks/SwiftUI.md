@@ -327,7 +327,7 @@
 | `onChange(of:)` (old/new, `initial:`) | ✅ | ≤17 | |
 | `Scene.onChange(of:initial:)` (e.g. `scenePhase`) | ✅ | ≤17 | adapted: wraps the scene's root view in `onChange`; tested (HelloSourceCompat) |
 | `onReceive` | ✅ | ≤17 | |
-| `onSubmit` | ✅ | ≤17 | |
+| `onSubmit` | ✅ | ≤17 | adapted: Return in a single-line `TextField` ends editing (the keyboard goes, as on iOS), then runs the submit action, with or without `.onSubmit`; a formatted value commits first; `axis: .vertical` takes the newline. Tested (test_pickers `test_views`, `test_inputs`) |
 | `onKeyPress`, `keyboardShortcut` | ✅ | ≤17 | shortcuts on buttons become UIKeyCommands (incl. `defaultAction`/`cancelAction`); `onKeyPress` key/characters/phases forms: the handlers on the focused view and its ancestors get the presses, innermost first (none while nothing has focus); Tab / Shift-Tab not taken by a handler move focus. Tested (HelloKeys) |
 | `onGeometryChange`, `onContinuousHover`, `onHover` | ✅ | ≤17 | `onGeometryChange` (size, frames in any coordinate space; tested, HelloLayout); `onHover` / `onContinuousHover` (location in a coordinate space, `.ended`) on UIKit's hover recognizer: the iPad pointer or the host mouse without a button (script `hover X Y`); `hoverEffect(.automatic / .highlight / .lift)` and `hoverEffectDisabled` as iPad pointer effects. Tested (HelloSwiftUIControls) |
 
