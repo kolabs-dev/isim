@@ -1,9 +1,11 @@
 // Sample: an identity document provider on isim (IdentityDocumentServices, iOS 26; issue #403). It registers the mobile
 // driver's license it holds (its entitlement lists org.iso.18013.5.1.mDL), is refused a document type it is not
 // entitled to, lists and removes registrations, and validates a website's ISO 18013-5 DeviceRequest (bundled as
-// request.cbor). Every step is printed ("id ...").
+// request.cbor). "Verify" presents that request as a website would (IdentityDocumentServicesUI, issue #744): isim's sheet
+// offers the registered license, and the app's provider extension (Provider/) answers it. Every step is printed ("id ...").
 import UIKit
 import IdentityDocumentServices
+import IdentityDocumentServicesUI
 
 func log(_ s: String) { print("id \(s)"); fflush(stdout) }
 
@@ -14,6 +16,12 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window = UIWindow(frame: UIScreen.main.bounds)
         let vc = UIViewController()
         vc.view.backgroundColor = .systemBackground
+        let verify = UIButton(type: .system)
+        verify.setTitle("Verify", for: .normal)
+        verify.frame = CGRect(x: 20, y: 120, width: 200, height: 44)
+        verify.accessibilityIdentifier = "verify"
+        verify.addAction(UIAction { _ in if #available(iOS 26.0, *) { Task { await Verifier.shared.verify() } } }, for: .primaryActionTriggered)
+        vc.view.addSubview(verify)
         window?.rootViewController = vc
         window?.makeKeyAndVisible()
         if #available(iOS 26.0, *) { Task { await run() } } else { log("needs iOS 26") }
@@ -55,5 +63,30 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         catch let e as IdentityDocumentPresentmentError { log("http origin \(e.code)") } catch { log("http origin other \(error)") }
         do { _ = try validator.validateISO18013MobileDocumentRequest(Data([0xA1, 0x01]), origin: URL(string: "https://verifier.isim.dev")!) }
         catch { log("garbage \((error as? IdentityDocumentPresentmentError)?.code == .invalidRequest)") }
+    }
+}
+
+/// a website's request for the license, presented through the system (as a browser would)
+@available(iOS 26.0, *)
+@MainActor final class Verifier: IdentityDocumentWebPresentmentControllerDelegate {
+    static let shared = Verifier()
+    let controller = IdentityDocumentWebPresentmentController()
+    var raw = Data()
+    func rawRequestsForWebPresentmentController(_ webPresentmentController: IdentityDocumentWebPresentmentController) async -> [IdentityDocumentWebPresentmentRawRequest] {
+        [IdentityDocumentWebPresentmentRawRequest(requestType: .iso18013MobileDocument, requestData: raw)]
+    }
+    func verify() async {
+        guard let url = Bundle.main.url(forResource: "request", withExtension: "cbor"), let data = try? Data(contentsOf: url) else { return }
+        raw = data
+        controller.delegate = self
+        let origin = URL(string: "https://verifier.isim.dev")!
+        do {
+            let request = try IdentityDocumentWebPresentmentRawRequestValidator().validateISO18013MobileDocumentRequest(data, origin: origin)
+            let response = try await controller.performRequests([request], origin: origin)
+            let d = (response as? ISO18013MobileDocumentResponse)?.responseData ?? Data()
+            log("web response \(String(decoding: d, as: UTF8.self))")
+        } catch let e as IdentityDocumentPresentmentError {
+            log("web presentment \(e.code)")
+        } catch { log("web presentment failed \(error)") }
     }
 }

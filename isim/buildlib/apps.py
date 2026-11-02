@@ -353,11 +353,14 @@ def _(a):
     a.appex(b, "HelloTokenDriver", ["Driver/TokenDriver.swift"], "Driver/Info.plist", link=["-framework", "CryptoTokenKit"])
 
 
-@app("samples/HelloIDDocs")   # issue #403: the document provider entitlement and a DeviceRequest
+@app("samples/HelloIDDocs")   # issue #403: the document provider entitlement and a DeviceRequest; #744: web presentment
 def _(a):
     b = a.swift_app()
     a.copy("HelloIDDocs.entitlements", f"{b}/archived-expanded-entitlements.xcent")
     a.copy("request.cbor", f"{b}/request.cbor")
+    os.makedirs(f"{b}/PlugIns", exist_ok=True)      # issue #744: the provider extension (iOS 26)
+    a.swift_app("HelloIDDocsProvider", ["Provider/Provider.swift"], "Provider/Info.plist", ext=".appex", into=f"{b}/PlugIns",
+                swift_flags=["-target", "x86_64-apple-ios26.0-simulator"], link=["-framework", "UIKit"])
 
 
 @app("samples/HelloVault")   # issue #400: a credential provider, an SSO extension and an account modification extension
