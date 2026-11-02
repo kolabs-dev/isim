@@ -175,6 +175,9 @@ public final class SecKey: CustomStringConvertible, Hashable {
     var seFlags: UInt8 = 0
     /// kSecUseAuthenticationContext: an LAContext that may already have authenticated
     var authContext: AnyObject?
+    /// a CryptoTokenKit token's private key (Token.swift): its token ID and its index in the token's keychain contents;
+    /// raw is then its public key
+    var token: (String, Int)?
     init(type: Int32, isPrivate: Bool, raw: [UInt8], bits: Int, attributes: [String: Any] = [:]) {
         self.type = type; self.isPrivate = isPrivate; self.raw = raw; self.bits = bits; self.attributes = attributes
     }
@@ -184,7 +187,7 @@ public final class SecKey: CustomStringConvertible, Hashable {
     }
     var typeString: String { type == 0 ? "42" : "73" }
     var publicRaw: [UInt8]? {
-        if !isPrivate { return raw }
+        if !isPrivate || token != nil { return raw }
         var out = [UInt8](repeating: 0, count: 2048), n = out.count
         let ok = raw.withUnsafeBufferPointer { r in out.withUnsafeMutableBufferPointer { isim_pki_public(type, r.baseAddress!, r.count, $0.baseAddress, &n) } }
         return ok == 1 ? Array(out[0..<n]) : nil
@@ -268,6 +271,7 @@ public func SecKeyCopyPublicKey(_ key: SecKey) -> SecKey? {
 }
 public func SecKeyCopyExternalRepresentation(_ key: SecKey, _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> CFData? {
     if key.seBlob != nil && key.isPrivate { return _secFail(error, errSecUnimplemented, "Export of Secure Enclave private keys is not allowed") }
+    if key.token != nil { return _secFail(error, errSecUnimplemented, "The private key stays on its token and cannot be exported") }
     return Data(key.raw) as CFData
 }
 /// SecKeyCreateRandomKey for kSecAttrTokenIDSecureEnclave: a P-256 key made in the simulated enclave
@@ -330,6 +334,10 @@ public func SecKeyCopyAttributes(_ key: SecKey) -> CFDictionary? {
         d["tkid"] = "com.apple.setoken"; d["toid"] = Data(blob)                // kSecAttrTokenOID: the sealed key
         if key.isPrivate { d.removeValue(forKey: "v_Data"); d["extr"] = false }
     }
+    if let (tokenID, _) = key.token {                                           // a token's key: what the token allows
+        d["tkid"] = tokenID; d.removeValue(forKey: "v_Data"); d["extr"] = false; d["agrp"] = "com.apple.token"
+        for k in ["sign", "decr", "drve"] { d[k] = _boolAttr(key.attributes[k]) }
+    }
     return d as NSDictionary as CFDictionary
 }
 public func SecKeyGetBlockSize(_ key: SecKey) -> Int { key.type == 0 ? key.bits / 8 : (key.bits + 7) / 8 * 2 + 8 }
@@ -350,6 +358,7 @@ public func SecKeyCreateSignature(_ key: SecKey, _ algorithm: SecKeyAlgorithm, _
     guard SecKeyIsAlgorithmSupported(key, .sign, algorithm), let plan = algorithm.plan else {
         return _secFail(error, errSecParam, "\(algorithm.rawValue) is not supported for this key")
     }
+    if key.token != nil { return _tokenOperation(key, 2, algorithm, dataToSign as Data, error).map { $0.0 as CFData } }
     guard _seAuthorize(key, "use a key to sign", error) else { return nil }
     let data = Array(dataToSign as Data)
     var sig = [UInt8](repeating: 0, count: 1200), n = sig.count
@@ -386,6 +395,7 @@ public func SecKeyCreateDecryptedData(_ key: SecKey, _ algorithm: SecKeyAlgorith
     guard SecKeyIsAlgorithmSupported(key, .decrypt, algorithm), let plan = algorithm.plan else {
         return _secFail(error, errSecParam, "\(algorithm.rawValue) is not supported for this key on isim")
     }
+    if key.token != nil { return _tokenOperation(key, 3, algorithm, ciphertext as Data, error).map { $0.0 as CFData } }
     let input = Array(ciphertext as Data)
     guard !input.isEmpty else { return _secFail(error, errSecParam, "empty ciphertext") }
     var out = [UInt8](repeating: 0, count: key.bits / 8 + 16), n = out.count
@@ -399,16 +409,23 @@ public func SecKeyCopyKeyExchangeResult(_ privateKey: SecKey, _ algorithm: SecKe
     guard SecKeyIsAlgorithmSupported(privateKey, .keyExchange, algorithm), let plan = algorithm.plan, publicKey.type == 1 else {
         return _secFail(error, errSecParam, "\(algorithm.rawValue) is not supported for these keys")
     }
-    guard _seAuthorize(privateKey, "use a key to agree on a secret", error) else { return nil }
+    let p = (parameters as NSDictionary as? [String: Any]) ?? [:]
     let pub = publicKey.publicRaw ?? publicKey.raw
-    var out = [UInt8](repeating: 0, count: 80), n = out.count
-    let ok = privateKey.raw.withUnsafeBufferPointer { k in pub.withUnsafeBufferPointer { p in out.withUnsafeMutableBufferPointer { o in
-        isim_pki_ecdh(k.baseAddress!, k.count, p.baseAddress!, p.count, o.baseAddress!, &n) } } }
-    guard ok == 1 else { return _secFail(error, errSecParam, _hostError()) }
-    let shared = Array(out[0..<n])
+    let shared: [UInt8]
+    if privateKey.token != nil {                                                // on the token: its session agrees on the secret
+        guard let (z, plain) = _tokenOperation(privateKey, 4, algorithm, Data(), publicKey: Data(pub), parameters: p, error) else { return nil }
+        if !plain { return z as CFData }
+        shared = Array(z)
+    } else {
+        guard _seAuthorize(privateKey, "use a key to agree on a secret", error) else { return nil }
+        var out = [UInt8](repeating: 0, count: 80), n = out.count
+        let ok = privateKey.raw.withUnsafeBufferPointer { k in pub.withUnsafeBufferPointer { p in out.withUnsafeMutableBufferPointer { o in
+            isim_pki_ecdh(k.baseAddress!, k.count, p.baseAddress!, p.count, o.baseAddress!, &n) } } }
+        guard ok == 1 else { return _secFail(error, errSecParam, _hostError()) }
+        shared = Array(out[0..<n])
+    }
     guard plan.kdf == 1 else { return Data(shared) as CFData }
     // ANSI X9.63 KDF: Hash(Z || counter32 || SharedInfo) blocks
-    let p = (parameters as NSDictionary as? [String: Any]) ?? [:]
     guard let size = _intAttr(p["requestedSize"]), size > 0 else { return _secFail(error, errSecParam, "kSecKeyKeyExchangeParameterRequestedSize is required") }
     let info = (p["sharedInfo"] as? Data).map(Array.init) ?? []
     var derived: [UInt8] = [], counter: UInt32 = 1

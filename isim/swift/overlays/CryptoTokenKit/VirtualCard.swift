@@ -5,15 +5,19 @@
 //   {"readers": [{"name": "isim Virtual Reader", "pinPad": true,
 //                 "card": {"atr": "3B…", "serial": "…", "token": "com.example.driver", "pinTries": 3,
 //                          "applets": [{"aid": "A000000308…", "fci": "…", "pin": "123456", "pinReference": 128,
-//                                       "files": {"3F00": "…"}, "objects": {"5FC102": "…"}, "protected": ["5FC105"]}],
+//                                       "files": {"3F00": "…"}, "objects": {"5FC102": "…"}, "protected": ["5FC105"],
+//                                       "keys": {"9A": "04…"}}],
 //                          "responses": {"00CA9F7F00": "…9000"}}}]}
 //
 // A card answers ISO 7816-4 commands: SELECT (an applet by AID, or a file of it), READ BINARY, GET DATA (also PIV's
 // GET DATA with a 5C tag list), VERIFY (a retry counter; `protected` objects need it), CHANGE REFERENCE DATA (old ‖ new
 // PIN), GET RESPONSE for answers longer than Le (61xx), command chaining; `responses` answers exact command APDUs
 // first. Its security state (selected applet, verified PIN) resets at the end of each session; the retry counter and a
-// changed PIN last until the card is removed.
+// changed PIN last until the card is removed. PIV's GENERAL AUTHENTICATE (issue #743) uses an applet's `keys` (by key
+// reference; EC private keys in Apple's X9.63 form, 04 ‖ X ‖ Y ‖ D) once the PIN is verified: a challenge (81) is signed
+// (ECDSA over the challenge as the digest, DER), an exponentiation (85, the other party's point) gives the ECDH secret.
 import Foundation
+import Security
 
 func _unhex(_ s: String) -> [UInt8]? {
     let c = Array(s.utf8.filter { $0 != 32 })
@@ -33,6 +37,7 @@ final class _TKVirtualCard: @unchecked Sendable {
         var aid: [UInt8], fci: [UInt8]
         var files: [String: [UInt8]], objects: [String: [UInt8]], protected: Set<String>
         var pin: [UInt8]?, pinReference: UInt8
+        var keys: [String: [UInt8]] = [:]
     }
     let atr: [UInt8]
     var applets: [Applet]
@@ -56,7 +61,8 @@ final class _TKVirtualCard: @unchecked Sendable {
             }
             return Applet(aid: aid, fci: _unhex(a["fci"] as? String ?? "") ?? [], files: hexMap("files"), objects: hexMap("objects"),
                           protected: Set((a["protected"] as? [String] ?? []).map { $0.uppercased() }),
-                          pin: (a["pin"] as? String).map { Array($0.utf8) }, pinReference: UInt8(truncatingIfNeeded: (a["pinReference"] as? Int) ?? 0x80))
+                          pin: (a["pin"] as? String).map { Array($0.utf8) }, pinReference: UInt8(truncatingIfNeeded: (a["pinReference"] as? Int) ?? 0x80),
+                          keys: hexMap("keys"))
         }
         var r: [String: [UInt8]] = [:]
         for (k, v) in j["responses"] as? [String: String] ?? [:] {
@@ -126,9 +132,43 @@ final class _TKVirtualCard: @unchecked Sendable {
             applets[i].pin = new
             triesLeft = maxTries; verified = true
             return Self.ok
+        case 0x87:                                                     // GENERAL AUTHENTICATE (PIV): sign or ECDH
+            guard let i = selected else { return [0x69, 0x85] }
+            guard let key = applets[i].keys[String(format: "%02X", p2)] else { return [0x6A, 0x88] }
+            if applets[i].pin != nil && !verified { return [0x69, 0x82] }
+            guard let t = Self.tlv(data)["7C"], let fields = Optional(Self.tlv(t)) else { return [0x6A, 0x80] }
+            let attrs: [String: Any] = [kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom, kSecAttrKeyClass as String: kSecAttrKeyClassPrivate]
+            guard [0x11, 0x14].contains(p1), let priv = SecKeyCreateWithData(Data(key) as CFData, attrs as CFDictionary, nil) else { return [0x6A, 0x86] }
+            var out: Data?
+            if let challenge = fields["81"] {
+                out = SecKeyCreateSignature(priv, .ecdsaSignatureDigestX962, Data(challenge) as CFData, nil) as Data?
+            } else if let point = fields["85"] {
+                let pubAttrs: [String: Any] = [kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom, kSecAttrKeyClass as String: kSecAttrKeyClassPublic]
+                if let pub = SecKeyCreateWithData(Data(point) as CFData, pubAttrs as CFDictionary, nil) {
+                    out = SecKeyCopyKeyExchangeResult(priv, .ecdhKeyExchangeStandard, pub, [:] as CFDictionary, nil) as Data?
+                }
+            }
+            guard let out else { return [0x6A, 0x80] }
+            return chunk(Self.encode(0x7C, Self.encode(0x82, Array(out))), le: le)
         default:
             return [0x6D, 0x00]
         }
+    }
+    /// BER-TLV objects with one-byte tags (as hex) and their values
+    static func tlv(_ d: [UInt8]) -> [String: [UInt8]] {
+        var out: [String: [UInt8]] = [:], i = 0
+        while i + 1 < d.count {
+            let tag = d[i]; var n = Int(d[i + 1]); i += 2
+            if n == 0x81, i < d.count { n = Int(d[i]); i += 1 }
+            else if n == 0x82, i + 1 < d.count { n = Int(d[i]) << 8 | Int(d[i + 1]); i += 2 }
+            guard i + n <= d.count else { break }
+            out[String(format: "%02X", tag)] = Array(d[i..<(i + n)]); i += n
+        }
+        return out
+    }
+    static func encode(_ tag: UInt8, _ v: [UInt8]) -> [UInt8] {
+        let len: [UInt8] = v.count < 0x80 ? [UInt8(v.count)] : v.count < 0x100 ? [0x81, UInt8(v.count)] : [0x82, UInt8(v.count >> 8), UInt8(v.count & 0xFF)]
+        return [tag] + len + v
     }
     /// Lc data and Le (0: the maximum) of an APDU body, short or extended
     static func parse(_ b: [UInt8]) -> ([UInt8], Int)? {

@@ -254,6 +254,9 @@ final class _Keychain: @unchecked Sendable {
         var found: [(String, _KCItem)] = []
         for g in searchGroups(q) { for item in load(g).items where matches(item, group: g, q, cls: cls) { found.append((g, item)) } }
         lock.unlock()
+        if q["agrp"] == nil || (q["agrp"] as? String) == "com.apple.token" {    // the inserted tokens' keys and certificates (Token.swift)
+            for item in tokenItems(cls) where matches(item, group: "com.apple.token", q, cls: cls) { found.append(("com.apple.token", item)) }
+        }
         let wantsData = (q["r_Data"] as? Bool) ?? (q["r_Data"] as? NSNumber)?.boolValue ?? false
         if wantsData {                                      // the secret of a protected item asks for the device owner
             var allowed: [(String, _KCItem)] = [], authenticated = false
@@ -379,6 +382,13 @@ extension _Keychain {
         return nil
     }
     static func makeRef(_ item: _KCItem) -> AnyObject? {
+        if item.attrs["_tkix"] != nil {                                          // a token's item
+            if item.cls == "keys" { return tokenKey(item) }
+            if item.cls == "idnt" {
+                guard let cert = SecCertificate(der: item.data ?? []), let key = tokenKey(item, ofIdentity: true) else { return nil }
+                return SecIdentity(certificate: cert, key: key)
+            }
+        }
         if item.cls == "keys", let data = item.data {
             var priv = false, type: Int32 = 0
             if case .string(let c) = item.attrs["kcls"] ?? .string("1") { priv = c == "1" }

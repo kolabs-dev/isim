@@ -203,6 +203,8 @@ public struct TKSmartCardProtocol: OptionSet, Hashable, Sendable {
     let card: _TKVirtualCard
     private var valid = true
     private var inSession = false
+    /// nested sessions (withSession inside a session isim began for a token): only the outermost ends it
+    private var depth = 0
     @objc open var context: Any?
     open var allowedProtocols: TKSmartCardProtocol = .any
     private var sensitive = false
@@ -244,13 +246,14 @@ public struct TKSmartCardProtocol: OptionSet, Hashable, Sendable {
         if slot.sessionOwner == ObjectIdentifier(self) { slot.sessionOwner = nil }
         slot.sessionLock.broadcast()
         slot.sessionLock.unlock()
-        inSession = false
+        inSession = false; depth = 0
         card.endSession()
     }
 
     @objc(beginSessionWithReply:) open func beginSession(reply: @escaping @Sendable (Bool, (any Error)?) -> Void) {
         queue.async {
             guard self.valid else { reply(false, _tkError(.communicationError, "the card was removed")); return }
+            if self.inSession { self.depth += 1; reply(true, nil); return }
             guard self.acquireSession(timeout: 10) else { reply(false, _tkError(.communicationError, "another session holds the card")); return }
             guard self.valid else { self.releaseSession(); reply(false, _tkError(.communicationError, "the card was removed")); return }
             self.inSession = true
@@ -259,6 +262,7 @@ public struct TKSmartCardProtocol: OptionSet, Hashable, Sendable {
     }
     @objc open func endSession() {
         guard inSession else { return }
+        if depth > 0 { depth -= 1; return }
         releaseSession()
     }
 
