@@ -76,6 +76,7 @@ enum Route: Hashable {
     case privacy, privacyService(String), appPermission(String, String), notifications, appNotifications(String)   // PrivacySettings.swift
     case appPane(String, String, String), appMultiValue(String, String, String)   // Settings.bundle (SettingsBundle.swift)
     case focus(FocusRoute)                                                          // FocusSettings.swift
+    case safari, safariExport, safariExtensions([String])                           // SafariSettings.swift
 }
 
 struct SettingsIcon: View {
@@ -151,8 +152,10 @@ struct RootView: View {
                         .accessibilityIdentifier("settings-developer")
                 }
                 let apps = installedApps()
-                if !apps.isEmpty {
-                    Section("Apps") {
+                Section("Apps") {
+                    NavigationLink(value: Route.safari) { Label { Text("Safari") } icon: { SettingsIcon(symbol: "safari", color: .blue) } }
+                        .accessibilityIdentifier("settings-safari")
+                    if !apps.isEmpty {
                         ForEach(apps) { app in
                             NavigationLink(value: Route.app(app.id)) { Label { Text(app.name) } icon: { AppIcon(app: app) } }
                                 .accessibilityIdentifier("settings-app-\(app.id)")
@@ -170,6 +173,11 @@ struct RootView: View {
                     let id = String(s.dropFirst("app-settings:".count))
                     if id == "@accessibility" { path = [.accessibility] }      // AccessibilitySettings.openSettings(for:)
                     else if id == "@passwordoptions" { path = [.passwords, .passwordOptions] }   // ASSettingsHelper
+                    else if id == "@safari-export" { path = [.safari, .safariExport] }               // SFSafariSettings
+                    else if id.hasPrefix("@safari-extensions") {
+                        let ids = id.split(separator: "?", maxSplits: 1).dropFirst().first.map { $0.split(separator: ",").map { String($0).removingPercentEncoding ?? String($0) } } ?? []
+                        path = [.safari, .safariExtensions(ids)]
+                    }
                     else if id.hasSuffix("/notifications") { path = [.app(String(id.dropLast("/notifications".count))), .appNotifications(String(id.dropLast("/notifications".count)))] }
                     else { path = id.isEmpty ? [] : [.app(id)] }
                 }
@@ -198,6 +206,9 @@ struct RootView: View {
         case .homeScreen: HomeScreenSettingsView()
         case .gameCenter: GameCenterView()
         case .app(let id): AppSettingsView(id: id)
+        case .safari: SafariSettingsView()
+        case .safariExport: SafariExportView()
+        case .safariExtensions(let ids): SafariExtensionsView(requested: ids)
         case .appKeyboards(let id): AppKeyboardsView(id: id)
         case .appPaste(let id): PasteAccessView(id: id)
         case .passwords: PasswordsView()

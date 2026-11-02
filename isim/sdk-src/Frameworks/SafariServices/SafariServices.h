@@ -15,9 +15,18 @@ typedef NS_ENUM(NSInteger, SFSafariViewControllerDismissButtonStyle) {
     SFSafariViewControllerDismissButtonStyleCancel,
 };
 
+/* a Safari extension's button in the share sheet (isim has no Safari extensions: kept, not run) */
+API_AVAILABLE(ios(15.0))
+@interface SFSafariViewControllerActivityButton : NSObject <NSCopying, NSSecureCoding>
+- (instancetype)initWithTemplateImage:(UIImage *)templateImage extensionIdentifier:(NSString *)extensionIdentifier;
+@property (nonatomic, nullable, readonly, copy) UIImage *templateImage;
+@property (nonatomic, nullable, readonly, copy) NSString *extensionIdentifier;
+@end
+
 @interface SFSafariViewControllerConfiguration : NSObject
 @property (nonatomic) BOOL entersReaderIfAvailable;
 @property (nonatomic) BOOL barCollapsingEnabled;
+@property (nonatomic, nullable, copy) SFSafariViewControllerActivityButton *activityButton API_AVAILABLE(ios(15.0));
 @end
 
 @protocol SFSafariViewControllerDelegate <NSObject>
@@ -72,6 +81,28 @@ typedef NS_ERROR_ENUM(SFErrorDomain, SFErrorCode) {
                          completionHandler:(nullable void (^)(NSError * _Nullable error))completionHandler;
 + (void)getStateOfContentBlockerWithIdentifier:(NSString *)identifier
                              completionHandler:(void (^)(SFContentBlockerState * _Nullable state, NSError * _Nullable error))completionHandler;
+@end
+
+/* an activity item the share sheet can add to the Home Screen as a web clip (iOS 17.4) */
+API_AVAILABLE(ios(17.4))
+@protocol SFAddToHomeScreenActivityItem <UIActivityItemSource>
+@property (nonatomic, readonly) NSURL *URL;
+@property (nonatomic, readonly) NSString *title;
+@optional
+@property (nonatomic, nullable, readonly) NSItemProvider *iconItemProvider;
+@end
+
+/* Safari's pages in isim's Settings app (iOS 26) */
+FOUNDATION_EXPORT NSErrorDomain const SFSafariSettingsErrorDomain API_AVAILABLE(ios(26.0));
+typedef NS_ERROR_ENUM(SFSafariSettingsErrorDomain, SFSafariSettingsError) {
+    SFSafariSettingsErrorNotAllowed = 1, SFSafariSettingsErrorFailed = 2,
+} API_AVAILABLE(ios(26.0));
+API_AVAILABLE(ios(26.0))
+@interface SFSafariSettings : NSObject
++ (void)openExportBrowsingDataSettingsWithCompletionHandler:(nullable void (^)(NSError * _Nullable error))completionHandler;
++ (void)openExtensionsSettingsForIdentifiers:(NSArray<NSString *> *)extensionIdentifiers
+                           completionHandler:(nullable void (^)(NSError * _Nullable error))completionHandler API_AVAILABLE(ios(26.2));
++ (void)checkAutoFillUserNamesAndPasswordsEnabledWithCompletionHandler:(void (^)(BOOL enabled, NSError * _Nullable error))completionHandler;
 @end
 
 NS_ASSUME_NONNULL_END

@@ -586,7 +586,8 @@ def _(a):
                                           "-framework", "SafariServices", "-framework", "MultipeerConnectivity", "-framework", "CoreGraphics",
                                           "-framework", "Messages", "-framework", "BackgroundAssets", "-framework", "FileProvider",
                                           "-framework", "FileProviderUI", "-framework", "UniformTypeIdentifiers", "-framework", "CarPlay",
-                                          "-framework", "Intents", "-framework", "CoreLocation", "-framework", "HomeKit"])
+                                          "-framework", "Intents", "-framework", "CoreLocation", "-framework", "HomeKit",
+                                          "-framework", "Social"])
     a.copy("HelloServicesObjC.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # HomeKit (issue #416)
 
 

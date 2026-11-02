@@ -6,6 +6,7 @@ import UIKit
 extension SFSafariViewController.Configuration {
     @objc(entersReaderIfAvailable) var _objc_entersReaderIfAvailable: Bool { get { entersReaderIfAvailable } set { entersReaderIfAvailable = newValue } }
     @objc(barCollapsingEnabled) var _objc_barCollapsingEnabled: Bool { get { barCollapsingEnabled } set { barCollapsingEnabled = newValue } }
+    @objc(activityButton) var _objc_activityButton: SFSafariViewController.ActivityButton? { get { activityButton } set { activityButton = newValue } }
 }
 
 extension SFSafariViewController {
