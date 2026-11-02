@@ -1,5 +1,6 @@
 """Sensors and health from Objective-C (HelloSensorsObjC, issue #315): HealthKit (units and quantities, authorization
-answered by ISIM_HEALTH_PERMISSION, saving a sample, a sample query, a statistics sum), Core Motion's pedometer, motion
+answered by ISIM_HEALTH_PERMISSION, saving a sample, a sample query, a statistics sum, a workout built with
+HKWorkoutBuilder and its route), Core Motion's pedometer, motion
 activity and altimeter (unavailable like the Simulator), Core Bluetooth (unsupported central and peripheral managers with
 Objective-C delegates, a mutable service) and Core NFC (an NDEF reader session invalidated through its Objective-C
 delegate, payloads, an APDU)."""
@@ -18,6 +19,10 @@ def test_sensors_objc(launch):
     app.wait_log(r"^po health anchored added 1 deleted 0 archived 1")
     app.wait_log(r"^po health sources 1 dev\.isim\.samples\.HelloSensorsObjC")
     app.wait_log(r"^po health background 1 error nil")
+    app.wait_log(r"^po workout builder began 1 added 1 ended 1 elapsed 1800$")          # issue #418: workouts
+    app.wait_log(r"^po workout saved type 13 duration 1800 kcal 300 events 1 indoor 1 error nil$")
+    app.wait_log(r"^po workout route 3 count 3 last 37\.35 error nil$")
+    app.wait_log(r"^po workout rides 1$")
     app.wait_log(r"^po motion steps 0 floors 0 activity 0 altimeter 0 status 0")
     app.wait_log(r"^po motion pedometer \(null\) error CMErrorDomain/104")
     app.wait_log(r"^po motion altimeter \(null\) error CMErrorDomain/109")

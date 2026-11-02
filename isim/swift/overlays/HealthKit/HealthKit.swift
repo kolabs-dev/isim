@@ -12,6 +12,7 @@ public struct HKError: CustomNSError, LocalizedError, Sendable {
         case noError = 0, errorHealthDataUnavailable, errorHealthDataRestricted, errorInvalidArgument, errorAuthorizationDenied
         case errorAuthorizationNotDetermined, errorDatabaseInaccessible, errorUserCanceled, errorAnotherWorkoutSessionStarted
         case errorUserExitedWorkoutSession, errorRequiredAuthorizationDenied, errorNoData, errorWorkoutActivityNotAllowed, errorDataSizeExceeded
+        case errorBackgroundWorkoutSessionNotAllowed
     }
     public let code: Code
     let message: String
@@ -24,6 +25,10 @@ public struct HKError: CustomNSError, LocalizedError, Sendable {
     public static var errorAuthorizationNotDetermined: Code { .errorAuthorizationNotDetermined }
     public static var errorNoData: Code { .errorNoData }
     public static var errorInvalidArgument: Code { .errorInvalidArgument }
+    public static var errorAnotherWorkoutSessionStarted: Code { .errorAnotherWorkoutSessionStarted }
+    public static var errorUserExitedWorkoutSession: Code { .errorUserExitedWorkoutSession }
+    public static var errorWorkoutActivityNotAllowed: Code { .errorWorkoutActivityNotAllowed }
+    public static var errorBackgroundWorkoutSessionNotAllowed: Code { .errorBackgroundWorkoutSessionNotAllowed }
 }
 
 @objc public enum HKAuthorizationStatus: Int, Sendable { case notDetermined = 0, sharingDenied, sharingAuthorized }
@@ -60,6 +65,10 @@ public struct HKQuantityTypeIdentifier: RawRepresentable, Hashable, Sendable {
     public static let dietaryEnergyConsumed = Self("HKQuantityTypeIdentifierDietaryEnergyConsumed")
     public static let dietaryProtein = Self("HKQuantityTypeIdentifierDietaryProtein")
     public static let dietaryCaffeine = Self("HKQuantityTypeIdentifierDietaryCaffeine")
+    public static let distanceSwimming = Self("HKQuantityTypeIdentifierDistanceSwimming")
+    public static let swimmingStrokeCount = Self("HKQuantityTypeIdentifierSwimmingStrokeCount")
+    public static let distanceWheelchair = Self("HKQuantityTypeIdentifierDistanceWheelchair")
+    public static let distanceDownhillSnowSports = Self("HKQuantityTypeIdentifierDistanceDownhillSnowSports")
 }
 public struct HKCategoryTypeIdentifier: RawRepresentable, Hashable, Sendable {
     public let rawValue: String
@@ -134,6 +143,9 @@ enum _HKNames {
             "HKCategoryTypeIdentifierAppleStandHour": "Stand Hours", "HKCategoryTypeIdentifierHighHeartRateEvent": "High Heart Rate Notifications",
             "HKCharacteristicTypeIdentifierBiologicalSex": "Sex", "HKCharacteristicTypeIdentifierDateOfBirth": "Date of Birth",
             "HKCharacteristicTypeIdentifierBloodType": "Blood Type", "HKWorkoutTypeIdentifier": "Workouts",
+            "HKWorkoutRouteTypeIdentifier": "Workout Routes", "HKDataTypeIdentifierHeartbeatSeries": "Heartbeat Series",
+            "HKQuantityTypeIdentifierDistanceSwimming": "Swimming Distance", "HKQuantityTypeIdentifierSwimmingStrokeCount": "Swimming Strokes",
+            "HKQuantityTypeIdentifierDistanceWheelchair": "Wheelchair Distance", "HKQuantityTypeIdentifierDistanceDownhillSnowSports": "Downhill Snow Sports Distance",
         ]
         if let s = n[id] { return s }
         return id.replacingOccurrences(of: "HKQuantityTypeIdentifier", with: "").replacingOccurrences(of: "HKCategoryTypeIdentifier", with: "")
@@ -196,7 +208,8 @@ enum _HKUnits {
     static let cumulative: Set<String> = ["HKQuantityTypeIdentifierStepCount", "HKQuantityTypeIdentifierDistanceWalkingRunning", "HKQuantityTypeIdentifierDistanceCycling",
         "HKQuantityTypeIdentifierActiveEnergyBurned", "HKQuantityTypeIdentifierBasalEnergyBurned", "HKQuantityTypeIdentifierFlightsClimbed",
         "HKQuantityTypeIdentifierAppleExerciseTime", "HKQuantityTypeIdentifierDietaryWater", "HKQuantityTypeIdentifierDietaryEnergyConsumed",
-        "HKQuantityTypeIdentifierDietaryProtein", "HKQuantityTypeIdentifierDietaryCaffeine"]
+        "HKQuantityTypeIdentifierDietaryProtein", "HKQuantityTypeIdentifierDietaryCaffeine", "HKQuantityTypeIdentifierDistanceSwimming",
+        "HKQuantityTypeIdentifierSwimmingStrokeCount", "HKQuantityTypeIdentifierDistanceWheelchair", "HKQuantityTypeIdentifierDistanceDownhillSnowSports"]
     static func prefixString(_ p: HKMetricPrefix) -> String {
         switch p {
         case .none: return ""; case .femto: return "f"; case .pico: return "p"; case .nano: return "n"; case .micro: return "mc"; case .milli: return "m"
@@ -229,7 +242,8 @@ enum _HKUnits {
     /// the unit samples of a type are stored in
     static func canonical(_ id: String) -> HKUnit {
         switch id {
-        case "HKQuantityTypeIdentifierDistanceWalkingRunning", "HKQuantityTypeIdentifierDistanceCycling", "HKQuantityTypeIdentifierHeight": return .meter()
+        case "HKQuantityTypeIdentifierDistanceWalkingRunning", "HKQuantityTypeIdentifierDistanceCycling", "HKQuantityTypeIdentifierHeight",
+             "HKQuantityTypeIdentifierDistanceSwimming", "HKQuantityTypeIdentifierDistanceWheelchair", "HKQuantityTypeIdentifierDistanceDownhillSnowSports": return .meter()
         case "HKQuantityTypeIdentifierActiveEnergyBurned", "HKQuantityTypeIdentifierBasalEnergyBurned", "HKQuantityTypeIdentifierDietaryEnergyConsumed": return .kilocalorie()
         case "HKQuantityTypeIdentifierHeartRate", "HKQuantityTypeIdentifierRestingHeartRate", "HKQuantityTypeIdentifierRespiratoryRate": return HKUnit(from: "count/min")
         case "HKQuantityTypeIdentifierHeartRateVariabilitySDNN": return HKUnit(from: "ms")
@@ -289,6 +303,8 @@ enum _HKUnits {
     @objc open internal(set) var metadata: [String: Any]?
     @objc open internal(set) var sourceRevision: HKSourceRevision = HKSourceRevision(source: .default(), version: nil)
     var _seq = 0
+    /// the workout a builder added this sample to (its UUID)
+    var _workout: String?
     open var device: HKDevice? { nil }
     @available(*, deprecated) open var source: HKSource { sourceRevision.source }
 }

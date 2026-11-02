@@ -1,5 +1,5 @@
 // Sample: sensors and health from Objective-C (issue #315): HealthKit (authorization, saving a sample, a sample query and
-// a statistics query, units), Core Motion's pedometer, motion activity and altimeter (unavailable, like the Simulator),
+// a statistics query, units, a workout with its route: issue #418), Core Motion's pedometer, motion activity and altimeter (unavailable, like the Simulator),
 // Core Bluetooth (central and peripheral managers: unsupported, a mutable service) and Core NFC (an NDEF reader session
 // that is invalidated, NDEF payloads, an APDU). Each step prints a "po ..." line the test checks.
 #import <UIKit/UIKit.h>
@@ -20,6 +20,7 @@ static NSString *errText(NSError *e) { return e ? [NSString stringWithFormat:@"%
 @interface ViewController : UIViewController <CBCentralManagerDelegate, CBPeripheralManagerDelegate, NFCNDEFReaderSessionDelegate,
                                               CMWaterSubmersionManagerDelegate>
 @property (nonatomic, strong) HKHealthStore *health;
+@property (nonatomic, strong) HKWorkoutBuilder *builder;
 @property (nonatomic, strong) CMPedometer *pedometer;
 @property (nonatomic, strong) CMAltimeter *altimeter;
 @property (nonatomic, strong) CMWaterSubmersionManager *water;
@@ -85,10 +86,73 @@ static NSString *errText(NSError *e) { return e ? [NSString stringWithFormat:@"%
                     say(@"health sources %lu %@", (unsigned long)sources.count, sources.anyObject.bundleIdentifier);
                     [self.health enableBackgroundDeliveryForType:steps frequency:HKUpdateFrequencyImmediate withCompletion:^(BOOL ok, NSError *be) {
                         say(@"health background %d error %@", ok, errText(be));
-                        dispatch_async(dispatch_get_main_queue(), ^{ [self motion]; });
+                        dispatch_async(dispatch_get_main_queue(), ^{ [self workout]; });
                     }];
                 }];
             [self.health executeQuery:sq];
+        }];
+    [self.health executeQuery:q];
+}
+
+// MARK: HealthKit workouts (issue #418): a ride built with HKWorkoutBuilder, its route, read back
+- (void)workout {
+    HKQuantityType *kcal = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierActiveEnergyBurned];
+    NSSet *types = [NSSet setWithObjects:HKObjectType.workoutType, kcal, HKSeriesType.workoutRouteType, nil];
+    [self.health requestAuthorizationToShareTypes:types readTypes:types completion:^(BOOL ok, NSError *e) {
+        HKWorkoutConfiguration *c = [HKWorkoutConfiguration new];
+        c.activityType = HKWorkoutActivityTypeCycling;
+        c.locationType = HKWorkoutSessionLocationTypeIndoor;
+        self.builder = [[HKWorkoutBuilder alloc] initWithHealthStore:self.health configuration:c device:HKDevice.localDevice];
+        __weak HKWorkoutBuilder *b = self.builder;        // kept by the view controller until it finishes
+        NSDate *start = [NSDate dateWithTimeIntervalSinceNow:-3600], *end = [start dateByAddingTimeInterval:1800];
+        [b beginCollectionWithStartDate:start completion:^(BOOL began, NSError *be) {
+            HKQuantitySample *burn = [HKQuantitySample quantitySampleWithType:kcal quantity:[HKQuantity quantityWithUnit:HKUnit.kilocalorieUnit doubleValue:300]
+                                                                    startDate:start endDate:end];
+            HKWorkoutEvent *lap = [HKWorkoutEvent workoutEventWithType:HKWorkoutEventTypeLap
+                                                         dateInterval:[[NSDateInterval alloc] initWithStartDate:[start dateByAddingTimeInterval:900] duration:0] metadata:nil];
+            HKWorkoutRouteBuilder *route = [b seriesBuilderForType:HKSeriesType.workoutRouteType];
+            NSMutableArray<CLLocation *> *points = [NSMutableArray array];
+            for (int i = 0; i < 3; i++)
+                [points addObject:[[CLLocation alloc] initWithCoordinate:CLLocationCoordinate2DMake(37.33 + i * 0.01, -122.01) altitude:10 horizontalAccuracy:5
+                                                      verticalAccuracy:5 timestamp:[start dateByAddingTimeInterval:i * 600]]];
+            [b addSamples:@[burn] completion:^(BOOL added, NSError *ae) {
+                [b addWorkoutEvents:@[lap] completion:^(BOOL evented, NSError *ee) {
+                    [route insertRouteData:points completion:^(BOOL inserted, NSError *re) {
+                        [b endCollectionWithEndDate:end completion:^(BOOL ended, NSError *ende) {
+                            say(@"workout builder began %d added %d ended %d elapsed %.0f", began, added, ended, [b elapsedTimeAtDate:end]);
+                            [b finishWorkoutWithCompletion:^(HKWorkout *w, NSError *fe) {
+                                say(@"workout saved type %lu duration %.0f kcal %.0f events %lu indoor %@ error %@", (unsigned long)w.workoutActivityType, w.duration,
+                                    [[w statisticsForType:kcal].sumQuantity doubleValueForUnit:HKUnit.kilocalorieUnit], (unsigned long)w.workoutEvents.count,
+                                    w.metadata[HKMetadataKeyIndoorWorkout], errText(fe));
+                                [self workoutRoute:w];
+                            }];
+                        }];
+                    }];
+                }];
+            }];
+        }];
+    }];
+}
+- (void)workoutRoute:(HKWorkout *)w {
+    NSPredicate *mine = [HKQuery predicateForObjectsFromWorkout:w];
+    HKSampleQuery *q = [[HKSampleQuery alloc] initWithSampleType:HKSeriesType.workoutRouteType predicate:mine limit:HKObjectQueryNoLimit sortDescriptors:nil
+        resultsHandler:^(HKSampleQuery *query, NSArray *results, NSError *qe) {
+            HKWorkoutRoute *r = results.firstObject;
+            __block NSUInteger n = 0;
+            HKWorkoutRouteQuery *rq = [[HKWorkoutRouteQuery alloc] initWithRoute:r
+                dataHandler:^(HKWorkoutRouteQuery *routeQuery, NSArray<CLLocation *> *data, BOOL done, NSError *rqe) {
+                    n += data.count;
+                    if (!done) return;
+                    say(@"workout route %lu count %lu last %.2f error %@", (unsigned long)n, (unsigned long)r.count, data.lastObject.coordinate.latitude, errText(rqe));
+                    NSPredicate *rides = [HKQuery predicateForWorkoutsWithWorkoutActivityType:HKWorkoutActivityTypeCycling];
+                    HKSampleQuery *wq = [[HKSampleQuery alloc] initWithSampleType:HKObjectType.workoutType predicate:rides limit:HKObjectQueryNoLimit
+                        sortDescriptors:nil resultsHandler:^(HKSampleQuery *wquery, NSArray *found, NSError *we) {
+                            say(@"workout rides %lu", (unsigned long)found.count);
+                            dispatch_async(dispatch_get_main_queue(), ^{ [self motion]; });
+                        }];
+                    [self.health executeQuery:wq];
+                }];
+            [self.health executeQuery:rq];
         }];
     [self.health executeQuery:q];
 }

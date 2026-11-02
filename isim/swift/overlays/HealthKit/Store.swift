@@ -6,6 +6,8 @@ struct _HKRecord: Codable {
     var bundle: String, source: String, metadata: [String: String]?
     /// the order of changes (an HKQueryAnchor is the last one a query saw); nil for samples saved before anchors (0)
     var seq: Int?
+    /// a workout's details or a route's locations (JSON), and the workout a sample belongs to
+    var extra: String? = nil, workout: String? = nil
 }
 /// a deleted sample (HKDeletedObject), kept for anchored object queries
 struct _HKTombstone: Codable { var uuid: String, type: String, seq: Int, bundle: String, metadata: [String: String]? }
@@ -24,7 +26,14 @@ enum _HKDB {
     static func canSee(_ type: String, _ bundle: String) -> Bool { _HKAuth.read(type) == true || bundle == _Privacy.bundleID }
     static func sample(_ r: _HKRecord) -> HKSample {
         let s: HKSample
-        if r.kind == "c" {
+        let start = Date(timeIntervalSince1970: r.start), end = Date(timeIntervalSince1970: r.end)
+        if r.kind == "w" {
+            let d = _HKWorkoutData.decode(_HKWorkoutData.self, r.extra) ?? _HKWorkoutData(activity: HKWorkoutActivityType.other.rawValue, events: nil, activities: [], stats: [])
+            s = d.workout(start, end, duration: r.value, metadata: r.metadata)
+        } else if r.kind == "r" {
+            s = HKWorkoutRoute(_HKWorkoutData.locations(_HKWorkoutData.decode([_HKWorkoutData.Location].self, r.extra) ?? []), metadata: r.metadata)
+            s.startDate = start; s.endDate = end
+        } else if r.kind == "c" {
             s = HKCategorySample(type: HKCategoryType(r.type), value: Int(r.value), start: Date(timeIntervalSince1970: r.start), end: Date(timeIntervalSince1970: r.end), metadata: r.metadata)
         } else {
             s = HKQuantitySample(type: HKQuantityType(r.type), quantity: HKQuantity(unit: _HKUnits.canonical(r.type), doubleValue: r.value),
@@ -33,6 +42,7 @@ enum _HKDB {
         s.uuid = UUID(uuidString: r.uuid) ?? UUID()
         s.sourceRevision = HKSourceRevision(source: HKSource(name: r.source, bundleIdentifier: r.bundle), version: nil)
         s._seq = r.seq ?? 0
+        s._workout = r.workout
         return s
     }
     static func record(_ o: HKObject) -> _HKRecord? {
@@ -44,6 +54,16 @@ enum _HKDB {
             guard q.quantity.is(compatibleWith: unit) else { return nil }
             return _HKRecord(uuid: s.uuid.uuidString, kind: "q", type: s.sampleType.identifier, start: s.startDate.timeIntervalSince1970,
                              end: s.endDate.timeIntervalSince1970, value: q.quantity.doubleValue(for: unit), bundle: _Privacy.bundleID, source: _Privacy.appName, metadata: md)
+        }
+        if let w = s as? HKWorkout {
+            return _HKRecord(uuid: s.uuid.uuidString, kind: "w", type: HKWorkoutTypeIdentifier, start: s.startDate.timeIntervalSince1970,
+                             end: s.endDate.timeIntervalSince1970, value: w.duration, bundle: _Privacy.bundleID, source: _Privacy.appName, metadata: md,
+                             extra: _HKWorkoutData.encode(_HKWorkoutData(w)))
+        }
+        if let r = s as? HKWorkoutRoute {
+            return _HKRecord(uuid: s.uuid.uuidString, kind: "r", type: HKWorkoutRouteTypeIdentifier, start: s.startDate.timeIntervalSince1970,
+                             end: s.endDate.timeIntervalSince1970, value: Double(r.count), bundle: _Privacy.bundleID, source: _Privacy.appName, metadata: md,
+                             extra: _HKWorkoutData.encode(_HKWorkoutData.locations(r._locations)), workout: r._workout)
         }
         if let c = s as? HKCategorySample {
             return _HKRecord(uuid: s.uuid.uuidString, kind: "c", type: s.sampleType.identifier, start: s.startDate.timeIntervalSince1970,
@@ -317,19 +337,43 @@ public struct HKStatisticsOptions: OptionSet, Sendable {
     public let endDate: Date
     let samples: [HKQuantitySample]
     let options: HKStatisticsOptions
+    /// a saved workout's statistics: the values, not the samples
+    let fixed: _HKStat?
     init(_ type: HKQuantityType, _ start: Date, _ end: Date, _ samples: [HKQuantitySample], _ options: HKStatisticsOptions) {
-        quantityType = type; startDate = start; endDate = end; self.samples = samples; self.options = options
+        quantityType = type; startDate = start; endDate = end; self.samples = samples; self.options = options; fixed = nil
+    }
+    init(_ type: HKQuantityType, _ start: Date, _ end: Date, fixed: _HKStat) {
+        quantityType = type; startDate = start; endDate = end; samples = []; options = []; self.fixed = fixed
+    }
+    /// a workout's statistics of a type: a sum for cumulative types, else the average, minimum, maximum and most recent
+    static func workout(_ type: HKQuantityType, _ start: Date, _ end: Date, _ samples: [HKQuantitySample]) -> HKStatistics {
+        HKStatistics(type, start, end, samples, type.aggregationStyle == .cumulative ? [.cumulativeSum] : [.discreteAverage, .discreteMin, .discreteMax, .mostRecent])
     }
     var unit: HKUnit { _HKUnits.canonical(quantityType.identifier) }
     func q(_ v: Double?) -> HKQuantity? { v.map { HKQuantity(unit: unit, doubleValue: $0) } }
     var values: [Double] { samples.map { $0.quantity.doubleValue(for: unit) } }
-    open func sumQuantity() -> HKQuantity? { options.contains(.cumulativeSum) && !samples.isEmpty ? q(values.reduce(0, +)) : nil }
-    open func averageQuantity() -> HKQuantity? { options.contains(.discreteAverage) && !samples.isEmpty ? q(values.reduce(0, +) / Double(values.count)) : nil }
-    open func minimumQuantity() -> HKQuantity? { options.contains(.discreteMin) ? q(values.min()) : nil }
-    open func maximumQuantity() -> HKQuantity? { options.contains(.discreteMax) ? q(values.max()) : nil }
-    open func mostRecentQuantity() -> HKQuantity? { options.contains(.mostRecent) ? samples.max { $0.endDate < $1.endDate }?.quantity : nil }
+    open func sumQuantity() -> HKQuantity? {
+        if let f = fixed { return q(f.sum) }
+        return options.contains(.cumulativeSum) && !samples.isEmpty ? q(values.reduce(0, +)) : nil
+    }
+    open func averageQuantity() -> HKQuantity? {
+        if let f = fixed { return q(f.avg) }
+        return options.contains(.discreteAverage) && !samples.isEmpty ? q(values.reduce(0, +) / Double(values.count)) : nil
+    }
+    open func minimumQuantity() -> HKQuantity? { if let f = fixed { return q(f.min) }; return options.contains(.discreteMin) ? q(values.min()) : nil }
+    open func maximumQuantity() -> HKQuantity? { if let f = fixed { return q(f.max) }; return options.contains(.discreteMax) ? q(values.max()) : nil }
+    open func mostRecentQuantity() -> HKQuantity? {
+        if let f = fixed { return q(f.recent) }
+        return options.contains(.mostRecent) ? samples.max { $0.endDate < $1.endDate }?.quantity : nil
+    }
     open func mostRecentQuantityDateInterval() -> DateInterval? {
         samples.max { $0.endDate < $1.endDate }.map { DateInterval(start: $0.startDate, end: $0.endDate) }
+    }
+    var _stat: _HKStat {
+        if let f = fixed { return f }
+        return _HKStat(type: quantityType.identifier, sum: sumQuantity()?.doubleValue(for: unit), min: minimumQuantity()?.doubleValue(for: unit),
+                       max: maximumQuantity()?.doubleValue(for: unit), avg: averageQuantity()?.doubleValue(for: unit),
+                       recent: mostRecentQuantity()?.doubleValue(for: unit), start: startDate.timeIntervalSince1970, end: endDate.timeIntervalSince1970)
     }
     open func sumQuantity(for source: HKSource) -> HKQuantity? {
         let v = samples.filter { $0.sourceRevision.source == source }.map { $0.quantity.doubleValue(for: unit) }

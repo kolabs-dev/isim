@@ -998,7 +998,7 @@ CoreAudio -lswiftObjectiveC -lswiftFoundation -lswiftAudioToolbox -framework Fou
 CoreMotion -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation
 CoreBluetooth -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation
 CoreNFC -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -framework Foundation -framework UIKit
-HealthKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
+HealthKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftCoreLocation -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 Contacts -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 ContactsUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftContacts -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 EventKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswiftCoreLocation -lswiftContacts -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics

@@ -641,7 +641,7 @@ def _(a):
 @app("samples/HelloSensorsObjC")   # after the overlays: the frameworks re-export their Swift overlays (issue #315)
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "HealthKit", "-framework", "CoreMotion",
-                                          "-framework", "CoreBluetooth", "-framework", "CoreNFC", "-framework", "CoreGraphics"])
+                                          "-framework", "CoreBluetooth", "-framework", "CoreNFC", "-framework", "CoreGraphics", "-framework", "CoreLocation"])
 
 
 @app("samples/HelloSystemObjC", swift=False)
