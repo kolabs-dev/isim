@@ -1434,9 +1434,13 @@ def _(a):
     os.replace(os.path.join(b, "C-Info.plist"), os.path.join(b, "Info.plist"))
 
 
-@app("tests/spatial", products=["SpatialTest.app"])
+@app("tests/spatial", products=["SpatialTest.app", "SpatialSwiftTest.app", "SpatialCTest.app"])
 def _(a):
     a.swift_app("SpatialTest", srcs=["SpatialTest.swift"], plist="Info.plist")
+    b = a.swift_app("SpatialSwiftTest", srcs=["SpatialSwiftTest.swift"], plist="Swift-Info.plist")
+    os.replace(os.path.join(b, "Swift-Info.plist"), os.path.join(b, "Info.plist"))
+    b = a.objc_app(["main.m"], "C-Info.plist", ["-framework", "Foundation"], name="SpatialCTest")   # issue #692: <Spatial/Spatial.h>
+    os.replace(os.path.join(b, "C-Info.plist"), os.path.join(b, "Info.plist"))
 
 
 @app("tests/uttypes", products=["UTTypesTest.app", "UTTypesObjCTest.app"])
