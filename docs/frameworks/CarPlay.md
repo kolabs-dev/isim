@@ -1,6 +1,7 @@
 # CarPlay
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 99.1% of Apple's iOS API (1257 of 1269, exact) · **Rows:** 16: 11 ✅ 5 🟡 · **iOS:** 12.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [CarPlay](https://developer.apple.com/documentation/carplay) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -59,4 +60,22 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+12 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+
+<details><summary>List</summary>
+
+- [`CPBarButton.Type`](https://developer.apple.com/documentation/carplay/cpbarbutton/type)
+- [`case image`](https://developer.apple.com/documentation/carplay/cpbarbutton/type/image)
+- [`init?(rawValue: UInt)`](https://developer.apple.com/documentation/carplay/cpbarbutton/type/init(rawvalue:))
+- [`case text`](https://developer.apple.com/documentation/carplay/cpbarbutton/type/text)
+- [`func panelDidHide(CPMapPanel)`](https://developer.apple.com/documentation/carplay/cpmappanel/delegate-swift.protocol/paneldidhide(_:))
+- [`func panelDidShow(CPMapPanel)`](https://developer.apple.com/documentation/carplay/cpmappanel/delegate-swift.protocol/paneldidshow(_:))
+- [`static var down: CPMapTemplate.PanDirection`](https://developer.apple.com/documentation/carplay/cpmaptemplate/pandirection/down)
+- [`init(rawValue: Int)`](https://developer.apple.com/documentation/carplay/cpmaptemplate/pandirection/init(rawvalue:))
+- [`static var left: CPMapTemplate.PanDirection`](https://developer.apple.com/documentation/carplay/cpmaptemplate/pandirection/left)
+- [`static var right: CPMapTemplate.PanDirection`](https://developer.apple.com/documentation/carplay/cpmaptemplate/pandirection/right)
+- [`static var up: CPMapTemplate.PanDirection`](https://developer.apple.com/documentation/carplay/cpmaptemplate/pandirection/up)
+- [`var entryPoints: [CPLocationCoordinate3D]`](https://developer.apple.com/documentation/carplay/cpnavigationwaypoint/entrypoints-obhb)
+
+</details>
 <!-- /generated:missing -->

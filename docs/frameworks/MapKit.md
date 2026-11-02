@@ -1,7 +1,7 @@
 # MapKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 74.6% of Apple's iOS API (1092 of 1463, exact) · **Rows:** 18: 15 ✅ 1 🟡 2 ❌ · **iOS:** 3.0+
+**Symbols:** 75.1% of Apple's iOS API (1098 of 1463, exact) · **Rows:** 19: 16 ✅ 1 🟡 2 ❌ · **iOS:** 3.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [MapKit](https://developer.apple.com/documentation/mapkit) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -37,7 +37,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-371 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+365 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -181,11 +181,6 @@
 - [`static var max: MKAnnotationViewZPriority`](https://developer.apple.com/documentation/mapkit/mkannotationviewzpriority/max)
 - [`static var min: MKAnnotationViewZPriority`](https://developer.apple.com/documentation/mapkit/mkannotationviewzpriority/min)
 - [`convenience init(centerCoordinate: CLLocationCoordinate2D, radius: CLLocationDistance)`](https://developer.apple.com/documentation/mapkit/mkcircle/init(centercoordinate:radius:))
-- [`MKClusterAnnotation`](https://developer.apple.com/documentation/mapkit/mkclusterannotation)
-- [`init(memberAnnotations: [any MKAnnotation])`](https://developer.apple.com/documentation/mapkit/mkclusterannotation/init(memberannotations:))
-- [`var memberAnnotations: [any MKAnnotation]`](https://developer.apple.com/documentation/mapkit/mkclusterannotation/memberannotations)
-- [`var subtitle: String?`](https://developer.apple.com/documentation/mapkit/mkclusterannotation/subtitle)
-- [`var title: String?`](https://developer.apple.com/documentation/mapkit/mkclusterannotation/title)
 - [`init(contentsOfURL: URL)`](https://developer.apple.com/documentation/mapkit/mkdirections/request/init(contentsofurl:))
 - [`init(contentsOfURL: URL)`](https://developer.apple.com/documentation/mapkit/mkdirections/request/init(contentsofurl:))
 - [`init(contentsOfURL: URL)`](https://developer.apple.com/documentation/mapkit/mkdirections/request/init(contentsofurl:))
@@ -297,7 +292,6 @@
 - [`var minCenterCoordinateDistance: CLLocationDistance`](https://developer.apple.com/documentation/mapkit/mkmapview/camerazoomrange-swift.class/mincentercoordinatedistance)
 - [`func exchangeOverlay(at: Int, withOverlayAt: Int)`](https://developer.apple.com/documentation/mapkit/mkmapview/exchangeoverlay(at:withoverlayat:))
 - [`var pitchButtonVisibility: MKFeatureVisibility`](https://developer.apple.com/documentation/mapkit/mkmapview/pitchbuttonvisibility)
-- [`func mapView(MKMapView, clusterAnnotationForMemberAnnotations: [any MKAnnotation]) -> MKClusterAnnotation`](https://developer.apple.com/documentation/mapkit/mkmapviewdelegate/mapview(_:clusterannotationformemberannotations:))
 - [`func mapView(MKMapView, selectionAccessoryFor: any MKAnnotation) -> MKSelectionAccessory?`](https://developer.apple.com/documentation/mapkit/mkmapviewdelegate/mapview(_:selectionaccessoryfor:))
 - [`func mapViewDidFailLoadingMap(MKMapView, withError: any Error)`](https://developer.apple.com/documentation/mapkit/mkmapviewdelegate/mapviewdidfailloadingmap(_:witherror:))
 - [`func mapViewWillStartRenderingMap(MKMapView)`](https://developer.apple.com/documentation/mapkit/mkmapviewdelegate/mapviewwillstartrenderingmap(_:))
@@ -341,7 +335,13 @@
 - [`static let laundry: MKPointOfInterestCategory`](https://developer.apple.com/documentation/mapkit/mkpointofinterestcategory/laundry)
 - [`static let library: MKPointOfInterestCategory`](https://developer.apple.com/documentation/mapkit/mkpointofinterestcategory/library)
 - [`static let mailbox: MKPointOfInterestCategory`](https://developer.apple.com/documentation/mapkit/mkpointofinterestcategory/mailbox)
-- … and 71 more (`isim/data/api-coverage.json.gz`)
+- [`static let marina: MKPointOfInterestCategory`](https://developer.apple.com/documentation/mapkit/mkpointofinterestcategory/marina)
+- [`static let miniGolf: MKPointOfInterestCategory`](https://developer.apple.com/documentation/mapkit/mkpointofinterestcategory/minigolf)
+- [`static let motorbikeDealership: MKPointOfInterestCategory`](https://developer.apple.com/documentation/mapkit/mkpointofinterestcategory/motorbikedealership)
+- [`static let movieTheater: MKPointOfInterestCategory`](https://developer.apple.com/documentation/mapkit/mkpointofinterestcategory/movietheater)
+- [`static let musicVenue: MKPointOfInterestCategory`](https://developer.apple.com/documentation/mapkit/mkpointofinterestcategory/musicvenue)
+- [`static let nationalMonument: MKPointOfInterestCategory`](https://developer.apple.com/documentation/mapkit/mkpointofinterestcategory/nationalmonument)
+- … and 65 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

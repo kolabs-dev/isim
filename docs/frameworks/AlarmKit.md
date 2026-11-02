@@ -1,6 +1,7 @@
 # AlarmKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 100.0% of Apple's iOS API (124 of 124, exact) · **Rows:** 7: 6 ✅ 1 🟡 · **iOS:** 26.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [AlarmKit](https://developer.apple.com/documentation/alarmkit) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -45,4 +46,5 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+Nothing (or not measured yet).
 <!-- /generated:missing -->

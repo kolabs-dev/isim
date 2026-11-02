@@ -1,7 +1,7 @@
 # Security
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 25.9% of Apple's iOS API (325 of 1255, exact) · **Rows:** 10: 8 ✅ 1 🟡 1 ❌ · **iOS:** 2.0+
+**Symbols:** 26.2% of Apple's iOS API (329 of 1256, exact) · **Rows:** 11: 9 ✅ 1 🟡 1 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Identity & security](../COVERAGE.md#security) · **Apple:** [Security](https://developer.apple.com/documentation/security) · **Issues:** [`area:security`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asecurity)
@@ -31,7 +31,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-930 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+927 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -335,7 +335,7 @@
 - [`var errSecNoCertificateModule: OSStatus`](https://developer.apple.com/documentation/security/errsecnocertificatemodule)
 - [`var errSecNoDefaultAuthority: OSStatus`](https://developer.apple.com/documentation/security/errsecnodefaultauthority)
 - [`var errSecNoDefaultKeychain: OSStatus`](https://developer.apple.com/documentation/security/errsecnodefaultkeychain)
-- … and 630 more (`isim/data/api-coverage.json.gz`)
+- … and 627 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

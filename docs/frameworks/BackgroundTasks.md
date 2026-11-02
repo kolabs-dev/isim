@@ -1,7 +1,7 @@
 # BackgroundTasks
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 58.7% of Apple's iOS API (37 of 63, exact) · **Rows:** 6: 4 ✅ 2 ❌ · **iOS:** 13.0+
+**Symbols:** 92.1% of Apple's iOS API (58 of 63, exact) · **Rows:** 7: 6 ✅ 1 ❌ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [BackgroundTasks](https://developer.apple.com/documentation/backgroundtasks) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -25,36 +25,15 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-26 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+5 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
-- [`BGContinuedProcessingTask`](https://developer.apple.com/documentation/backgroundtasks/bgcontinuedprocessingtask)
-- [`var subtitle: String`](https://developer.apple.com/documentation/backgroundtasks/bgcontinuedprocessingtask/subtitle)
-- [`var title: String`](https://developer.apple.com/documentation/backgroundtasks/bgcontinuedprocessingtask/title)
-- [`func updateTitle(String, subtitle: String)`](https://developer.apple.com/documentation/backgroundtasks/bgcontinuedprocessingtask/updatetitle(_:subtitle:))
-- [`BGContinuedProcessingTaskRequest`](https://developer.apple.com/documentation/backgroundtasks/bgcontinuedprocessingtaskrequest)
-- [`init(identifier: String, title: String, subtitle: String)`](https://developer.apple.com/documentation/backgroundtasks/bgcontinuedprocessingtaskrequest/init(identifier:title:subtitle:))
-- [`var requiredResources: BGContinuedProcessingTaskRequest.Resources`](https://developer.apple.com/documentation/backgroundtasks/bgcontinuedprocessingtaskrequest/requiredresources)
-- [`BGContinuedProcessingTaskRequest.Resources`](https://developer.apple.com/documentation/backgroundtasks/bgcontinuedprocessingtaskrequest/resources)
-- [`static var gpu: BGContinuedProcessingTaskRequest.Resources`](https://developer.apple.com/documentation/backgroundtasks/bgcontinuedprocessingtaskrequest/resources/gpu)
-- [`init(rawValue: Int)`](https://developer.apple.com/documentation/backgroundtasks/bgcontinuedprocessingtaskrequest/resources/init(rawvalue:))
-- [`var strategy: BGContinuedProcessingTaskRequest.SubmissionStrategy`](https://developer.apple.com/documentation/backgroundtasks/bgcontinuedprocessingtaskrequest/strategy)
-- [`BGContinuedProcessingTaskRequest.SubmissionStrategy`](https://developer.apple.com/documentation/backgroundtasks/bgcontinuedprocessingtaskrequest/submissionstrategy)
-- [`case fail`](https://developer.apple.com/documentation/backgroundtasks/bgcontinuedprocessingtaskrequest/submissionstrategy/fail)
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/backgroundtasks/bgcontinuedprocessingtaskrequest/submissionstrategy/init(rawvalue:))
-- [`case queue`](https://developer.apple.com/documentation/backgroundtasks/bgcontinuedprocessingtaskrequest/submissionstrategy/queue)
-- [`var subtitle: String`](https://developer.apple.com/documentation/backgroundtasks/bgcontinuedprocessingtaskrequest/subtitle)
-- [`var title: String`](https://developer.apple.com/documentation/backgroundtasks/bgcontinuedprocessingtaskrequest/title)
 - [`BGHealthResearchTask`](https://developer.apple.com/documentation/backgroundtasks/bghealthresearchtask)
 - [`BGHealthResearchTaskRequest`](https://developer.apple.com/documentation/backgroundtasks/bghealthresearchtaskrequest)
 - [`var protectionTypeOfRequiredData: NSString`](https://developer.apple.com/documentation/backgroundtasks/bghealthresearchtaskrequest/protectiontypeofrequireddata)
-- [`case immediateRunIneligible`](https://developer.apple.com/documentation/backgroundtasks/bgtaskscheduler/error/code/immediaterunineligible)
-- [`case immediateRunIneligible`](https://developer.apple.com/documentation/backgroundtasks/bgtaskscheduler/error/code/immediaterunineligible)
-- [`static var immediateRunIneligible: BGTaskScheduler.Error.Code`](https://developer.apple.com/documentation/backgroundtasks/bgtaskscheduler/error/immediaterunineligible)
 - [`class let errorDomain: String`](https://developer.apple.com/documentation/backgroundtasks/bgtaskscheduler/errordomain)
 - [`func submitTaskRequest(BGTaskRequest, completionHandler: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/backgroundtasks/bgtaskscheduler/submittaskrequest(_:completionhandler:))
-- [`class var supportedResources: BGContinuedProcessingTaskRequest.Resources`](https://developer.apple.com/documentation/backgroundtasks/bgtaskscheduler/supportedresources)
 
 </details>
 <!-- /generated:missing -->
