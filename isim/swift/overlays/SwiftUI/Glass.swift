@@ -15,8 +15,14 @@ import isim_host
 
 /// The iOS major version isim emulates (17, 18, 26, 27).
 @inline(__always) func _isimOSMajor() -> Int { Int(isim_os_version()) / 10000 }
+/// The design the app's controls and bars follow: the emulated major version, except 18 for an app that opts out of
+/// Liquid Glass under iOS 26 (UIDesignRequiresCompatibility in its Info.plist; Apple's opt-out is temporary, so not 27).
+let _isimDesignMajor: Int = {
+    let os = _isimOSMajor()
+    return os == 26 && (Bundle.main.object(forInfoDictionaryKey: "UIDesignRequiresCompatibility") as? Bool ?? false) ? 18 : os
+}()
 /// iOS 26 and later draw the Liquid Glass look.
-var _isimGlassLook: Bool { _isimOSMajor() >= 26 }
+var _isimGlassLook: Bool { _isimDesignMajor >= 26 }
 @MainActor var _isimPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
 
 /// A view that draws Liquid Glass in its bounds (corner `radius`, optional tint).

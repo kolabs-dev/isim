@@ -192,7 +192,7 @@ struct _TabItemInfo {
 }
 /// 0 bottom material bar, 1 floating glass capsule (iPhone, iOS 26+), 2 top capsule (iPad, iOS 18), 3 top glass (iPad, iOS 26+)
 @MainActor func _tabBarMode() -> Int {
-    let os = _isimOSMajor()
+    let os = _isimDesignMajor
     if _isimPad && os >= 18 { return os >= 26 ? 3 : 2 }
     return os >= 26 ? 1 : 0
 }

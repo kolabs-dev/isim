@@ -79,7 +79,9 @@ BOOL isim_ui_update_links_active(void);                   /* the asset catalog's
 
 /* iOS version isim emulates (--os): the look follows it. 17/18: the classic materials; 26+: Liquid Glass. */
 int isim_ui_os_major(void);
-BOOL isim_ui_glass(void);                               /* iOS 26 or later */
+BOOL isim_ui_glass(void);                               /* iOS 26 or later, unless the app opts out (UIDesignRequiresCompatibility) */
+BOOL isim_ui_design_compat(void);                       /* the app keeps the iOS 18 design under iOS 26 */
+int isim_ui_design_major(void);                         /* the version the app's design follows: 18 when it opts out */
 void isim_ui_draw_glass(CGRect r, CGFloat radius, UIColor *_Nullable tint, int flags);   /* flags: 2 clear, 4 no shadow, 8 pressed; dark from the style */
 
 /* text */
