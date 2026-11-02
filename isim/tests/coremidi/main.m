@@ -189,11 +189,13 @@ int main(void) {
         CHECK(MIDIThruConnectionDispose(thru) == noErr && MIDIThruConnectionDispose(thru) == kMIDIObjectNotFound, "MIDIThruConnectionDispose");
 
         // notifications arrive on the client's run loop
-        volatile BOOL any = NO;
-        NSDate *end = [NSDate dateWithTimeIntervalSinceNow:2];
-        while (!(any = messages.count > 0) && [end timeIntervalSinceNow] > 0) [[NSRunLoop mainRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
-        CHECK([messages containsObject:@(kMIDIMsgObjectAdded)] && [messages containsObject:@(kMIDIMsgSetupChanged)]
-              && [messages containsObject:@(kMIDIMsgThruConnectionsChanged)], "notifications: %s", messages.description.UTF8String);
+        BOOL (^allArrived)(void) = ^BOOL {
+            return [messages containsObject:@(kMIDIMsgObjectAdded)] && [messages containsObject:@(kMIDIMsgSetupChanged)]
+                && [messages containsObject:@(kMIDIMsgThruConnectionsChanged)];
+        };
+        NSDate *end = [NSDate dateWithTimeIntervalSinceNow:10];
+        while (!allArrived() && [end timeIntervalSinceNow] > 0) [[NSRunLoop mainRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+        CHECK(allArrived(), "notifications: %s", messages.description.UTF8String);
         CHECK(MIDIEndpointDispose(src) == noErr && MIDIEndpointDispose(src) == kMIDIUnknownEndpoint, "MIDIEndpointDispose");
         CHECK(MIDIClientDispose(client) == noErr && MIDIClientDispose(client) == kMIDIInvalidClient, "MIDIClientDispose");
 
