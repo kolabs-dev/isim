@@ -817,7 +817,11 @@ OBJC_NAMES["Messages"] = {c: c for c in """MSSession MSMessageLayout MSMessageTe
 OBJC_NAMES["CryptoTokenKit"] = {**{c: c for c in """TKSmartCardSlotManager TKSmartCardSlotNFCSession TKSmartCardSlot TKSmartCard
     TKSmartCardATR TKTLVRecord TKBERTLVRecord TKCompactTLVRecord TKSimpleTLVRecord TKSmartCardPINFormat TKSmartCardUserInteraction
     TKSmartCardUserInteractionForPINOperation TKSmartCardUserInteractionForSecurePINVerification TKSmartCardUserInteractionForSecurePINChange
-    TKTokenWatcher""".split()}, "TKSmartCardATR.InterfaceGroup": "TKSmartCardATRInterfaceGroup", "TKTokenWatcher.TokenInfo": "TKTokenWatcherTokenInfo"}
+    TKTokenWatcher TKTokenKeyAlgorithm TKTokenKeyExchangeParameters TKTokenKeychainItem TKTokenKeychainCertificate TKTokenKeychainKey
+    TKTokenKeychainContents TKTokenAuthOperation TKTokenPasswordAuthOperation TKTokenSmartCardPINAuthOperation TKTokenDriver
+    TKSmartCardTokenDriver TKToken TKSmartCardToken TKTokenSession TKSmartCardTokenSession TKSmartCardTokenRegistrationManager""".split()},
+    "TKSmartCardATR.InterfaceGroup": "TKSmartCardATRInterfaceGroup", "TKTokenWatcher.TokenInfo": "TKTokenWatcherTokenInfo",
+    "TKTokenDriver.Configuration": "TKTokenDriverConfiguration", "TKToken.Configuration": "TKTokenConfiguration"}   # issue #743: tokens
 OBJC_NAMES["CoreNFC"] = {c: c for c in """NFCNDEFPayload NFCNDEFMessage NFCReaderSession NFCNDEFReaderSession NFCTagReaderSession NFCISO7816APDU
     NFCVASCommandConfiguration NFCVASResponse NFCVASReaderSession""".split()}
 OBJC_NAMES["HealthKit"] = {c: c for c in """HKObjectType HKCharacteristicType HKSampleType HKQuantityType HKCategoryType HKWorkoutType HKUnit
@@ -1052,7 +1056,7 @@ DeclaredAgeRange -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Con
 FinanceKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUIKit -lswiftCoreGraphics -lswiftCompression -framework Foundation -framework UIKit -lcompression   # issue #398
 FinanceKitUI -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftCoreGraphics -lswiftObservation -lswiftFinanceKit -framework Foundation -framework UIKit   # issue #398
 PermissionKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftCoreGraphics -lswiftObservation -framework Foundation -framework UIKit -framework CoreGraphics   # issue #397
-CryptoTokenKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics   # issue #403: smart cards on virtual readers
+CryptoTokenKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUIKit -lswiftCoreGraphics -lswiftSecurity -framework Foundation -framework UIKit -framework CoreGraphics   # issue #403: smart cards on virtual readers
 IdentityDocumentServices -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftSecurity -framework Foundation   # issue #403
 LiveCommunicationKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCallKit -lswiftAVFoundation -framework Foundation   # issue #404: on CallKit's engine
 ExtensionFoundation -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation   # issue #407: the AppExtension protocols

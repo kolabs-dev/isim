@@ -1,6 +1,7 @@
-// isim CryptoTokenKit: TKTokenWatcher (adapted). isim has no token driver extensions yet: a virtual card whose readers.json
-// entry names a "token" (a token driver's class ID) is that driver's token while it is inserted, with the ID
-// "<driver>:<card serial>"; inserting and removing it calls the insertion and removal handlers.
+// isim CryptoTokenKit: TKTokenWatcher (adapted). A virtual card that a token driver extension makes a token for is that
+// token (TokenHost.swift, ID "<class ID>:<instance ID>"); a card whose readers.json entry names a "token" class ID with no
+// driver installed is that driver's token while it is inserted, with the ID "<driver>:<card serial>". Inserting and
+// removing it calls the insertion and removal handlers.
 import Foundation
 
 @objc(TKTokenWatcher) open class TKTokenWatcher: NSObject, @unchecked Sendable {
@@ -28,7 +29,9 @@ import Foundation
 
     static func current() -> [String: TokenInfo] {
         var out: [String: TokenInfo] = [:]
-        for r in _TKReaders.shared.readers {
+        let live = _TKTokenHost.shared.tokens()                     // tokens made by a driver extension (TokenHost.swift)
+        for l in live { out[l.token.tokenID] = TokenInfo(tokenID: l.token.tokenID, slotName: l.reader, driverName: l.token.tokenDriver.classID) }
+        for r in _TKReaders.shared.readers where !live.contains(where: { $0.reader == r.name }) {
             guard let card = _TKReaders.shared.card(r.name), let driver = card.token else { continue }
             let id = "\(driver):\(card.serial)"
             out[id] = TokenInfo(tokenID: id, slotName: r.name, driverName: driver)

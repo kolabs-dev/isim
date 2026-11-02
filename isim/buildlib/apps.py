@@ -346,6 +346,13 @@ def _(a):                                                                       
     os.replace(f"{n}/NoEntitlement.plist", f"{n}/Info.plist")
 
 
+@app("samples/HelloToken")   # issue #743: a persistent token extension (PIV) whose card keys the keychain lists
+def _(a):
+    b = a.swift_app(srcs=["HelloToken.swift"], link=["-framework", "CryptoTokenKit"])
+    a.copy("HelloToken.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # keychain-access-groups: com.apple.token
+    a.appex(b, "HelloTokenDriver", ["Driver/TokenDriver.swift"], "Driver/Info.plist", link=["-framework", "CryptoTokenKit"])
+
+
 @app("samples/HelloIDDocs")   # issue #403: the document provider entitlement and a DeviceRequest
 def _(a):
     b = a.swift_app()
