@@ -83,9 +83,47 @@ func close<T: BinaryFloatingPoint>(_ a: [T], _ b: [Double], _ tol: Double = 1e-9
         let ref = (0 ..< 12).map { k in (0 ..< 12).reduce(0.0) { $0 + ir[$1] * cos(-2 * Double.pi * Double(k * $1) / 12) } }
         if #available(iOS 17.0, *) {
             let dft = try! vDSP.DiscreteFourierTransform(count: 12, direction: .forward, transformType: .complexComplex, ofType: Double.self)
-            check(close(dft.transform(inputReal: ir, inputImaginary: ii).real, ref), "vDSP.DiscreteFourierTransform, 12 values")
+            check(close(dft.transform(real: ir, imaginary: ii).real, ref), "vDSP.DiscreteFourierTransform, 12 values")
             check((try? vDSP.DiscreteFourierTransform(count: 7, direction: .forward, transformType: .complexComplex, ofType: Float.self)) == nil, "an unsupported length throws")
+            // issue #809: Apple's errors, the interleaved form, reusing a setup, the lifecycle and vDSP_DFTFunctions types
+            do {
+                _ = try vDSP.DiscreteFourierTransform(count: 7, direction: .forward, transformType: .complexReal, ofType: Double.self)
+                check(false, "vDSP.DFTError.invalidSplitComplexCount")
+            } catch let e as vDSP.DFTError {
+                if case .invalidSplitComplexCount(let c, let t) = e { check(c == 7 && t == .complexReal && e.errorDescription != nil, "vDSP.DFTError.invalidSplitComplexCount") }
+                else { check(false, "vDSP.DFTError.invalidSplitComplexCount") }
+            } catch { check(false, "vDSP.DFTError.invalidSplitComplexCount") }
+            do {
+                _ = try vDSP.DiscreteFourierTransform(count: 7, direction: .forward, transformType: .complexComplex, ofType: DSPComplex.self)
+                check(false, "vDSP.DFTError.invalidInterleavedCount")
+            } catch vDSP.DFTError.invalidInterleavedCount(let c) { check(c == 7, "vDSP.DFTError.invalidInterleavedCount")
+            } catch { check(false, "vDSP.DFTError.invalidInterleavedCount") }
+            let idft = try! vDSP.DiscreteFourierTransform(previousDFT: nil, count: 12, direction: .forward, transformType: .complexComplex, ofType: DSPDoubleComplex.self)
+            let iout = idft.transform(input: ir.map { DSPDoubleComplex(real: $0, imag: 0) })
+            check(iout.count == 12 && close(iout.map(\.real), ref), "vDSP.DiscreteFourierTransform<DSPDoubleComplex>.transform(input:)")
+            let fdft = try! vDSP.DiscreteFourierTransform(count: 12, direction: .forward, transformType: .complexComplex, ofType: DSPComplex.self)
+            var fout = [DSPComplex](repeating: DSPComplex(), count: 12)
+            fdft.transform(input: ir.map { DSPComplex(real: Float($0), imag: 0) }, output: &fout)
+            check(close(fout.map { Double($0.real) }, ref, 1e-4), "vDSP.DiscreteFourierTransform<DSPComplex>.transform(input:output:)")
+            let reuse = try! vDSP.DiscreteFourierTransform(previousDFT: dft, count: 12, direction: .inverse, transformType: .complexComplex, ofType: Double.self)
+            var br = [Double](repeating: 0, count: 12), bi = br
+            let fwd = dft.transform(real: ir, imaginary: ii)
+            reuse.transform(inputReal: fwd.real, inputImaginary: fwd.imaginary, outputReal: &br, outputImaginary: &bi)
+            check(close(br.map { $0 / 12 }, ir), "vDSP.DiscreteFourierTransform(previousDFT:): an inverse round trip")
+            let rs = try! vDSP.DFTSinglePrecisionSplitComplexFunctions.makeDiscreteFourierTransform(previous: nil, count: 16, direction: .forward, transformType: .complexReal)
+            vDSP.DFTSinglePrecisionSplitComplexFunctions.destroySetup(rs)
+            check((try? vDSP.DFTDoublePrecisionInterleavedFunctions.makeDiscreteFourierTransform(previous: nil, count: 7, direction: .inverse, transformType: .complexComplex)) == nil,
+                  "vDSP.DFT…Functions.makeDiscreteFourierTransform")
         }
+        // vDSP_DFTFunctions over the C setup, and vDSP_DFT_Direction as Apple's closed enum
+        if let s = vDSP.VectorizableDouble.makeDFTSetup(previous: nil as vDSP.DFT<Double>?, count: 12, direction: .forward, transformType: .complexComplex) {
+            var vr = [Double](repeating: 0, count: 12), vi = vr
+            vDSP.VectorizableDouble.transform(dftSetup: s, inputReal: ir, inputImaginary: ii, outputReal: &vr, outputImaginary: &vi)
+            vDSP.VectorizableDouble.destroySetup(s)
+            check(close(vr, ref), "vDSP.VectorizableDouble.makeDFTSetup, transform(dftSetup:...)")
+        } else { check(false, "vDSP.VectorizableDouble.makeDFTSetup, transform(dftSetup:...)") }
+        check(vDSP.FourierTransformDirection.inverse.dftDirection == .INVERSE, "vDSP_DFT_Direction: INVERSE")
+        check(vDSP_DFT_Direction(rawValue: 1) == .FORWARD, "vDSP_DFT_Direction: init?(rawValue:)")
 
         // the C API from Swift
         var A: [Double] = [2, 1, 1, 3], B: [Double] = [3, 5]
