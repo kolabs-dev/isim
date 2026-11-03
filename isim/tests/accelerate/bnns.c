@@ -577,9 +577,31 @@ static void training(int *checks, int *failures) {
     BNNSDestroyNearestNeighbors(knn);
 }
 
+static int graph_log_called;
+static void graph_log(BNNSGraphMessageLevel lvl, const char *msg, const char *loc, bnns_user_message_data_t *data) {
+    (void)loc; (void)data; if (lvl == BNNSGraphMessageLevelError && strstr(msg, "not documented")) graph_log_called = 1;
+}
+static void graph(int *checks, int *failures) {
+    bnns_graph_compile_options_t o = BNNSGraphCompileOptionsMakeDefault();
+    BNNSGraphCompileOptionsSetTargetSingleThread(o, true);
+    BNNSGraphCompileOptionsSetOptimizationPreference(o, BNNSGraphOptimizationPreferenceIRSize);
+    BNNSGraphCompileOptionsSetOutputPath(o, "/tmp/out.bnnsir");
+    CHECK(o.data && BNNSGraphCompileOptionsGetTargetSingleThread(o) && !BNNSGraphCompileOptionsGetGenerateDebugInfo(o) &&
+          BNNSGraphCompileOptionsGetOptimizationPreference(o) == BNNSGraphOptimizationPreferenceIRSize &&
+          strcmp(BNNSGraphCompileOptionsGetOutputPath(o), "/tmp/out.bnnsir") == 0 && BNNSGraphCompileOptionsGetOutputFD(o) == -1,
+          "BNNSGraphCompileOptions: set and get");
+    BNNSGraphCompileOptionsSetMessageLogCallback(o, graph_log, NULL);
+    bnns_graph_t g = BNNSGraphCompileFromFile("/nonexistent/model.mlmodelc", NULL, o);
+    CHECK(g.data == NULL && graph_log_called, "BNNSGraphCompileFromFile: Apple's compiled models fail cleanly, with a log message");
+    bnns_graph_context_t c = BNNSGraphContextMake(g);
+    CHECK(c.data == NULL && BNNSGraphGetArgumentCount(g, NULL) == 0, "BNNSGraphContextMake of no graph fails");
+    BNNSGraphCompileOptionsDestroy(o);
+}
+
 void bnns(int *checks, int *failures) {
     types_and_layouts(checks, failures);
     direct_functions(checks, failures);
     layers(checks, failures);
     training(checks, failures);
+    graph(checks, failures);
 }
