@@ -193,6 +193,33 @@ func close<T: BinaryFloatingPoint>(_ a: [T], _ b: [Double], _ tol: Double = 1e-9
             _ = sparse_matrix_destroy(UnsafeMutableRawPointer(A))
         }
 
+        // issue #808: BNNS's C API from Swift (the Swift BNNS namespace is #823)
+        do {
+            var w: [Float] = [1, 2, 3, 4, 5, 6], bias: [Float] = [1, -1]
+            var p = BNNSLayerParametersFullyConnected()
+            p.i_desc.layout = BNNSDataLayoutVector; p.i_desc.size.0 = 3; p.i_desc.data_type = BNNSDataTypeFloat32
+            p.o_desc.layout = BNNSDataLayoutVector; p.o_desc.size.0 = 2; p.o_desc.data_type = BNNSDataTypeFloat32
+            p.activation.function = BNNSActivationFunctionIdentity
+            let f: BNNSFilter? = w.withUnsafeMutableBytes { wp in bias.withUnsafeMutableBytes { bp in
+                p.w_desc.layout = BNNSDataLayoutRowMajorMatrix; p.w_desc.size.0 = 3; p.w_desc.size.1 = 2
+                p.w_desc.data = wp.baseAddress; p.w_desc.data_type = BNNSDataTypeFloat32
+                p.bias.layout = BNNSDataLayoutVector; p.bias.size.0 = 2; p.bias.data = bp.baseAddress; p.bias.data_type = BNNSDataTypeFloat32
+                return BNNSFilterCreateLayerFullyConnected(&p, nil)
+            } }
+            var y: [Float] = [0, 0]
+            check(f != nil && BNNSFilterApply(f, [1, 1, 1] as [Float], &y) == 0 && y == [7, 14],
+                  "BNNSFilterCreateLayerFullyConnected and BNNSFilterApply from Swift")
+            BNNSFilterDestroy(f)
+            var a: [Float] = [1, 2, 3, 4], c: [Float] = [0, 0, 0, 0]
+            a.withUnsafeMutableBytes { ap in c.withUnsafeMutableBytes { cp in
+                var A = BNNSNDArrayDescriptor(), C = BNNSNDArrayDescriptor()
+                A.layout = BNNSDataLayout2DFirstMajor; A.size.0 = 2; A.size.1 = 2; A.data = ap.baseAddress; A.data_type = BNNSDataTypeFloat32
+                C = A; C.data = cp.baseAddress
+                _ = BNNSMatMul(false, false, 1, &A, &A, &C, nil, nil)
+            } }
+            check(c == [7, 10, 15, 22], "BNNSMatMul from Swift")
+        }
+
         // issue #543: more of vDSP from Swift
         let p: [Double] = [3, -4, 1.5, -0.25], q: [Double] = [4, 3, 2, 1]
         var sum = [Double](repeating: 0, count: 4), diff = [Double](repeating: 0, count: 4)
