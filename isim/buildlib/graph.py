@@ -222,6 +222,7 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
 # They link after the overlays (swift.py): name, link arguments of the C/Objective-C part[, the overlay if not <name>]
 SWIFT_FRAMEWORKS = [
     ("WebKit", "-framework Foundation -framework UIKit"),
+    ("AVKit", "-framework Foundation -framework UIKit -framework AVFoundation"),   # issue #811: capture events
     ("NearbyInteraction", "-framework Foundation"),   # issue #314
     # issue #315: sensors and health from Objective-C
     ("CoreBluetooth", "-framework Foundation"),

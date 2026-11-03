@@ -733,7 +733,7 @@ extension AVCaptureDepthDataOutputDelegate {
     public func depthDataOutput(_ output: AVCaptureDepthDataOutput, didDrop depthData: AVDepthData, timestamp: CMTime, connection: AVCaptureConnection, reason: AVCaptureOutput.DataDroppedReason) {}
 }
 /// Depth maps of a depth-capable camera (dual wide, TrueDepth) at the frame rate of its video.
-open class AVCaptureDepthDataOutput: AVCaptureOutput, @unchecked Sendable {
+@objc(AVCaptureDepthDataOutput) open class AVCaptureDepthDataOutput: AVCaptureOutput, @unchecked Sendable {
     public override init() { super.init() }
     override var _accepts: [AVMediaType] { [.depthData] }
     open var alwaysDiscardsLateDepthData = true
@@ -772,7 +772,7 @@ public protocol AVCaptureDataOutputSynchronizerDelegate: NSObjectProtocol {
 }
 /// Delivers the data of several outputs (video, depth, metadata) for the same frame together; the outputs' own
 /// delegates are not called.
-open class AVCaptureDataOutputSynchronizer: NSObject, @unchecked Sendable {
+@objc(AVCaptureDataOutputSynchronizer) open class AVCaptureDataOutputSynchronizer: NSObject, @unchecked Sendable {
     public let dataOutputs: [AVCaptureOutput]
     public init(dataOutputs: [AVCaptureOutput]) {
         self.dataOutputs = dataOutputs
@@ -788,7 +788,7 @@ open class AVCaptureDataOutputSynchronizer: NSObject, @unchecked Sendable {
         (delegateCallbackQueue ?? .main).async { d.dataOutputSynchronizer(self, didOutput: c) }
     }
 }
-open class AVCaptureSynchronizedDataCollection: NSObject, Sequence, @unchecked Sendable {
+@objc(AVCaptureSynchronizedDataCollection) open class AVCaptureSynchronizedDataCollection: NSObject, Sequence, @unchecked Sendable {
     let _items: [AVCaptureOutput: AVCaptureSynchronizedData]
     let _order: [AVCaptureOutput]
     init(items: [AVCaptureOutput: AVCaptureSynchronizedData], order: [AVCaptureOutput]) { _items = items; _order = order.filter { items[$0] != nil } }
@@ -797,11 +797,11 @@ open class AVCaptureSynchronizedDataCollection: NSObject, Sequence, @unchecked S
     open var count: Int { _items.count }
     public func makeIterator() -> IndexingIterator<[AVCaptureOutput]> { _order.makeIterator() }
 }
-open class AVCaptureSynchronizedData: NSObject, @unchecked Sendable {
+@objc(AVCaptureSynchronizedData) open class AVCaptureSynchronizedData: NSObject, @unchecked Sendable {
     public let timestamp: CMTime
     init(timestamp: CMTime) { self.timestamp = timestamp }
 }
-open class AVCaptureSynchronizedSampleBufferData: AVCaptureSynchronizedData, @unchecked Sendable {
+@objc(AVCaptureSynchronizedSampleBufferData) open class AVCaptureSynchronizedSampleBufferData: AVCaptureSynchronizedData, @unchecked Sendable {
     public let sampleBuffer: CMSampleBuffer
     public let sampleBufferWasDropped: Bool
     public let droppedReason: AVCaptureOutput.DataDroppedReason
@@ -810,7 +810,7 @@ open class AVCaptureSynchronizedSampleBufferData: AVCaptureSynchronizedData, @un
         super.init(timestamp: timestamp)
     }
 }
-open class AVCaptureSynchronizedDepthData: AVCaptureSynchronizedData, @unchecked Sendable {
+@objc(AVCaptureSynchronizedDepthData) open class AVCaptureSynchronizedDepthData: AVCaptureSynchronizedData, @unchecked Sendable {
     public let depthData: AVDepthData
     public let depthDataWasDropped: Bool
     public let droppedReason: AVCaptureOutput.DataDroppedReason
@@ -819,7 +819,7 @@ open class AVCaptureSynchronizedDepthData: AVCaptureSynchronizedData, @unchecked
         super.init(timestamp: timestamp)
     }
 }
-open class AVCaptureSynchronizedMetadataObjectData: AVCaptureSynchronizedData, @unchecked Sendable {
+@objc(AVCaptureSynchronizedMetadataObjectData) open class AVCaptureSynchronizedMetadataObjectData: AVCaptureSynchronizedData, @unchecked Sendable {
     public let metadataObjects: [AVMetadataObject]
     init(timestamp: CMTime, objects: [AVMetadataObject]) { metadataObjects = objects; super.init(timestamp: timestamp) }
 }

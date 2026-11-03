@@ -2,6 +2,8 @@
 // that take or return a CMTime, which the overlay's classes cannot declare: they use the `_isim_` entry points of the
 // overlay's ObjC.swift, which pass a CMTime as its four fields.
 #import <AVFoundation/AVFoundation.h>
+#import <objc/message.h>
+#import <objc/runtime.h>
 #pragma clang diagnostic ignored "-Wobjc-protocol-method-implementation"   // the categories implement what the header declares on the classes
 
 AVAudioSessionCategory const AVAudioSessionCategoryAmbient = @"AVAudioSessionCategoryAmbient";
@@ -617,4 +619,53 @@ static CMTimeRange range_of(id o) { CMTimeRange r = kCMTimeRangeInvalid; [o _isi
 @implementation AVAssetWriter (ISIMCMTime)
 - (void)startSessionAtSourceTime:(CMTime)t { [self _isim_startSessionAtSourceTime:&t]; }
 - (void)endSessionAtSourceTime:(CMTime)t { [self _isim_endSessionAtSourceTime:&t]; }
+@end
+
+/* issue #811: system pressure levels, depth data, the synchronized data, and the depth delegate's CMTime call */
+AVCaptureSystemPressureLevel const AVCaptureSystemPressureLevelNominal = @"nominal";
+AVCaptureSystemPressureLevel const AVCaptureSystemPressureLevelFair = @"fair";
+AVCaptureSystemPressureLevel const AVCaptureSystemPressureLevelSerious = @"serious";
+AVCaptureSystemPressureLevel const AVCaptureSystemPressureLevelCritical = @"critical";
+AVCaptureSystemPressureLevel const AVCaptureSystemPressureLevelShutdown = @"shutdown";
+
+/* the overlay's depth delegate adapter calls an Objective-C delegate through this (a CMTime goes by value) */
+__attribute__((visibility("default")))
+void isim_av_call_depth(id target, SEL sel, id output, id data, const CMTime *t, id connection, NSInteger reason, int dropped) {
+    if (dropped) ((void (*)(id, SEL, id, id, CMTime, id, NSInteger))objc_msgSend)(target, sel, output, data, *t, connection, reason);
+    else ((void (*)(id, SEL, id, id, CMTime, id))objc_msgSend)(target, sel, output, data, *t, connection);
+}
+
+@interface AVDepthData (ISIMPixelBuffer)
+- (void *)_isim_depthDataMap;
+- (nullable AVDepthData *)_isim_depthDataByReplacingDepthDataMap:(void *)map error:(NSError **)error;
+@end
+@implementation AVDepthData (ISIMCVPixelBuffer)
+- (CVPixelBufferRef)depthDataMap { return (CVPixelBufferRef)[self _isim_depthDataMap]; }
+- (instancetype)depthDataByReplacingDepthDataMapWithPixelBuffer:(CVPixelBufferRef)pixelBuffer error:(NSError **)error {
+    return [self _isim_depthDataByReplacingDepthDataMap:(void *)pixelBuffer error:error];
+}
+@end
+@interface AVCaptureSynchronizedData (ISIMTime)
+- (void)_isim_timestamp:(void *)out;
+@end
+@implementation AVCaptureSynchronizedData (ISIMCMTime)
+- (CMTime)timestamp { CMTime t = kCMTimeInvalid; [self _isim_timestamp:&t]; return t; }
+@end
+@interface AVCaptureSynchronizedSampleBufferData (ISIMSampleBuffer)
+- (void *)_isim_sampleBuffer;
+@end
+@implementation AVCaptureSynchronizedSampleBufferData (ISIMCMSampleBuffer)
+- (CMSampleBufferRef)sampleBuffer { return (CMSampleBufferRef)[self _isim_sampleBuffer]; }
+@end
+@interface AVCaptureSynchronizedDataCollection (ISIMOutputs)
+- (NSArray<AVCaptureOutput *> *)_isim_outputs;
+@end
+@implementation AVCaptureSynchronizedDataCollection (ISIMFastEnumeration)
+/* enumerates the outputs that have data, in the synchronizer's order */
+- (NSUInteger)countByEnumeratingWithState:(NSFastEnumerationState *)state objects:(id __unsafe_unretained [])buffer count:(NSUInteger)len {
+    static char key;
+    NSArray *outputs = objc_getAssociatedObject(self, &key);          /* kept, so the enumeration's pointers stay valid */
+    if (!outputs) { outputs = [self _isim_outputs]; objc_setAssociatedObject(self, &key, outputs, OBJC_ASSOCIATION_RETAIN); }
+    return [outputs countByEnumeratingWithState:state objects:buffer count:len];
+}
 @end

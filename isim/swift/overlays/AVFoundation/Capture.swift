@@ -266,7 +266,7 @@ func _transformBGRA(_ px: [UInt8], _ w: Int, _ h: Int, angle: CGFloat, mirror: B
         public var minFrameDuration: CMTime { CMTime(value: 1, timescale: Int32(maxFrameRate)) }
         public var maxFrameDuration: CMTime { CMTime(value: 1, timescale: Int32(minFrameRate)) }
     }
-    public final class SystemPressureState: NSObject, @unchecked Sendable {
+    @objc(AVCaptureSystemPressureState) public final class SystemPressureState: NSObject, @unchecked Sendable {
         public struct Level: RawRepresentable, Hashable, Sendable {
             public let rawValue: String
             public init(rawValue: String) { self.rawValue = rawValue }

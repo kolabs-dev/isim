@@ -1008,10 +1008,14 @@ def _(a):
     a.ffmpeg("-f", "lavfi", "-i", "testsrc2=s=160x90:r=25:d=12", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", f"{b}/movie.mp4")
 
 
-@app("tests/avfoundation-objc", products=["AVFoundationObjCTest.app"])   # issue #707: capture and editing from Objective-C
+@app("tests/avfoundation-objc", products=["AVFoundationObjCTest.app", "CaptureControlsObjCTest.app"])   # issues #707, #811
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "AVFoundation", "-framework", "CoreMedia",
                                           "-framework", "CoreVideo", "-framework", "CoreGraphics"], name="AVFoundationObjCTest")
+    b = a.objc_app(["controls.m"], "Controls-Info.plist", ["-framework", "Foundation", "-framework", "UIKit", "-framework", "AVFoundation",
+                                                           "-framework", "AVKit", "-framework", "CoreMedia", "-framework", "CoreVideo"],
+                   name="CaptureControlsObjCTest")
+    os.replace(os.path.join(b, "Controls-Info.plist"), os.path.join(b, "Info.plist"))
 
 
 @app("tests/gamesave-objc", products=["GameSaveObjCTest.app"])
