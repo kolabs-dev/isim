@@ -769,6 +769,11 @@ OBJC_NAMES["AVFoundation"].update({c: c for c in """AVCaptureDevice AVCaptureInp
     AVVideoCompositionRenderContext AVAsynchronousVideoCompositionRequest""".split()})
 OBJC_NAMES["AVFoundation"].update({"AVCaptureDevice.Format": "AVCaptureDeviceFormat", "AVCaptureDevice.DiscoverySession": "AVCaptureDeviceDiscoverySession",
                                    "AVCaptureInput.Port": "AVCaptureInputPort"})
+# issue #811: the depth output, synchronizer and system pressure state from Objective-C; AVKit's capture events
+OBJC_NAMES["AVFoundation"].update({c: c for c in """AVCaptureDepthDataOutput AVCaptureDataOutputSynchronizer AVCaptureSynchronizedDataCollection
+    AVCaptureSynchronizedData AVCaptureSynchronizedSampleBufferData AVCaptureSynchronizedDepthData AVCaptureSynchronizedMetadataObjectData""".split()})
+OBJC_NAMES["AVFoundation"].update({"AVCaptureDevice.SystemPressureState": "AVCaptureSystemPressureState"})
+OBJC_NAMES["AVKit"] = {c: c for c in "AVCaptureEventSound AVCaptureEvent AVCaptureEventInteraction".split()}
 # issue #553: AVFAudio's engine, formats, buffers, converter, file, player and recorder from Objective-C
 OBJC_NAMES["AVFoundation"].update({c: c for c in """AVAudioChannelLayout AVAudioCompressedBuffer AVAudioConverter AVAudioTime AVAudioMixingDestination
     AVAudioConnectionPoint AVAudioNode AVAudioMixerNode AVAudioIONode AVAudioOutputNode AVAudioPlayerNode AVAudioSourceNode AVAudioSinkNode

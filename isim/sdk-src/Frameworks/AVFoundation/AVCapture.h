@@ -2,14 +2,15 @@
 /* isim AVFoundation for Objective-C (issue #707): capture. The classes are the AVFoundation Swift overlay's (simulated
    cameras fed by isim's camera sources, see the overlay); Swift uses the overlay, these declarations are hidden from
    Swift. Delegates are called on the queue given (dispatch_queue_t), the sample buffers are the overlay's (see
-   CMSampleBuffer.h). The classes are not subclassable from Objective-C. */
+   CMSampleBuffer.h). The Camera Control, depth output, synchronizer and system pressure: issue #811. The classes are not
+   subclassable from Objective-C. */
 #import <Foundation/Foundation.h>
 #import <QuartzCore/QuartzCore.h>
 #import <CoreMedia/CoreMedia.h>
 #import <CoreVideo/CoreVideo.h>
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
-@class AVCaptureSession, AVCaptureOutput, AVCaptureConnection, AVCaptureVideoPreviewLayer, AVCapturePhotoOutput, AVCapturePhoto,
+@class AVCaptureSystemPressureState, AVCaptureSession, AVCaptureOutput, AVCaptureConnection, AVCaptureVideoPreviewLayer, AVCapturePhotoOutput, AVCapturePhoto,
     AVCaptureResolvedPhotoSettings, AVCaptureFileOutput, AVMetadataObject, AVDepthData, AVPortraitEffectsMatte, AVSemanticSegmentationMatte,
     AVCameraCalibrationData;
 typedef NSString *AVCaptureDeviceType NS_TYPED_ENUM;
@@ -116,6 +117,8 @@ typedef NS_ENUM(NSInteger, AVCapturePhotoOutputCaptureReadiness) {
 @property (nonatomic) CMTime activeMaxExposureDuration;                                   // AVFoundation.m
 - (void)setExposureTargetBias:(float)bias completionHandler:(nullable void (^)(CMTime syncTime))handler;   // AVFoundation.m
 - (void)setFocusModeLockedWithLensPosition:(float)lensPosition completionHandler:(nullable void (^)(CMTime syncTime))handler;
+@property (nonatomic, retain, nullable) AVCaptureDeviceFormat *activeDepthDataFormat;
+@property (nonatomic, readonly) AVCaptureSystemPressureState *systemPressureState;   /* KVO-observable */
 @end
 @interface AVCaptureDeviceDiscoverySession : NSObject
 + (instancetype)discoverySessionWithDeviceTypes:(NSArray<AVCaptureDeviceType> *)deviceTypes mediaType:(nullable AVMediaType)mediaType
@@ -341,7 +344,20 @@ typedef NS_ENUM(NSInteger, AVCapturePhotoOutputCaptureReadiness) {
 @end
 
 // MARK: depth, mattes and calibration
+typedef NS_ENUM(NSInteger, AVDepthDataAccuracy) { AVDepthDataAccuracyRelative = 0, AVDepthDataAccuracyAbsolute = 1 };
+typedef NS_ENUM(NSInteger, AVDepthDataQuality) { AVDepthDataQualityLow = 0, AVDepthDataQualityHigh = 1 };
 @interface AVDepthData : NSObject
++ (nullable instancetype)depthDataFromDictionaryRepresentation:(NSDictionary *)imageSourceAuxDataInfoDictionary error:(NSError * _Nullable * _Nullable)outError;
+@property (nonatomic, readonly) CVPixelBufferRef depthDataMap;                              // AVFoundation.m
+@property (nonatomic, readonly) OSType depthDataType;
+@property (nonatomic, readonly) NSArray<NSNumber *> *availableDepthDataTypes;
+@property (nonatomic, readonly, getter=isDepthDataFiltered) BOOL depthDataFiltered;
+@property (nonatomic, readonly) AVDepthDataAccuracy depthDataAccuracy;
+@property (nonatomic, readonly) AVDepthDataQuality depthDataQuality;
+@property (nonatomic, readonly, nullable) AVCameraCalibrationData *cameraCalibrationData;
+- (instancetype)depthDataByConvertingToDepthDataType:(OSType)depthDataType;
+- (nullable instancetype)depthDataByReplacingDepthDataMapWithPixelBuffer:(CVPixelBufferRef)pixelBuffer error:(NSError * _Nullable * _Nullable)outError;   // AVFoundation.m
+- (nullable NSDictionary *)dictionaryRepresentationForAuxiliaryDataType:(NSString * _Nullable * _Nullable)outAuxDataType;
 @end
 @interface AVPortraitEffectsMatte : NSObject
 @property (nonatomic, readonly) CVPixelBufferRef mattingImage;                             // AVFoundation.m
@@ -357,6 +373,134 @@ typedef NS_ENUM(NSInteger, AVCapturePhotoOutputCaptureReadiness) {
 @property (nonatomic, readonly) CGSize intrinsicMatrixReferenceDimensions;
 @property (nonatomic, readonly) CGPoint lensDistortionCenter;
 @property (nonatomic, readonly, nullable) NSData *lensDistortionLookupTable, *inverseLensDistortionLookupTable;
+@end
+
+// MARK: system pressure (iOS 11)
+typedef NSString *AVCaptureSystemPressureLevel NS_TYPED_ENUM;
+FOUNDATION_EXPORT AVCaptureSystemPressureLevel const AVCaptureSystemPressureLevelNominal, AVCaptureSystemPressureLevelFair,
+    AVCaptureSystemPressureLevelSerious, AVCaptureSystemPressureLevelCritical, AVCaptureSystemPressureLevelShutdown;
+typedef NS_OPTIONS(NSUInteger, AVCaptureSystemPressureFactors) {
+    AVCaptureSystemPressureFactorNone = 0, AVCaptureSystemPressureFactorSystemTemperature = 1 << 0, AVCaptureSystemPressureFactorPeakPower = 1 << 1,
+    AVCaptureSystemPressureFactorDepthModuleTemperature = 1 << 2, AVCaptureSystemPressureFactorCameraTemperature = 1 << 3,
+    AVCaptureSystemPressureFactorBatteryStress API_AVAILABLE(ios(27.0)) = 1 << 4,
+};
+@interface AVCaptureSystemPressureState : NSObject
+@property (nonatomic, readonly) AVCaptureSystemPressureLevel level;
+@property (nonatomic, readonly) AVCaptureSystemPressureFactors factors;
+@end
+
+// MARK: the Camera Control (iOS 18)
+API_AVAILABLE(ios(18.0))
+@interface AVCaptureControl : NSObject
+@property (nonatomic, getter=isEnabled) BOOL enabled;
+@end
+API_AVAILABLE(ios(18.0))
+@interface AVCaptureSlider : AVCaptureControl
+- (instancetype)initWithLocalizedTitle:(NSString *)localizedTitle symbolName:(NSString *)symbolName minValue:(float)minValue maxValue:(float)maxValue;
+- (instancetype)initWithLocalizedTitle:(NSString *)localizedTitle symbolName:(NSString *)symbolName minValue:(float)minValue maxValue:(float)maxValue step:(float)step;
+- (instancetype)initWithLocalizedTitle:(NSString *)localizedTitle symbolName:(NSString *)symbolName values:(NSArray<NSNumber *> *)values;
+@property (nonatomic) float value;
+@property (nonatomic, readonly) NSString *localizedTitle;
+@property (nonatomic, readonly) NSString *symbolName;
+@property (nonatomic, copy) NSArray<NSNumber *> *prominentValues;
+@property (nonatomic, copy, nullable) NSString *localizedValueFormat;
+@property (nonatomic, copy, nullable) NSString *accessibilityIdentifier;
+- (void)setActionQueue:(dispatch_queue_t)actionQueue action:(void (^)(float newValue))action;
+@end
+API_AVAILABLE(ios(18.0))
+@interface AVCaptureIndexPicker : AVCaptureControl
+- (instancetype)initWithLocalizedTitle:(NSString *)localizedTitle symbolName:(NSString *)symbolName numberOfIndexes:(NSInteger)numberOfIndexes;
+- (instancetype)initWithLocalizedTitle:(NSString *)localizedTitle symbolName:(NSString *)symbolName numberOfIndexes:(NSInteger)numberOfIndexes
+                localizedTitleTransform:(NSString * (^)(NSInteger index))localizedTitleTransform;
+- (instancetype)initWithLocalizedTitle:(NSString *)localizedTitle symbolName:(NSString *)symbolName localizedIndexTitles:(NSArray<NSString *> *)localizedIndexTitles;
+@property (nonatomic) NSInteger selectedIndex;
+@property (nonatomic, readonly) NSString *localizedTitle;
+@property (nonatomic, readonly) NSString *symbolName;
+@property (nonatomic, readonly) NSInteger numberOfIndexes;
+@property (nonatomic, readonly) NSArray<NSString *> *localizedIndexTitles;
+@property (nonatomic, copy, nullable) NSString *accessibilityIdentifier;
+- (void)setActionQueue:(dispatch_queue_t)actionQueue action:(void (^)(NSInteger selectedIndex))action;
+@end
+API_AVAILABLE(ios(18.0))
+@interface AVCaptureSystemZoomSlider : AVCaptureControl
+- (instancetype)initWithDevice:(AVCaptureDevice *)device;
+- (instancetype)initWithDevice:(AVCaptureDevice *)device action:(void (^)(CGFloat videoZoomFactor))action;
+@end
+API_AVAILABLE(ios(18.0))
+@interface AVCaptureSystemExposureBiasSlider : AVCaptureControl
+- (instancetype)initWithDevice:(AVCaptureDevice *)device;
+- (instancetype)initWithDevice:(AVCaptureDevice *)device action:(void (^)(float exposureTargetBias))action;
+@end
+API_AVAILABLE(ios(18.0))
+@protocol AVCaptureSessionControlsDelegate <NSObject>
+- (void)sessionControlsDidBecomeActive:(AVCaptureSession *)session;
+- (void)sessionControlsWillEnterFullscreenAppearance:(AVCaptureSession *)session;
+- (void)sessionControlsWillExitFullscreenAppearance:(AVCaptureSession *)session;
+- (void)sessionControlsDidBecomeInactive:(AVCaptureSession *)session;
+@end
+@interface AVCaptureSession (AVCaptureSessionControls)
+@property (nonatomic, readonly) BOOL supportsControls API_AVAILABLE(ios(18.0));
+@property (nonatomic, readonly) NSInteger maxControlsCount API_AVAILABLE(ios(18.0));
+@property (nonatomic, readonly) NSArray<__kindof AVCaptureControl *> *controls API_AVAILABLE(ios(18.0));
+- (BOOL)canAddControl:(AVCaptureControl *)control API_AVAILABLE(ios(18.0));
+- (void)addControl:(AVCaptureControl *)control API_AVAILABLE(ios(18.0));
+- (void)removeControl:(AVCaptureControl *)control API_AVAILABLE(ios(18.0));
+- (void)setControlsDelegate:(nullable id<AVCaptureSessionControlsDelegate>)controlsDelegate queue:(nullable dispatch_queue_t)controlsDelegateCallbackQueue API_AVAILABLE(ios(18.0));
+@property (nonatomic, readonly, nullable) id<AVCaptureSessionControlsDelegate> controlsDelegate API_AVAILABLE(ios(18.0));
+@property (nonatomic, readonly, nullable) dispatch_queue_t controlsDelegateCallbackQueue API_AVAILABLE(ios(18.0));
+@end
+
+// MARK: depth data output and synchronizer
+typedef NS_ENUM(NSInteger, AVCaptureOutputDataDroppedReason) {
+    AVCaptureOutputDataDroppedReasonNone = 0, AVCaptureOutputDataDroppedReasonLateData = 1, AVCaptureOutputDataDroppedReasonOutOfBuffers = 2,
+    AVCaptureOutputDataDroppedReasonDiscontinuity = 3,
+};
+@class AVCaptureDepthDataOutput, AVCaptureDataOutputSynchronizer, AVCaptureSynchronizedDataCollection;
+@protocol AVCaptureDepthDataOutputDelegate <NSObject>
+@optional
+- (void)depthDataOutput:(AVCaptureDepthDataOutput *)output didOutputDepthData:(AVDepthData *)depthData timestamp:(CMTime)timestamp
+             connection:(AVCaptureConnection *)connection;
+- (void)depthDataOutput:(AVCaptureDepthDataOutput *)output didDropDepthData:(AVDepthData *)depthData timestamp:(CMTime)timestamp
+             connection:(AVCaptureConnection *)connection reason:(AVCaptureOutputDataDroppedReason)reason;
+@end
+@interface AVCaptureDepthDataOutput : AVCaptureOutput
+- (void)setDelegate:(nullable id<AVCaptureDepthDataOutputDelegate>)delegate callbackQueue:(nullable dispatch_queue_t)callbackQueue;
+@property (nonatomic, readonly, nullable) id<AVCaptureDepthDataOutputDelegate> delegate;
+@property (nonatomic, readonly, nullable) dispatch_queue_t delegateCallbackQueue;
+@property (nonatomic) BOOL alwaysDiscardsLateDepthData;
+@property (nonatomic, getter=isFilteringEnabled) BOOL filteringEnabled;
+@end
+@interface AVCaptureSynchronizedData : NSObject
+@property (nonatomic, readonly) CMTime timestamp;                                          // AVFoundation.m
+@end
+@interface AVCaptureSynchronizedSampleBufferData : AVCaptureSynchronizedData
+@property (nonatomic, readonly) CMSampleBufferRef sampleBuffer;                            // AVFoundation.m
+@property (nonatomic, readonly) BOOL sampleBufferWasDropped;
+@property (nonatomic, readonly) AVCaptureOutputDataDroppedReason droppedReason;
+@end
+@interface AVCaptureSynchronizedDepthData : AVCaptureSynchronizedData
+@property (nonatomic, readonly) AVDepthData *depthData;
+@property (nonatomic, readonly) BOOL depthDataWasDropped;
+@property (nonatomic, readonly) AVCaptureOutputDataDroppedReason droppedReason;
+@end
+@interface AVCaptureSynchronizedMetadataObjectData : AVCaptureSynchronizedData
+@property (nonatomic, readonly) NSArray<AVMetadataObject *> *metadataObjects;
+@end
+@interface AVCaptureSynchronizedDataCollection : NSObject <NSFastEnumeration>
+- (nullable AVCaptureSynchronizedData *)synchronizedDataForCaptureOutput:(AVCaptureOutput *)captureOutput;
+- (nullable AVCaptureSynchronizedData *)objectForKeyedSubscript:(AVCaptureOutput *)key;
+@property (nonatomic, readonly) NSUInteger count;
+@end
+@protocol AVCaptureDataOutputSynchronizerDelegate <NSObject>
+@required
+- (void)dataOutputSynchronizer:(AVCaptureDataOutputSynchronizer *)synchronizer didOutputSynchronizedDataCollection:(AVCaptureSynchronizedDataCollection *)synchronizedDataCollection;
+@end
+@interface AVCaptureDataOutputSynchronizer : NSObject
+- (instancetype)initWithDataOutputs:(NSArray<AVCaptureOutput *> *)dataOutputs;
+@property (nonatomic, readonly) NSArray<AVCaptureOutput *> *dataOutputs;
+- (void)setDelegate:(nullable id<AVCaptureDataOutputSynchronizerDelegate>)delegate queue:(nullable dispatch_queue_t)delegateCallbackQueue;
+@property (nonatomic, readonly, nullable) id<AVCaptureDataOutputSynchronizerDelegate> delegate;
+@property (nonatomic, readonly, nullable) dispatch_queue_t delegateCallbackQueue;
 @end
 NS_ASSUME_NONNULL_END
 #endif

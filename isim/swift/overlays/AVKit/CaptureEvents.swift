@@ -14,7 +14,7 @@ public enum AVCaptureEventPhase: UInt, @unchecked Sendable {
 
 /// A sound a capture event can play (iOS 26).
 @available(iOS 26.0, *)
-public final class AVCaptureEventSound: NSObject, @unchecked Sendable {
+@objc(AVCaptureEventSound) public final class AVCaptureEventSound: NSObject, @unchecked Sendable {
     let _id: SystemSoundID
     let _name: String
     init(id: SystemSoundID, name: String) { _id = id; _name = name }
@@ -31,7 +31,7 @@ public final class AVCaptureEventSound: NSObject, @unchecked Sendable {
 }
 
 /// One press of a capture button: its phase.
-public final class AVCaptureEvent: NSObject, @unchecked Sendable {
+@objc(AVCaptureEvent) public final class AVCaptureEvent: NSObject, @unchecked Sendable {
     public let phase: AVCaptureEventPhase
     let _button: String
     init(phase: AVCaptureEventPhase, button: String) { self.phase = phase; _button = button }
@@ -46,7 +46,7 @@ public final class AVCaptureEvent: NSObject, @unchecked Sendable {
 }
 
 /// Takes the volume buttons and the Camera Control for capture while enabled in a view on screen.
-public final class AVCaptureEventInteraction: NSObject, UIInteraction, @unchecked Sendable {
+@objc(AVCaptureEventInteraction) public final class AVCaptureEventInteraction: NSObject, UIInteraction, @unchecked Sendable {
     let _primary: (AVCaptureEvent) -> Void
     let _secondary: ((AVCaptureEvent) -> Void)?
     public private(set) weak var view: UIView?
