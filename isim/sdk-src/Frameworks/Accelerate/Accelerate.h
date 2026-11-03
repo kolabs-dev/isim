@@ -10,3 +10,4 @@
 #include <Accelerate/vImage.h>
 #include <Accelerate/Quadrature.h>
 #include <Accelerate/Sparse/Solve.h>
+#include <Accelerate/BNNS/bnns.h>
