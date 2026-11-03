@@ -319,6 +319,7 @@ func close<T: BinaryFloatingPoint>(_ a: [T], _ b: [Double], _ tol: Double = 1e-9
         } else { check(false, "Quadrature max eval") }
 
         bnnsSwiftChecks()   // BNNSTest.swift (issue #823)
+        bnnsGraphChecks()   // BNNSGraphTest.swift (issue #824)
         print("accelerate swift: \(checks - failures)/\(checks) passed")
         exit(failures == 0 ? 0 : 1)
     }

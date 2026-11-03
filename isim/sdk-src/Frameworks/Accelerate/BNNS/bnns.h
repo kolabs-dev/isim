@@ -1,10 +1,11 @@
 #pragma once
 /* isim Accelerate: Basic Neural Network Subroutines (Apple's bnns.h): layer filters, direct functions, optimizers, random
-   generators and nearest neighbors. BNNSGraph (bnns_graph.h) is #824 (issue #808), over isim's C implementation (frameworks/Accelerate/bnns*.c).
+   generators and nearest neighbors; BNNSGraph is in bnns_graph.h (issue #808), over isim's C implementation (frameworks/Accelerate/bnns*.c).
    Enumeration values and structure layouts are Apple's, so code built against Apple's SDK passes the same data. */
 #include <sys/types.h>
 #include <Accelerate/BNNS/bnns_constants.h>
 #include <Accelerate/BNNS/bnns_structures.h>
+#include <Accelerate/BNNS/bnns_graph.h>
 #if __has_feature(assume_nonnull)
 #pragma clang assume_nonnull begin
 #else
