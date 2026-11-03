@@ -612,7 +612,7 @@ vImage_Error vImageConvert_YpCbCrToARGB_GenerateConversion(const vImage_YpCbCrTo
                                                            vImage_YpCbCrToARGB *outInfo, vImageYpCbCrType inYpCbCrType, vImageARGBType outARGBType,
                                                            vImage_Flags flags) {
     if (!matrix || !pixelRange || !outInfo) return kvImageNullPointerArgument;
-    if (outARGBType != kvImageARGB8888) return kvImageUnsupportedConversion;
+    if (outARGBType != kvImageARGB8888 && outARGBType != kvImageARGB16U && outARGBType != kvImageARGB16Q12) return kvImageUnsupportedConversion;
     if (pixelRange->YpRangeMax <= pixelRange->Yp_bias || pixelRange->CbCrRangeMax <= pixelRange->CbCr_bias) return kvImageInvalidParameter;
     vycc v = { VYCC_MAGIC, (uint32_t)inYpCbCrType, { matrix->Yp, matrix->Cr_R, matrix->Cr_G, matrix->Cb_G, matrix->Cb_B } };
     range_into(&v, pixelRange);
@@ -624,7 +624,7 @@ vImage_Error vImageConvert_ARGBToYpCbCr_GenerateConversion(const vImage_ARGBToYp
                                                            vImage_ARGBToYpCbCr *outInfo, vImageARGBType inARGBType, vImageYpCbCrType outYpCbCrType,
                                                            vImage_Flags flags) {
     if (!matrix || !pixelRange || !outInfo) return kvImageNullPointerArgument;
-    if (inARGBType != kvImageARGB8888) return kvImageUnsupportedConversion;
+    if (inARGBType != kvImageARGB8888 && inARGBType != kvImageARGB16U && inARGBType != kvImageARGB16Q12) return kvImageUnsupportedConversion;
     if (pixelRange->YpRangeMax <= pixelRange->Yp_bias || pixelRange->CbCrRangeMax <= pixelRange->CbCr_bias) return kvImageInvalidParameter;
     vycc v = { VYCC_MAGIC, (uint32_t)outYpCbCrType, { matrix->R_Yp, matrix->G_Yp, matrix->B_Yp, matrix->R_Cb, matrix->G_Cb, matrix->B_Cb_R_Cr,
                                                        matrix->G_Cr, matrix->B_Cr } };
@@ -805,4 +805,170 @@ vImage_Error vImageConvert_ARGB8888To444AYpCbCr8(const vImage_Buffer *src, const
 vImage_Error vImageConvert_ARGB8888To444CbYpCrA8(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_ARGBToYpCbCr *info,
                                                  const uint8_t permuteMap[4], vImage_Flags flags) {
     return info ? to444(src, dest, ycc_info(info->opaque), permuteMap, p444CbYpCrA, 4) : kvImageNullPointerArgument;
+}
+
+/* ---- 10- and 16-bit Y'CbCr, 4:2:2 with an alpha plane (issue #693) ----
+   Each format has a row decoder (code values of Y', Cb, Cr per pixel, chroma repeated for 4:2:2, alpha 0...1 or < 0
+   for none) and a row encoder (4:2:2 averages each pair's chroma); one loop converts them to and from ARGB8888,
+   ARGB16U or ARGB16Q12. */
+typedef void (*ycc_dec)(const uint8_t *row, const uint8_t *arow, long w, float *Y, float *Cb, float *Cr, float *A);
+typedef void (*ycc_enc)(uint8_t *row, uint8_t *arow, long w, const float *Y, const float *Cb, const float *Cr, const float *A);
+static inline uint16_t rd16(const uint8_t *p, long i) { uint16_t v; memcpy(&v, p + i * 2, 2); return v; }
+static inline void wr16(uint8_t *p, long i, float v) { uint16_t u = (uint16_t)lrintf(vclampf(v, 0, 65535)); memcpy(p + i * 2, &u, 2); }
+static inline uint32_t rd32(const uint8_t *p, long i) { uint32_t v; memcpy(&v, p + i * 4, 4); return v; }
+static inline void wr32(uint8_t *p, long i, uint32_t v) { memcpy(p + i * 4, &v, 4); }
+static inline uint32_t c10(float v) { return (uint32_t)lrintf(vclampf(v, 0, 1023)); }
+
+/* 422CbYpCrYp16: Cb Y0 Cr Y1, 16 bits each */
+static void dec_422_16(const uint8_t *r, const uint8_t *ar, long w, float *Y, float *Cb, float *Cr, float *A) {
+    for (long x = 0; x < w; x += 2) {
+        long g = x * 2;
+        Cb[x] = Cb[x + 1] = rd16(r, g); Y[x] = rd16(r, g + 1); Cr[x] = Cr[x + 1] = rd16(r, g + 2); Y[x + 1] = rd16(r, g + 3);
+        A[x] = A[x + 1] = -1;
+    }
+}
+static void enc_422_16(uint8_t *r, uint8_t *ar, long w, const float *Y, const float *Cb, const float *Cr, const float *A) {
+    for (long x = 0; x < w; x += 2) {
+        long g = x * 2;
+        wr16(r, g, (Cb[x] + Cb[x + 1]) / 2); wr16(r, g + 1, Y[x]); wr16(r, g + 2, (Cr[x] + Cr[x + 1]) / 2); wr16(r, g + 3, Y[x + 1]);
+    }
+}
+/* 444AYpCbCr16: A Y' Cb Cr, 16 bits each */
+static void dec_444_16(const uint8_t *r, const uint8_t *ar, long w, float *Y, float *Cb, float *Cr, float *A) {
+    for (long x = 0; x < w; x++) { A[x] = rd16(r, x * 4) / 65535.f; Y[x] = rd16(r, x * 4 + 1); Cb[x] = rd16(r, x * 4 + 2); Cr[x] = rd16(r, x * 4 + 3); }
+}
+static void enc_444_16(uint8_t *r, uint8_t *ar, long w, const float *Y, const float *Cb, const float *Cr, const float *A) {
+    for (long x = 0; x < w; x++) { wr16(r, x * 4, A[x] * 65535); wr16(r, x * 4 + 1, Y[x]); wr16(r, x * 4 + 2, Cb[x]); wr16(r, x * 4 + 3, Cr[x]); }
+}
+/* 444CrYpCb10: one little-endian 32-bit word per pixel, Cr in bits 22-31, Y' in 12-21, Cb in 2-11 */
+static void dec_444_10(const uint8_t *r, const uint8_t *ar, long w, float *Y, float *Cb, float *Cr, float *A) {
+    for (long x = 0; x < w; x++) {
+        uint32_t v = rd32(r, x);
+        Cr[x] = (float)(v >> 22 & 1023); Y[x] = (float)(v >> 12 & 1023); Cb[x] = (float)(v >> 2 & 1023); A[x] = -1;
+    }
+}
+static void enc_444_10(uint8_t *r, uint8_t *ar, long w, const float *Y, const float *Cb, const float *Cr, const float *A) {
+    for (long x = 0; x < w; x++) wr32(r, x, c10(Cr[x]) << 22 | c10(Y[x]) << 12 | c10(Cb[x]) << 2);
+}
+/* 422CrYpCbYpCbYpCbYpCrYpCrYp10 ('v210'): 6 pixels in four little-endian 32-bit words of three 10-bit values (bits 0-9,
+   10-19, 20-29): Cb0 Y0 Cr0 | Y1 Cb1 Y2 | Cr1 Y3 Cb2 | Y4 Cr2 Y5 */
+static void dec_v210(const uint8_t *r, const uint8_t *ar, long w, float *Y, float *Cb, float *Cr, float *A) {
+    for (long x = 0; x < w; x += 6) {
+        float v[12];
+        for (int i = 0; i < 4; i++) { uint32_t u = rd32(r, x / 6 * 4 + i); for (int k = 0; k < 3; k++) v[i * 3 + k] = (float)(u >> (10 * k) & 1023); }
+        static const int yi[6] = { 1, 3, 5, 7, 9, 11 }, cbi[3] = { 0, 4, 8 }, cri[3] = { 2, 6, 10 };
+        for (int p = 0; p < 6; p++) { Y[x + p] = v[yi[p]]; Cb[x + p] = v[cbi[p / 2]]; Cr[x + p] = v[cri[p / 2]]; A[x + p] = -1; }
+    }
+}
+static void enc_v210(uint8_t *r, uint8_t *ar, long w, const float *Y, const float *Cb, const float *Cr, const float *A) {
+    for (long x = 0; x < w; x += 6) {
+        uint32_t v[12];
+        for (int p = 0; p < 6; p++) v[1 + 2 * p] = c10(Y[x + p]);
+        for (int c = 0; c < 3; c++) { v[4 * c] = c10((Cb[x + 2 * c] + Cb[x + 2 * c + 1]) / 2); v[4 * c + 2] = c10((Cr[x + 2 * c] + Cr[x + 2 * c + 1]) / 2); }
+        for (int i = 0; i < 4; i++) wr32(r, x / 6 * 4 + i, v[i * 3] | v[i * 3 + 1] << 10 | v[i * 3 + 2] << 20);
+    }
+}
+/* 422CbYpCrYp8_AA8: '2vuy' bytes and an 8-bit alpha plane */
+static void dec_422_aa8(const uint8_t *r, const uint8_t *ar, long w, float *Y, float *Cb, float *Cr, float *A) {
+    for (long x = 0; x < w; x += 2) {
+        const uint8_t *g = r + x * 2;
+        Cb[x] = Cb[x + 1] = g[0]; Y[x] = g[1]; Cr[x] = Cr[x + 1] = g[2]; Y[x + 1] = g[3];
+        A[x] = ar[x] / 255.f; A[x + 1] = ar[x + 1] / 255.f;
+    }
+}
+static void enc_422_aa8(uint8_t *r, uint8_t *ar, long w, const float *Y, const float *Cb, const float *Cr, const float *A) {
+    for (long x = 0; x < w; x += 2) {
+        uint8_t *g = r + x * 2;
+        g[0] = (uint8_t)lrintf(vclampf((Cb[x] + Cb[x + 1]) / 2, 0, 255)); g[1] = (uint8_t)lrintf(vclampf(Y[x], 0, 255));
+        g[2] = (uint8_t)lrintf(vclampf((Cr[x] + Cr[x + 1]) / 2, 0, 255)); g[3] = (uint8_t)lrintf(vclampf(Y[x + 1], 0, 255));
+        ar[x] = (uint8_t)lrintf(vclampf(A[x], 0, 1) * 255); ar[x + 1] = (uint8_t)lrintf(vclampf(A[x + 1], 0, 1) * 255);
+    }
+}
+
+typedef struct { ycc_dec dec; ycc_enc enc; int group; size_t bytes_per_group; } ycc_fmt;
+static const ycc_fmt F422_16 = { dec_422_16, enc_422_16, 2, 8 }, F444_16 = { dec_444_16, enc_444_16, 1, 8 },
+                     F444_10 = { dec_444_10, enc_444_10, 1, 4 }, FV210 = { dec_v210, enc_v210, 6, 16 },
+                     F422_AA8 = { dec_422_aa8, enc_422_aa8, 2, 4 };
+
+static vImage_Error ycc_check(const vImage_Buffer *ycc, const vImage_Buffer *argb, const ycc_fmt *f) {
+    vImage_Error e = vcheck2(ycc, argb);
+    if (e) return e;
+    if (argb->width % (vImagePixelCount)f->group) return kvImageInvalidParameter;
+    if (ycc->rowBytes < argb->width / (vImagePixelCount)f->group * f->bytes_per_group) return kvImageInvalidParameter;
+    return kvImageNoError;
+}
+/* Y'CbCr -> ARGB of type t (one: its 1.0), alpha for formats without one in t's units */
+static vImage_Error ycc_from(const vImage_Buffer *s, const vImage_Buffer *sa, const vImage_Buffer *d, const vycc *v, const uint8_t *permute,
+                             float alpha, const ycc_fmt *f, vt_t t) {
+    if (!v) return kvImageInvalidParameter;
+    vImage_Error e = ycc_check(s, d, f);
+    if (e || (sa && (e = vsame(sa, d)))) return e;
+    long w = (long)d->width;
+    float *buf = malloc(sizeof(float) * (size_t)w * 4);
+    if (!buf) return kvImageMemoryAllocationError;
+    float *Y = buf, *Cb = buf + w, *Cr = buf + 2 * w, *A = buf + 3 * w, one = vt_one(t);
+    for (vImagePixelCount y = 0; y < d->height; y++) {
+        f->dec(vrow(s, (long)y), sa ? vrow(sa, (long)y) : NULL, w, Y, Cb, Cr, A);
+        uint8_t *out = vrowm(d, (long)y);
+        for (long x = 0; x < w; x++) {
+            float yy = (Y[x] - v->ybias) / v->yscale, cb = (Cb[x] - v->cbias) / v->cscale, cr = (Cr[x] - v->cbias) / v->cscale;
+            float px[4] = { A[x] < 0 ? alpha : A[x] * one, (v->m[0] * yy + v->m[1] * cr) * one, (v->m[0] * yy + v->m[3] * cb + v->m[2] * cr) * one,
+                            (v->m[0] * yy + v->m[4] * cb) * one };
+            if (t == VT_Q12) for (int i = 1; i < 4; i++) px[i] = vclampf(px[i], 0, one);
+            for (int i = 0; i < 4; i++) vwr(out, x * 4 + i, t, px[permute ? permute[i] & 3 : i]);
+        }
+    }
+    free(buf);
+    return kvImageNoError;
+}
+static vImage_Error ycc_to(const vImage_Buffer *s, const vImage_Buffer *d, const vImage_Buffer *da, const vycc *v, const uint8_t *permute,
+                           const ycc_fmt *f, vt_t t) {
+    if (!v) return kvImageInvalidParameter;
+    vImage_Error e = ycc_check(d, s, f);
+    if (e || (da && (e = vsame(s, da)))) return e;
+    long w = (long)s->width;
+    float *buf = malloc(sizeof(float) * (size_t)w * 4);
+    if (!buf) return kvImageMemoryAllocationError;
+    float *Y = buf, *Cb = buf + w, *Cr = buf + 2 * w, *A = buf + 3 * w, one = vt_one(t);
+    for (vImagePixelCount y = 0; y < s->height; y++) {
+        for (long x = 0; x < w; x++) {
+            float p[4], argb[4]; vget(s, VF(4, t), x, (long)y, p);
+            for (int i = 0; i < 4; i++) argb[i] = p[permute ? permute[i] & 3 : i] / one * 255.f;
+            argb_to_ycc(v, argb, &Y[x], &Cb[x], &Cr[x]);
+            A[x] = argb[0] / 255.f;
+        }
+        f->enc(vrowm(d, (long)y), da ? vrowm(da, (long)y) : NULL, w, Y, Cb, Cr, A);
+    }
+    free(buf);
+    return kvImageNoError;
+}
+#define YCC_FROM(name, fmt, t, AT) \
+    vImage_Error vImageConvert_##name(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_YpCbCrToARGB *info, const uint8_t permuteMap[4], \
+                                      const AT alpha, vImage_Flags flags) { \
+        return info ? ycc_from(src, NULL, dest, ycc_info(info->opaque), permuteMap, (float)alpha, &fmt, t) : kvImageNullPointerArgument; }
+#define YCC_FROM_A(name, fmt, t) \
+    vImage_Error vImageConvert_##name(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_YpCbCrToARGB *info, const uint8_t permuteMap[4], \
+                                      vImage_Flags flags) { \
+        return info ? ycc_from(src, NULL, dest, ycc_info(info->opaque), permuteMap, 0, &fmt, t) : kvImageNullPointerArgument; }
+#define YCC_TO(name, fmt, t) \
+    vImage_Error vImageConvert_##name(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_ARGBToYpCbCr *info, const uint8_t permuteMap[4], \
+                                      vImage_Flags flags) { \
+        return info ? ycc_to(src, dest, NULL, ycc_info(info->opaque), permuteMap, &fmt, t) : kvImageNullPointerArgument; }
+YCC_FROM(422CbYpCrYp16ToARGB8888, F422_16, VT_U8, uint8_t) YCC_FROM(422CbYpCrYp16ToARGB16U, F422_16, VT_U16, uint16_t)
+YCC_TO(ARGB8888To422CbYpCrYp16, F422_16, VT_U8) YCC_TO(ARGB16UTo422CbYpCrYp16, F422_16, VT_U16)
+YCC_FROM_A(444AYpCbCr16ToARGB8888, F444_16, VT_U8) YCC_FROM_A(444AYpCbCr16ToARGB16U, F444_16, VT_U16)
+YCC_TO(ARGB8888To444AYpCbCr16, F444_16, VT_U8) YCC_TO(ARGB16UTo444AYpCbCr16, F444_16, VT_U16)
+YCC_FROM(444CrYpCb10ToARGB8888, F444_10, VT_U8, uint8_t) YCC_FROM(444CrYpCb10ToARGB16Q12, F444_10, VT_Q12, Pixel_16Q12)
+YCC_TO(ARGB8888To444CrYpCb10, F444_10, VT_U8) YCC_TO(ARGB16Q12To444CrYpCb10, F444_10, VT_Q12)
+YCC_FROM(422CrYpCbYpCbYpCbYpCrYpCrYp10ToARGB8888, FV210, VT_U8, uint8_t) YCC_FROM(422CrYpCbYpCbYpCbYpCrYpCrYp10ToARGB16Q12, FV210, VT_Q12, Pixel_16Q12)
+YCC_TO(ARGB8888To422CrYpCbYpCbYpCbYpCrYpCrYp10, FV210, VT_U8) YCC_TO(ARGB16Q12To422CrYpCbYpCbYpCbYpCrYpCrYp10, FV210, VT_Q12)
+vImage_Error vImageConvert_422CbYpCrYp8_AA8ToARGB8888(const vImage_Buffer *src, const vImage_Buffer *srcA, const vImage_Buffer *dest,
+                                                     const vImage_YpCbCrToARGB *info, const uint8_t permuteMap[4], vImage_Flags flags) {
+    if (!info || !srcA) return kvImageNullPointerArgument;
+    return ycc_from(src, srcA, dest, ycc_info(info->opaque), permuteMap, 0, &F422_AA8, VT_U8);
+}
+vImage_Error vImageConvert_ARGB8888To422CbYpCrYp8_AA8(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_Buffer *destA,
+                                                     const vImage_ARGBToYpCbCr *info, const uint8_t permuteMap[4], vImage_Flags flags) {
+    if (!info || !destA) return kvImageNullPointerArgument;
+    return ycc_to(src, dest, destA, ycc_info(info->opaque), permuteMap, &F422_AA8, VT_U8);
 }

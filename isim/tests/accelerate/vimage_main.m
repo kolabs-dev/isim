@@ -3,6 +3,7 @@
 // worked out by hand.
 #include <Accelerate/Accelerate.h>
 #include <CoreGraphics/CoreGraphics.h>
+#include <CoreVideo/CoreVideo.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -282,8 +283,267 @@ static void core_graphics(void) {
     CGImageRelease(im);
 }
 
+/* ---- issue #693 ---- */
+static uint32_t word(const void *p, int i) { uint32_t w; memcpy(&w, (const uint8_t *)p + i * 4, 4); return w; }
+static void ycbcr_deep(void) {
+    /* 16-bit full range */
+    vImage_YpCbCrPixelRange f16 = { 0, 32768, 65535, 65535, 65535, 0, 65535, 0 };
+    vImage_ARGBToYpCbCr to; vImage_YpCbCrToARGB from;
+    CHECK(vImageConvert_ARGBToYpCbCr_GenerateConversion(kvImage_ARGBToYpCbCrMatrix_ITU_R_601_4, &f16, &to, kvImageARGB16U, kvImage422CbYpCrYp16, 0) == 0
+          && vImageConvert_YpCbCrToARGB_GenerateConversion(kvImage_YpCbCrToARGBMatrix_ITU_R_601_4, &f16, &from, kvImage422CbYpCrYp16, kvImageARGB16U, 0) == 0,
+          "GenerateConversion for ARGB16U and 16-bit Y'CbCr");
+    uint8_t px[8] = { 255, 255, 255, 255, 255, 200, 40, 10 }, back[8];
+    uint16_t v216[4];
+    vImage_Buffer a = buf(px, 2, 1, 4), y = buf(v216, 2, 1, 4), b = buf(back, 2, 1, 4);
+    CHECK(vImageConvert_ARGB8888To422CbYpCrYp16(&a, &y, &to, NULL, 0) == 0 && v216[1] == 65535 && v216[0] < 32768,
+          "ARGB8888To422CbYpCrYp16: white has Y' 65535; the pair's Cb (with orange) is below the bias");
+    CHECK(vImageConvert_422CbYpCrYp16ToARGB8888(&y, &b, &from, NULL, 99, 0) == 0 && back[0] == 99 && back[1] >= 240 && back[4] == 99,
+          "422CbYpCrYp16ToARGB8888 with the given alpha");
+    uint16_t px16[4] = { 65535, 0, 65535, 0 }, px16b[4 * 2] = { 0 }, src16[8] = { 65535, 0, 65535, 0, 65535, 0, 65535, 0 };
+    vImage_Buffer s16 = buf(src16, 2, 1, 8), d16 = buf(px16b, 2, 1, 8);
+    (void)px16;
+    CHECK(vImageConvert_ARGB16UTo422CbYpCrYp16(&s16, &y, &to, NULL, 0) == 0 && vImageConvert_422CbYpCrYp16ToARGB16U(&y, &d16, &from, NULL, 65535, 0) == 0
+          && px16b[1] < 200 && px16b[2] > 65000 && px16b[3] < 200, "ARGB16U <-> 422CbYpCrYp16: green stays green");
+    /* 444AYpCbCr16 keeps alpha */
+    uint16_t y416[4]; uint8_t one[4] = { 128, 10, 200, 30 }, oneb[4];
+    vImage_Buffer o = buf(one, 1, 1, 4), oy = buf(y416, 1, 1, 8), ob = buf(oneb, 1, 1, 4);
+    CHECK(vImageConvert_ARGB8888To444AYpCbCr16(&o, &oy, &to, NULL, 0) == 0 && y416[0] == 128 * 257
+          && vImageConvert_444AYpCbCr16ToARGB8888(&oy, &ob, &from, NULL, 0) == 0 && same8(one, oneb, 4, 2), "444AYpCbCr16 round trip with alpha");
+    /* 10-bit video range */
+    vImage_YpCbCrPixelRange v10 = { 64, 512, 940, 960, 1023, 0, 1023, 0 };
+    vImageConvert_ARGBToYpCbCr_GenerateConversion(kvImage_ARGBToYpCbCrMatrix_ITU_R_709_2, &v10, &to, kvImageARGB8888, kvImage444CrYpCb10, 0);
+    vImageConvert_YpCbCrToARGB_GenerateConversion(kvImage_YpCbCrToARGBMatrix_ITU_R_709_2, &v10, &from, kvImage444CrYpCb10, kvImageARGB8888, 0);
+    uint8_t white[4] = { 255, 255, 255, 255 }; uint32_t v410;
+    vImage_Buffer w = buf(white, 1, 1, 4), wv = buf(&v410, 1, 1, 4);
+    CHECK(vImageConvert_ARGB8888To444CrYpCb10(&w, &wv, &to, NULL, 0) == 0 && v410 == (512u << 22 | 940u << 12 | 512u << 2),
+          "444CrYpCb10: white is Cr 512, Y' 940, Cb 512 in bits 22, 12 and 2");
+    uint8_t col[4] = { 255, 30, 160, 220 }, colb[4]; vImage_Buffer c = buf(col, 1, 1, 4), cb = buf(colb, 1, 1, 4);
+    CHECK(vImageConvert_ARGB8888To444CrYpCb10(&c, &wv, &to, NULL, 0) == 0 && vImageConvert_444CrYpCb10ToARGB8888(&wv, &cb, &from, NULL, 255, 0) == 0
+          && same8(col, colb, 4, 2), "444CrYpCb10 round trip");
+    int16_t q[4]; vImage_Buffer qb = buf(q, 1, 1, 8);
+    vImageConvert_ARGB8888To444CrYpCb10(&w, &wv, &to, NULL, 0);
+    CHECK(vImageConvert_444CrYpCb10ToARGB16Q12(&wv, &qb, &from, NULL, 4096, 0) == 0 && q[0] == 4096 && abs(q[1] - 4096) < 8, "444CrYpCb10ToARGB16Q12: white is 4096");
+    /* v210: six pixels in 16 bytes */
+    uint8_t six[24] = { 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0, 255, 255, 255, 255, 255, 0, 255, 0, 255, 0, 255, 255 }, sixb[24];
+    uint32_t v210[4];
+    vImage_Buffer sx = buf(six, 6, 1, 4), sv = buf(v210, 6, 1, 16), sb = buf(sixb, 6, 1, 4);
+    sv.rowBytes = 16;
+    CHECK(vImageConvert_ARGB8888To422CrYpCbYpCbYpCbYpCrYpCrYp10(&sx, &sv, &to, NULL, 0) == 0 && (v210[0] >> 10 & 1023) == 64 && (v210[0] & 1023) == 512
+          && (v210[0] >> 20 & 1023) == 512, "422CrYpCbYpCbYpCbYpCrYpCrYp10: black is Cb 512, Y' 64, Cr 512 in the first word");
+    CHECK(vImageConvert_422CrYpCbYpCbYpCbYpCrYpCrYp10ToARGB8888(&sv, &sb, &from, NULL, 255, 0) == 0 && sixb[1] < 4 && sixb[3] < 4 && sixb[12 + 1] > 240 && sixb[12 + 2] > 240 && sixb[16 + 2] > 200 && sixb[16 + 1] < 40,
+          "v210 back to ARGB8888: black stays black, white white, green green");
+    sx.width = 4;
+    CHECK(vImageConvert_ARGB8888To422CrYpCbYpCbYpCbYpCrYpCrYp10(&sx, &sv, &to, NULL, 0) == kvImageInvalidParameter, "v210 widths are multiples of 6");
+    /* 2vuy with an alpha plane */
+    vImage_YpCbCrPixelRange f8 = { 0, 128, 255, 255, 255, 0, 255, 0 };
+    vImageConvert_ARGBToYpCbCr_GenerateConversion(kvImage_ARGBToYpCbCrMatrix_ITU_R_601_4, &f8, &to, kvImageARGB8888, kvImage422CbYpCrYp8_AA8, 0);
+    vImageConvert_YpCbCrToARGB_GenerateConversion(kvImage_YpCbCrToARGBMatrix_ITU_R_601_4, &f8, &from, kvImage422CbYpCrYp8_AA8, kvImageARGB8888, 0);
+    uint8_t two[8] = { 10, 50, 50, 50, 240, 50, 50, 50 }, tv[4], ta[2], twob[8];
+    vImage_Buffer t = buf(two, 2, 1, 4), tvb = buf(tv, 2, 1, 2), tab = buf(ta, 2, 1, 1), tb = buf(twob, 2, 1, 4);
+    CHECK(vImageConvert_ARGB8888To422CbYpCrYp8_AA8(&t, &tvb, &tab, &to, NULL, 0) == 0 && ta[0] == 10 && ta[1] == 240
+          && vImageConvert_422CbYpCrYp8_AA8ToARGB8888(&tvb, &tab, &tb, &from, NULL, 0) == 0 && same8(two, twob, 8, 2), "422CbYpCrYp8_AA8 round trip with the alpha plane");
+}
+static void packed10(void) {
+    uint8_t px[4] = { 255, 255, 0, 128 }, back[4];
+    uint32_t w10;
+    vImage_Buffer a = buf(px, 1, 1, 4), w = buf(&w10, 1, 1, 4), b = buf(back, 1, 1, 4);
+    CHECK(vImageConvert_ARGB8888ToARGB2101010(&a, &w, 0, 1023, NULL, 0) == 0 && w10 == (3u << 30 | 1023u << 20 | 514u),
+          "ARGB8888ToARGB2101010: A in bits 30-31, R 20-29, G 10-19, B 0-9");
+    CHECK(vImageConvert_ARGB2101010ToARGB8888(&w, &b, 0, 1023, NULL, 0) == 0 && same8(px, back, 4, 1), "ARGB2101010ToARGB8888");
+    CHECK(vImageConvert_ARGB8888ToRGBA1010102(&a, &w, 0, 1023, NULL, 0) == 0 && w10 == (1023u << 22 | 514u << 2 | 3u), "RGBA1010102: R in bits 22-31, A in 0-1");
+    CHECK(vImageConvert_RGBA1010102ToARGB16U(&w, &(vImage_Buffer){ (uint16_t[4]){ 0 }, 1, 1, 8 }, 0, 1023, NULL, 0) == 0, "RGBA1010102ToARGB16U");
+    CHECK(vImageConvert_ARGB8888ToXRGB2101010(&a, &w, 64, 940, NULL, 0) == 0 && (w10 >> 20 & 1023) == 940 && (w10 >> 10 & 1023) == 64,
+          "XRGB2101010 with a video range: 1.0 is 940, 0.0 is 64");
+    CHECK(vImageConvert_XRGB2101010ToARGB8888(&w, 77, &b, 64, 940, NULL, 0) == 0 && back[0] == 77 && back[1] == 255 && back[2] == 0, "XRGB2101010ToARGB8888 with an alpha");
+    int16_t q[4] = { 4096, 4096, 0, 2048 }; vImage_Buffer qb = buf(q, 1, 1, 8);
+    CHECK(vImageConvert_ARGB16Q12ToARGB2101010(&qb, &w, 0, 1023, 0, 1023, NULL, 0) == 0 && (w10 >> 20 & 1023) == 1023 && (w10 & 1023) == 512,
+          "ARGB16Q12ToARGB2101010");
+    float ff[4]; vImage_Buffer fb = buf(ff, 1, 1, 16);
+    CHECK(vImageConvert_ARGB2101010ToARGBFFFF(&w, &fb, 0, 1023, NULL, 0) == 0 && ff[1] == 1 && fabsf(ff[3] - 512 / 1023.f) < 1e-6f, "ARGB2101010ToARGBFFFF");
+    /* the extended-range scale: a 2x1 image becomes 4x2 with the same colour */
+    uint32_t sw[2], dw[8];
+    uint32_t c = 3u << 30 | 894u << 20 | 384u << 10 | 639u;
+    sw[0] = sw[1] = c;
+    vImage_Buffer s = buf(sw, 2, 1, 4), d = buf(dw, 4, 2, 4);
+    CHECK(vImageScale_XRGB2101010W(&s, &d, NULL, 0) == 0 && word(dw, 5) == c, "vImageScale_XRGB2101010W keeps a flat colour");
+    CHECK(vImageHorizontalShear_XRGB2101010W(&s, &(vImage_Buffer){ dw, 1, 2, 8 }, 0, 0, 0, 0,
+                                              vImageNewResamplingFilter(1, 0), c, kvImageBackgroundColorFill) == 0 && dw[0] == c, "vImageHorizontalShear_XRGB2101010W");
+}
+static void more_filters(void) {
+    /* indexed: the palette comes from the image */
+    uint8_t img[8] = { 10, 10, 10, 10, 200, 200, 200, 200 }, idx1[1] = { 0 }, pal[16];
+    vImage_Buffer s = buf(img, 8, 1, 1), d = { idx1, 1, 8, 1 };
+    CHECK(vImageConvert_Planar8toIndexed1(&s, &d, NULL, pal, kvImageConvert_DitherNone, 0) == 0 && pal[0] == 10 && pal[1] == 200 && idx1[0] == 0x0f,
+          "Planar8toIndexed1: palette {10, 200}, most significant bit first");
+    uint8_t four[4] = { 0, 85, 170, 255 }, idx2[1], back[4];
+    vImage_Buffer s4 = buf(four, 4, 1, 1), d2 = { idx2, 1, 4, 1 }, b4 = buf(back, 4, 1, 1);
+    CHECK(vImageConvert_Planar8toIndexed2(&s4, &d2, NULL, pal, kvImageConvert_DitherNone, 0) == 0 && vImageConvert_Indexed2toPlanar8(&d2, &b4, pal, 0) == 0
+          && same8(four, back, 4, 0), "Planar8toIndexed2 and back: four levels exactly");
+    uint8_t ramp[16], idx4[8];
+    for (int i = 0; i < 16; i++) ramp[i] = (uint8_t)(i * 16);
+    vImage_Buffer sr = buf(ramp, 16, 1, 1), d4 = { idx4, 1, 16, 8 };
+    CHECK(vImageConvert_Planar8toIndexed4(&sr, &d4, NULL, pal, kvImageConvert_DitherFloydSteinberg, 0) == 0, "Planar8toIndexed4 with Floyd-Steinberg");
+    /* a 2 x 2 table over two channels: bilinear in the middle */
+    uint16_t table[4] = { 0, 4096, 4096, 0 };
+    uint8_t dims[2] = { 2, 2 };
+    vImage_Error e;
+    vImage_MultidimensionalTable t = vImageMultidimensionalTable_Create(table, 2, 1, dims, kvImageMDTableHint_Float, 0, &e);
+    float x0[2] = { 0.5f, 1 }, x1[2] = { 0.5f, 0 }, out[2];
+    vImage_Buffer srcs[2] = { buf(x0, 2, 1, 4), buf(x1, 2, 1, 4) }, dests[1] = { buf(out, 2, 1, 4) };
+    CHECK(t && e == 0 && vImageMultiDimensionalInterpolatedLookupTable_PlanarF(srcs, dests, NULL, t, kvImageFullInterpolation, 0) == 0
+          && fabsf(out[0] - 0.5f) < 1e-5f && fabsf(out[1] - 1) < 1e-5f, "vImageMultiDimensionalInterpolatedLookupTable_PlanarF");
+    CHECK(vImageMultidimensionalTable_Retain(t) == 0 && vImageMultidimensionalTable_Release(t) == 0 && vImageMultidimensionalTable_Release(t) == 0,
+          "MultidimensionalTable retain and release");
+    /* Richardson-Lucy: a 1x1 kernel changes nothing; a blurred spike gets sharper */
+    float spike[25] = { 0 }, blurred[25], sharper[25];
+    spike[12] = 9;
+    float box[9] = { 1 / 9.f, 1 / 9.f, 1 / 9.f, 1 / 9.f, 1 / 9.f, 1 / 9.f, 1 / 9.f, 1 / 9.f, 1 / 9.f };
+    vImage_Buffer sp = buf(spike, 5, 5, 4), bl = buf(blurred, 5, 5, 4), sh = buf(sharper, 5, 5, 4);
+    vImageConvolve_PlanarF(&sp, &bl, NULL, 0, 0, box, 3, 3, 0, kvImageEdgeExtend);
+    for (int i = 0; i < 25; i++) blurred[i] += 0.01f;
+    CHECK(vImageRichardsonLucyDeConvolve_PlanarF(&bl, &sh, NULL, 0, 0, box, NULL, 3, 3, 0, 0, 0, 20, kvImageEdgeExtend) == 0 && sharper[12] > blurred[12] * 2,
+          "vImageRichardsonLucyDeConvolve_PlanarF sharpens a blurred spike");
+    uint8_t flat[9] = { 50, 50, 50, 50, 50, 50, 50, 50, 50 }, flatb[9]; int16_t k1[1] = { 1 };
+    vImage_Buffer fl = buf(flat, 3, 3, 1), flb = buf(flatb, 3, 3, 1);
+    CHECK(vImageRichardsonLucyDeConvolve_Planar8(&fl, &flb, NULL, 0, 0, k1, NULL, 1, 1, 0, 0, 1, 0, 0, 5, kvImageEdgeExtend) == 0 && same8(flat, flatb, 9, 0),
+          "vImageRichardsonLucyDeConvolve_Planar8 with a 1x1 kernel");
+    /* Planar8 -> 16U */
+    uint16_t o16[9]; float k3[3] = { 0.25f, 0.5f, 0.25f };
+    vImage_Buffer o = buf(o16, 3, 3, 2);
+    flat[4] = 50;
+    CHECK(vImageSepConvolve_Planar8to16U(&fl, &o, NULL, 0, 0, k3, 3, k3, 3, 257, 1, 0, kvImageEdgeExtend) == 0 && o16[4] == 50 * 257 + 1,
+          "vImageSepConvolve_Planar8to16U: sum * scale + bias");
+    /* PNG filters */
+    uint8_t rows[2][4] = { { 1, 1, 1, 1 }, { 1, 1, 1, 1 } };
+    vImage_Buffer pb = { rows, 2, 4, 4 };
+    CHECK(vImagePNGDecompressionFilter(&pb, 0, 1, 8, 0, kvImage_PNG_FILTER_VALUE_SUB, 0) == 0 && rows[0][3] == 4, "PNG Sub filter");
+    CHECK(vImagePNGDecompressionFilter(&pb, 1, 1, 8, 0, kvImage_PNG_FILTER_VALUE_UP, 0) == 0 && rows[1][2] == 4, "PNG Up filter");
+    uint8_t pa[2][2] = { { 10, 20 }, { 5, 5 } };
+    vImage_Buffer ppb = { pa, 2, 2, 2 };
+    CHECK(vImagePNGDecompressionFilter(&ppb, 1, 1, 8, 0, kvImage_PNG_FILTER_VALUE_PAETH, 0) == 0 && pa[1][0] == 15 && pa[1][1] == 25, "PNG Paeth filter");
+    CHECK(vImagePNGDecompressionFilter(&ppb, 1, 1, 8, 1, 0, 0) == kvImageInvalidParameter, "only filter method 0");
+    /* colour spaces */
+    vImageRGBPrimaries srgb = { 0.64f, 0.30f, 0.15f, 0.3127f, 0.33f, 0.60f, 0.06f, 0.3290f };
+    vImageTransferFunction tf = { .c0 = 1, .c1 = 1 / 1.055, .c2 = 0.055 / 1.055, .c3 = 0, .gamma = 2.4, .cutoff = 0.04045, .c4 = 1 / 12.92, .c5 = 0 };
+    CGColorSpaceRef cs = vImageCreateRGBColorSpaceWithPrimariesAndTransferFunction(&srgb, &tf, kCGRenderingIntentDefault, 0, &e);
+    CFDataRef icc = cs ? CGColorSpaceCopyICCData(cs) : NULL;
+    CHECK(cs && e == 0 && CGColorSpaceGetModel(cs) == kCGColorSpaceModelRGB && icc && CFDataGetLength(icc) > 132,
+          "vImageCreateRGBColorSpaceWithPrimariesAndTransferFunction: an ICC-based RGB space");
+    if (icc) CFRelease(icc);
+    CGColorSpaceRelease(cs);
+    vImageWhitePoint d65 = { 0.3127f, 0.3290f };
+    cs = vImageCreateMonochromeColorSpaceWithWhitePointAndTransferFunction(&d65, &tf, kCGRenderingIntentDefault, 0, &e);
+    CHECK(cs && CGColorSpaceGetModel(cs) == kCGColorSpaceModelMonochrome, "vImageCreateMonochromeColorSpaceWithWhitePointAndTransferFunction");
+    CGColorSpaceRelease(cs);
+}
+
+static int user_freed;
+static void free_user(vImageCVImageFormatRef f, void *u) { user_freed = *(int *)u; }
+static void core_video(void) {
+    /* a BGRA pixel buffer, read as ARGB8888 with an empty format */
+    CVPixelBufferRef pb = NULL;
+    CHECK(CVPixelBufferCreate(NULL, 4, 2, kCVPixelFormatType_32BGRA, NULL, &pb) == 0 && pb, "a 4x2 BGRA pixel buffer");
+    CVPixelBufferLockBaseAddress(pb, 0);
+    uint8_t *base = CVPixelBufferGetBaseAddress(pb);
+    for (int y = 0; y < 2; y++) for (int x = 0; x < 4; x++) { uint8_t *p = base + y * CVPixelBufferGetBytesPerRow(pb) + x * 4; p[0] = 30; p[1] = 20; p[2] = 200; p[3] = 255; }
+    CVPixelBufferUnlockBaseAddress(pb, 0);
+    vImageCVImageFormatRef f = vImageCVImageFormat_CreateWithCVPixelBuffer(pb);
+    CHECK(f && vImageCVImageFormat_GetFormatCode(f) == kCVPixelFormatType_32BGRA && vImageCVImageFormat_GetChannelCount(f) == 4
+          && vImageCVImageFormat_GetChannelNames(f)[0] == kvImageBufferTypeCode_RGB_Red && vImageCVImageFormat_GetChannelNames(f)[3] == kvImageBufferTypeCode_Alpha,
+          "vImageCVImageFormat_CreateWithCVPixelBuffer: BGRA has red, green, blue and alpha");
+    vImage_Buffer out; vImage_CGImageFormat fmt = { 0 };
+    CHECK(vImageBuffer_InitWithCVPixelBuffer(&out, &fmt, pb, f, NULL, 0) == 0 && fmt.bitsPerPixel == 32 && out.width == 4 && out.height == 2,
+          "vImageBuffer_InitWithCVPixelBuffer with an empty format: ARGB8888");
+    uint8_t *o = (uint8_t *)out.data + out.rowBytes + 12;
+    CHECK(o[0] == 255 && o[1] == 200 && o[2] == 20 && o[3] == 30, "the BGRA pixels as ARGB");
+    /* write ARGB back into the pixel buffer */
+    for (int i = 0; i < 8; i++) { uint8_t *p = (uint8_t *)out.data + (i / 4) * out.rowBytes + (i % 4) * 4; p[1] = 5; p[2] = 250; p[3] = 9; }
+    CHECK(vImageBuffer_CopyToCVPixelBuffer(&out, &fmt, pb, f, NULL, 0) == 0, "vImageBuffer_CopyToCVPixelBuffer");
+    CVPixelBufferLockBaseAddress(pb, kCVPixelBufferLock_ReadOnly);
+    base = CVPixelBufferGetBaseAddress(pb);
+    CHECK(base[0] == 9 && base[1] == 250 && base[2] == 5, "the pixel buffer holds the new colour in BGRA order");
+    CVPixelBufferUnlockBaseAddress(pb, kCVPixelBufferLock_ReadOnly);
+    free(out.data);
+    vImageCVImageFormat_Release(f);
+    CVPixelBufferRelease(pb);
+
+    /* 4:2:0 video range: the planes, the converter's buffer order, and colours both ways */
+    CVPixelBufferRef yuv = NULL;
+    CHECK(CVPixelBufferCreate(NULL, 4, 2, kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange, NULL, &yuv) == 0, "a 4x2 420v pixel buffer");
+    CVPixelBufferLockBaseAddress(yuv, 0);
+    memset(CVPixelBufferGetBaseAddressOfPlane(yuv, 0), 235, CVPixelBufferGetBytesPerRowOfPlane(yuv, 0) * 2);
+    memset(CVPixelBufferGetBaseAddressOfPlane(yuv, 1), 128, CVPixelBufferGetBytesPerRowOfPlane(yuv, 1));
+    CVPixelBufferUnlockBaseAddress(yuv, 0);
+    f = vImageCVImageFormat_CreateWithCVPixelBuffer(yuv);
+    vImageMatrixType mt;
+    const vImage_ARGBToYpCbCrMatrix *m = vImageCVImageFormat_GetConversionMatrix(f, &mt);
+    CHECK(f && mt == kvImageMatrixType_ARGBToYpCbCrMatrix && m && fabsf(m->R_Yp - 0.299f) < 1e-4f, "a 420v format gets the BT.601 matrix by default");
+    const vImageChannelDescription *ld = vImageCVImageFormat_GetChannelDescription(f, kvImageBufferTypeCode_Luminance);
+    CHECK(ld && ld->zero == 16 && ld->full == 235, "the luminance channel of a video-range format: 16...235");
+    vImage_CGImageFormat argb = { 8, 32, NULL, (CGBitmapInfo)kCGImageAlphaFirst, 0, NULL, kCGRenderingIntentDefault };
+    vImage_Error e;
+    vImageConverterRef cv2cg = vImageConverter_CreateForCVToCGImageFormat(f, &argb, NULL, 0, &e);
+    CHECK(cv2cg && e == 0 && vImageConverter_GetNumberOfSourceBuffers(cv2cg) == 2 && vImageConverter_GetSourceBufferOrder(cv2cg)[0] == kvImageBufferTypeCode_Luminance
+          && vImageConverter_GetSourceBufferOrder(cv2cg)[1] == kvImageBufferTypeCode_Chroma && vImageConverter_GetNumberOfDestinationBuffers(cv2cg) == 1,
+          "vImageConverter_CreateForCVToCGImageFormat: luminance and chroma planes in");
+    vImage_Buffer planes[2];
+    CVPixelBufferLockBaseAddress(yuv, kCVPixelBufferLock_ReadOnly);
+    CHECK(vImageBuffer_InitForCopyFromCVPixelBuffer(planes, cv2cg, yuv, kvImageNoAllocate) == 0 && planes[0].data == CVPixelBufferGetBaseAddressOfPlane(yuv, 0)
+          && planes[1].width == 2 && planes[1].height == 1, "vImageBuffer_InitForCopyFromCVPixelBuffer points at the planes");
+    uint8_t px[32]; vImage_Buffer d = buf(px, 4, 2, 4);
+    CHECK(vImageConvert_AnyToAny(cv2cg, planes, &d, NULL, 0) == 0 && px[1] == 255 && px[2] == 255 && px[3] == 255, "AnyToAny: Y' 235 is white");
+    CVPixelBufferUnlockBaseAddress(yuv, kCVPixelBufferLock_ReadOnly);
+    vImageConverter_Release(cv2cg);
+    for (int i = 0; i < 8; i++) { px[i * 4] = 255; px[i * 4 + 1] = 0; px[i * 4 + 2] = 0; px[i * 4 + 3] = 255; }
+    CHECK(vImageBuffer_CopyToCVPixelBuffer(&d, &argb, yuv, f, NULL, 0) == 0, "vImageBuffer_CopyToCVPixelBuffer into 420v");
+    CVPixelBufferLockBaseAddress(yuv, kCVPixelBufferLock_ReadOnly);
+    uint8_t yv = *(uint8_t *)CVPixelBufferGetBaseAddressOfPlane(yuv, 0), *cbcr = CVPixelBufferGetBaseAddressOfPlane(yuv, 1);
+    CHECK(abs(yv - 41) <= 1 && cbcr[0] >= 238 && abs(cbcr[1] - 110) <= 2, "blue in video range: Y' 41, Cb 240, Cr 110");
+    CVPixelBufferUnlockBaseAddress(yuv, kCVPixelBufferLock_ReadOnly);
+    /* the matrix from the buffer's attachment */
+    CVBufferSetAttachment(yuv, kCVImageBufferYCbCrMatrixKey, kCVImageBufferYCbCrMatrix_ITU_R_709_2, kCVAttachmentMode_ShouldPropagate);
+    vImageCVImageFormatRef f709 = vImageCVImageFormat_CreateWithCVPixelBuffer(yuv);
+    m = vImageCVImageFormat_GetConversionMatrix(f709, NULL);
+    CHECK(m && fabsf(m->R_Yp - 0.2126f) < 1e-4f, "the BT.709 matrix from kCVImageBufferYCbCrMatrixKey");
+    vImageCVImageFormat_Release(f709);
+    CVPixelBufferRelease(yuv);
+
+    /* a format made by hand: v216 (16-bit 4:2:2), round trip through CVPixelBufferCreateWithBytes */
+    vImageCVImageFormatRef v216 = vImageCVImageFormat_Create('v216', kvImage_ARGBToYpCbCrMatrix_ITU_R_709_2, NULL, NULL, 1);
+    uint16_t raw[2 * 4]; CVPixelBufferRef pv = NULL;
+    CHECK(v216 && CVPixelBufferCreateWithBytes(NULL, 2, 1, 'v216', raw, 16, NULL, NULL, NULL, &pv) == 0 && vImageCVImageFormat_GetAlphaHint(v216) == 1,
+          "vImageCVImageFormat_Create for v216");
+    uint16_t c16[8] = { 65535, 10000, 50000, 30000, 65535, 10000, 50000, 30000 }, back[8];
+    vImage_CGImageFormat a16 = { 16, 64, NULL, (CGBitmapInfo)(kCGImageAlphaFirst | kCGBitmapByteOrder16Little), 0, NULL, kCGRenderingIntentDefault };
+    vImage_Buffer s16 = buf(c16, 2, 1, 8), b16 = buf(back, 2, 1, 8);
+    CHECK(vImageBuffer_CopyToCVPixelBuffer(&s16, &a16, pv, v216, NULL, 0) == 0 && raw[1] > 4096 && raw[1] < 60160, "ARGB16U into v216");
+    CHECK(vImageBuffer_InitWithCVPixelBuffer(&b16, &a16, pv, v216, NULL, kvImageNoAllocate) == 0 && abs(back[1] - 10000) < 300 && abs(back[2] - 50000) < 300
+          && abs(back[3] - 30000) < 300, "v216 back to ARGB16U");
+    CVPixelBufferRelease(pv);
+    /* setters and user data */
+    static int token = 7;
+    CGColorSpaceRef gray = CGColorSpaceCreateDeviceGray();
+    CHECK(vImageCVImageFormat_SetAlphaHint(v216, 0) == 0 && vImageCVImageFormat_GetAlphaHint(v216) == 0 && vImageCVImageFormat_SetColorSpace(v216, gray) == 0
+          && vImageCVImageFormat_GetColorSpace(v216) == gray && vImageCVImageFormat_SetUserData(v216, &token, free_user) == 0
+          && vImageCVImageFormat_GetUserData(v216) == &token, "vImageCVImageFormat setters and user data");
+    vImageChannelDescription narrow = { 0, 8192, 50000, 65535 };
+    CHECK(vImageCVImageFormat_CopyChannelDescription(v216, &narrow, kvImageBufferTypeCode_Luminance) == 0
+          && vImageCVImageFormat_GetChannelDescription(v216, kvImageBufferTypeCode_Luminance)->full == 50000, "vImageCVImageFormat_CopyChannelDescription");
+    vImageCVImageFormatRef copy = vImageCVImageFormat_Copy(v216);
+    CHECK(copy && vImageCVImageFormat_GetFormatCode(copy) == 'v216' && vImageCVImageFormat_GetChannelDescription(copy, kvImageBufferTypeCode_Luminance)->full == 50000,
+          "vImageCVImageFormat_Copy");
+    vImageCVImageFormat_Release(copy);
+    vImageCVImageFormat_Release(v216);
+    CHECK(user_freed == 7, "the user data's release callback runs");
+    CGColorSpaceRelease(gray);
+    vImageCVImageFormatRef none = vImageCVImageFormat_Create('2vuy', NULL, NULL, NULL, 0);
+    CHECK(!vImageConverter_CreateForCVToCGImageFormat(none, &argb, NULL, 0, &e) && e == kvImageCVImageFormat_ConversionMatrix,
+          "a Y'CbCr format without a matrix cannot convert");
+    vImageCVImageFormat_Release(none);
+}
+
 int main(void) {
-    buffers(); conversions(); ycbcr(); geometry(); filters(); core_graphics();
+    buffers(); conversions(); ycbcr(); geometry(); filters(); core_graphics(); ycbcr_deep(); packed10(); more_filters(); core_video();
     printf("vImage C: %d/%d passed\n", checks - failures, checks);
     return failures ? 1 : 0;
 }

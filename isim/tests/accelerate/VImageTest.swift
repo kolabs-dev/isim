@@ -4,6 +4,7 @@
 import Foundation
 import Accelerate
 import CoreGraphics
+import CoreVideo
 
 var failures = 0, checks = 0
 func check(_ ok: @autoclosure () -> Bool, _ what: String) {
@@ -116,7 +117,80 @@ func check(_ ok: @autoclosure () -> Bool, _ what: String) {
         rgbaBuffer.withUnsafeRegionOfInterest(CGRect(x: 1, y: 0, width: 1, height: 1)) { roi in
             check(roi.width == 1 && roi.array == [0, 255, 0, 255], "withUnsafeRegionOfInterest")
         }
+        coreVideo()
+        deepFormats()
         finish()
+    }
+    /// issue #693: vImageCVImageFormat, converters, and PixelBuffers over CVPixelBuffers
+    static func coreVideo() {
+        var pb: CVPixelBuffer?
+        CVPixelBufferCreate(nil, 4, 2, kCVPixelFormatType_32BGRA, nil, &pb)
+        guard let pb else { check(false, "a BGRA pixel buffer"); return }
+        CVPixelBufferLockBaseAddress(pb, [])
+        let base = CVPixelBufferGetBaseAddress(pb)!.assumingMemoryBound(to: UInt8.self), rb = CVPixelBufferGetBytesPerRow(pb)
+        for y in 0..<2 { for x in 0..<4 { let p = base + y * rb + x * 4; p[0] = 10; p[1] = 120; p[2] = 240; p[3] = 255 } }
+        CVPixelBufferUnlockBaseAddress(pb, [])
+        guard let cv = vImageCVImageFormat.make(buffer: pb) else { check(false, "vImageCVImageFormat.make(buffer:)"); return }
+        check(cv.formatCode == kCVPixelFormatType_32BGRA && cv.channelCount == 4 && cv.channels == [.rgbRed, .rgbGreen, .rgbBlue, .alpha],
+              "vImageCVImageFormat.make(buffer:): format code and channels")
+        cv.alphaIsOpaqueHint = true
+        check(cv.alphaIsOpaqueHint && cv.colorSpace != nil, "alphaIsOpaqueHint and colorSpace")
+        var fmt = vImage_CGImageFormat(bitsPerComponent: 8, bitsPerPixel: 32, colorSpace: CGColorSpaceCreateDeviceRGB(),
+                                       bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.first.rawValue))!
+        if let buf = try? vImage.PixelBuffer(copying: pb, cvImageFormat: cv, cgImageFormat: &fmt, pixelFormat: vImage.Interleaved8x4.self) {
+            check(Array(buf.array.prefix(4)) == [255, 240, 120, 10] && buf.size == vImage.Size(cvPixelBuffer: pb),
+                  "PixelBuffer(copying:cvImageFormat:cgImageFormat:pixelFormat:) and Size(cvPixelBuffer:)")
+            buf.withUnsafeMutableBufferPointer { p in for i in stride(from: 0, to: p.count, by: 4) { p[i + 1] = 1; p[i + 2] = 2; p[i + 3] = 3 } }
+            check((try? buf.copy(to: pb, cvImageFormat: cv, cgImageFormat: fmt)) != nil, "PixelBuffer.copy(to:cvImageFormat:cgImageFormat:)")
+            CVPixelBufferLockBaseAddress(pb, .readOnly)
+            check(base[0] == 3 && base[1] == 2 && base[2] == 1, "the copy lands in BGRA order")
+            let plane = vImage.PixelBuffer(referencing: pb, planeIndex: 0, pixelFormat: vImage.Interleaved8x4.self)
+            check(plane.width == 4 && Array(plane.array.prefix(3)) == [3, 2, 1], "PixelBuffer(referencing:planeIndex:overrideSize:pixelFormat:)")
+            CVPixelBufferUnlockBaseAddress(pb, .readOnly)
+        } else { check(false, "PixelBuffer(copying:...)") }
+        // a 4:2:0 format made by hand, converters both ways
+        guard let yuv = vImageCVImageFormat.make(format: .format420YpCbCr8BiPlanarVideoRange, matrix: kvImage_ARGBToYpCbCrMatrix_ITU_R_601_4.pointee,
+                                                  chromaSiting: .center, colorSpace: CGColorSpaceCreateDeviceRGB(), alphaIsOpaqueHint: true) else {
+            check(false, "vImageCVImageFormat.make(format:matrix:...)"); return
+        }
+        check(yuv.chromaSiting == .center && yuv.channels == [.luminance, .Cb, .Cr], "make(format:matrix:chromaSiting:...): siting and channels")
+        let lum = yuv.channelDescription(bufferType: .luminance)
+        check(lum?.zero == 16 && lum?.full == 235, "channelDescription(bufferType:): video range luminance")
+        do {
+            let toCV = try vImageConverter.make(sourceFormat: fmt, destinationFormat: yuv)
+            let toCG = try vImageConverter.make(sourceFormat: yuv, destinationFormat: fmt)
+            check(toCV.destinationBufferCount == 2 && toCG.sourceBufferCount == 2, "vImageConverter.make between CG and CV formats: two planes")
+            var y420: CVPixelBuffer?
+            CVPixelBufferCreate(nil, 4, 2, kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange, nil, &y420)
+            let white = UnsafeMutablePointer<UInt8>.allocate(capacity: 32)
+            white.initialize(repeating: 255, count: 32)
+            defer { white.deallocate() }
+            var src = vImage_Buffer(data: white, height: 2, width: 4, rowBytes: 16)
+            CVPixelBufferLockBaseAddress(y420!, [])
+            var planes = [vImage_Buffer](repeating: vImage_Buffer(), count: 2)
+            check(vImageBuffer_InitForCopyToCVPixelBuffer(&planes, toCV, y420!, vImage_Flags(kvImageNoAllocate)) == kvImageNoError
+                  && vImageConvert_AnyToAny(toCV, &src, &planes, nil, 0) == kvImageNoError
+                  && CVPixelBufferGetBaseAddressOfPlane(y420!, 0)!.load(as: UInt8.self) == 235, "Swift's vImageBuffer_InitForCopyToCVPixelBuffer: white is Y' 235")
+            CVPixelBufferUnlockBaseAddress(y420!, [])
+        } catch { check(false, "vImageConverter.make(... vImageCVImageFormat ...): \(error)") }
+        check(vImageCVImageFormat.make(format: .format32ARGB, colorSpace: CGColorSpaceCreateDeviceRGB(), alphaIsOpaqueHint: false)?.formatCode == 0x20,
+              "vImageCVImageFormat.make(format:colorSpace:alphaIsOpaqueHint:)")
+    }
+    /// issue #693: 10-bit packed RGB, Y'CbCr 16 and the colour spaces from Swift
+    static func deepFormats() {
+        let px = UnsafeMutablePointer<UInt8>.allocate(capacity: 4), word = UnsafeMutablePointer<UInt32>.allocate(capacity: 1)
+        defer { px.deallocate(); word.deallocate() }
+        px[0] = 255; px[1] = 255; px[2] = 0; px[3] = 128
+        var s = vImage_Buffer(data: px, height: 1, width: 1, rowBytes: 4), d = vImage_Buffer(data: word, height: 1, width: 1, rowBytes: 4)
+        check(vImageConvert_ARGB8888ToARGB2101010(&s, &d, 0, 1023, nil, 0) == kvImageNoError && word.pointee == (3 << 30 | 1023 << 20 | 514),
+              "ARGB8888ToARGB2101010 from Swift")
+        var primaries = vImageRGBPrimaries(red_x: 0.64, green_x: 0.30, blue_x: 0.15, white_x: 0.3127, red_y: 0.33, green_y: 0.60, blue_y: 0.06, white_y: 0.3290)
+        var tf = vImageTransferFunction(c0: 1, c1: 1, c2: 0, c3: 0, gamma: 2.2, cutoff: 0, c4: 0, c5: 0)
+        var e = vImage_Error(0)
+        let cs = vImageCreateRGBColorSpaceWithPrimariesAndTransferFunction(&primaries, &tf, .defaultIntent, 0, &e)?.takeRetainedValue()
+        check(cs?.numberOfComponents == 3 && e == 0, "vImageCreateRGBColorSpaceWithPrimariesAndTransferFunction from Swift")
+    }
+    static func finish_unused() {
     }
     static func finish() {
         print("vImage Swift: \(checks - failures)/\(checks) passed")

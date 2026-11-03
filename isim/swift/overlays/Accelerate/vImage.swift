@@ -316,6 +316,7 @@ extension vImage {
         final class _Storage {
             var buffer: vImage_Buffer
             let owned: Bool
+            var keep: AnyObject?                  // what the pixels belong to (a CVPixelBuffer), kept alive
             init(buffer: vImage_Buffer, owned: Bool) { self.buffer = buffer; self.owned = owned }
             deinit { if owned { Darwin.free(buffer.data) } }
         }
