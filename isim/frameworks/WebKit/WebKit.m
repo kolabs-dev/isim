@@ -43,3 +43,21 @@ WKWebExtensionPermission const WKWebExtensionPermissionTabs = @"tabs";
 WKWebExtensionPermission const WKWebExtensionPermissionUnlimitedStorage = @"unlimitedStorage";
 WKWebExtensionPermission const WKWebExtensionPermissionWebNavigation = @"webNavigation";
 WKWebExtensionPermission const WKWebExtensionPermissionWebRequest = @"webRequest";
+
+// web extensions (iOS 18.4, issue #791): tabs, messaging, data records, notifications
+NSErrorDomain const WKWebExtensionMessagePortErrorDomain = @"WKWebExtensionMessagePortErrorDomain";
+NSErrorDomain const WKWebExtensionDataRecordErrorDomain = @"WKWebExtensionDataRecordErrorDomain";
+WKWebExtensionDataType const WKWebExtensionDataTypeLocal = @"local";
+WKWebExtensionDataType const WKWebExtensionDataTypeSession = @"session";
+WKWebExtensionDataType const WKWebExtensionDataTypeSynchronized = @"synchronized";
+NSNotificationName const WKWebExtensionContextErrorsDidUpdateNotification = @"WKWebExtensionContextErrorsDidUpdate";
+NSNotificationName const WKWebExtensionContextPermissionsWereGrantedNotification = @"WKWebExtensionContextPermissionsWereGranted";
+NSNotificationName const WKWebExtensionContextPermissionsWereDeniedNotification = @"WKWebExtensionContextPermissionsWereDenied";
+NSNotificationName const WKWebExtensionContextGrantedPermissionsWereRemovedNotification = @"WKWebExtensionContextGrantedPermissionsWereRemoved";
+NSNotificationName const WKWebExtensionContextDeniedPermissionsWereRemovedNotification = @"WKWebExtensionContextDeniedPermissionsWereRemoved";
+NSNotificationName const WKWebExtensionContextPermissionMatchPatternsWereGrantedNotification = @"WKWebExtensionContextPermissionMatchPatternsWereGranted";
+NSNotificationName const WKWebExtensionContextPermissionMatchPatternsWereDeniedNotification = @"WKWebExtensionContextPermissionMatchPatternsWereDenied";
+NSNotificationName const WKWebExtensionContextGrantedPermissionMatchPatternsWereRemovedNotification = @"WKWebExtensionContextGrantedPermissionMatchPatternsWereRemoved";
+NSNotificationName const WKWebExtensionContextDeniedPermissionMatchPatternsWereRemovedNotification = @"WKWebExtensionContextDeniedPermissionMatchPatternsWereRemoved";
+WKWebExtensionContextNotificationUserInfoKey const WKWebExtensionContextNotificationUserInfoKeyPermissions = @"permissions";
+WKWebExtensionContextNotificationUserInfoKey const WKWebExtensionContextNotificationUserInfoKeyMatchPatterns = @"matchPatterns";

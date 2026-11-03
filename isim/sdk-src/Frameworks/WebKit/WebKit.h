@@ -46,6 +46,16 @@
 #import <WebKit/WKWebExtension.h>
 #import <WebKit/WKWebExtensionContext.h>
 #import <WebKit/WKWebExtensionController.h>
+#import <WebKit/WKWebExtensionDataType.h>
+#import <WebKit/WKWebExtensionTab.h>
+#import <WebKit/WKWebExtensionWindow.h>
+#import <WebKit/WKWebExtensionTabConfiguration.h>
+#import <WebKit/WKWebExtensionWindowConfiguration.h>
+#import <WebKit/WKWebExtensionAction.h>
+#import <WebKit/WKWebExtensionCommand.h>
+#import <WebKit/WKWebExtensionMessagePort.h>
+#import <WebKit/WKWebExtensionDataRecord.h>
+#import <WebKit/WKWebExtensionControllerDelegate.h>
 #import <WebKit/WKUIDelegate.h>
 #import <WebKit/WKWebView.h>
 #endif

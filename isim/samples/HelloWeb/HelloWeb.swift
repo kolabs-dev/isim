@@ -11,7 +11,10 @@
 // an element. With -links: LinkPresentation (LPMetadataProvider fetching Open Graph metadata, LPLinkView cards, errors).
 // With -extras (issue #421): <input type=file> through runOpenPanelWith (or, with -nopanel, iOS's own menu), element
 // fullscreen and fullscreenState, the 980-px viewport of a page without <meta name=viewport>, and (iOS 18.4) a web
-// extension whose content script and CSS run on the page its context was granted.
+// extension whose content script and CSS run on the page its context was granted. With -extension (issue #791, iOS
+// 18.4): a web extension's background script, content script and popup using browser.* (runtime messaging, storage,
+// tabs, windows, scripting, i18n, action, commands) with the app's tab and window, native messaging and a message
+// port through the controller's delegate, the action's popup, a keyboard command and data records.
 //   isim run out/apps/HelloWeb.app -server http://127.0.0.1:8765   (samples/HelloWeb/server.py)
 import UIKit
 import WebKit
@@ -30,7 +33,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         } else {
             let root: UIViewController = args.contains("-interact") ? InteractViewController() : args.contains("-transfers") ? TransfersViewController()
                 : args.contains("-rules") ? RulesViewController() : args.contains("-links") ? LinksViewController()
-                : args.contains("-extras") ? ExtrasViewController() : WebViewController()
+                : args.contains("-extras") ? ExtrasViewController()
+                : args.contains("-extension") ? ExtensionViewController() : WebViewController()
             window?.rootViewController = UINavigationController(rootViewController: root)
         }
         window?.makeKeyAndVisible()
@@ -689,6 +693,208 @@ final class ExtrasViewController: UIViewController, WKNavigationDelegate, WKUIDe
         try? "hello".write(to: a, atomically: true, encoding: .utf8)
         try? "one\ntwo\n".write(to: b, atomically: true, encoding: .utf8)
         completionHandler(parameters.allowsMultipleSelection ? [a, b] : [a])
+    }
+}
+
+// MARK: - -extension: a web extension's background, content script, popup and browser.* APIs (issue #791)
+
+/// the app's browser tab and window, as extensions see them
+@available(iOS 18.4, *)
+@MainActor final class SampleExtensionTab: NSObject, WKWebExtensionTab {
+    weak var web: WKWebView?
+    weak var browserWindow: SampleExtensionWindow?
+    init(_ w: WKWebView) { web = w }
+    func window(for context: WKWebExtensionContext) -> (any WKWebExtensionWindow)? { browserWindow }
+    func webView(for context: WKWebExtensionContext) -> WKWebView? { web }
+    func title(for context: WKWebExtensionContext) -> String? { web?.title }
+    func url(for context: WKWebExtensionContext) -> URL? { web?.url }
+    func isSelected(for context: WKWebExtensionContext) -> Bool { true }
+    // the async form of setPinned(_:for:completionHandler:)
+    func setPinned(_ pinned: Bool, for context: WKWebExtensionContext) async throws { log("extension tab pinned \(pinned)") }
+}
+@available(iOS 18.4, *)
+@MainActor final class SampleExtensionWindow: NSObject, WKWebExtensionWindow {
+    let tab: SampleExtensionTab
+    init(_ t: SampleExtensionTab) { tab = t; super.init(); t.browserWindow = self }
+    func tabs(for context: WKWebExtensionContext) -> [any WKWebExtensionTab] { [tab] }
+    func activeTab(for context: WKWebExtensionContext) -> (any WKWebExtensionTab)? { tab }
+    func frame(for context: WKWebExtensionContext) -> CGRect { UIScreen.main.bounds }
+}
+
+/// native messaging, the popup and action updates
+@available(iOS 18.4, *)
+@MainActor final class SampleExtensionDelegate: NSObject, WKWebExtensionControllerDelegate {
+    weak var owner: ExtensionViewController?
+    init(_ o: ExtensionViewController) { owner = o }
+    func webExtensionController(_ controller: WKWebExtensionController, sendMessage message: Any, toApplicationWithIdentifier applicationIdentifier: String?,
+                                for extensionContext: WKWebExtensionContext, replyHandler: @escaping (Any?, (any Error)?) -> Void) {
+        if applicationIdentifier == "log" {
+            let d = (try? JSONSerialization.data(withJSONObject: message, options: [.sortedKeys])).map { String(decoding: $0, as: UTF8.self) } ?? "-"
+            log("extension says \(d)")
+            owner?.extensionSaid(message as? [String: Any] ?? [:])
+            replyHandler(nil, nil)
+        } else {
+            log("native message to \(applicationIdentifier ?? "-")")
+            replyHandler(["answer": 42], nil)
+        }
+    }
+    func webExtensionController(_ controller: WKWebExtensionController, connectUsing port: WKWebExtension.MessagePort, for extensionContext: WKWebExtensionContext,
+                                completionHandler: @escaping ((any Error)?) -> Void) {
+        log("native port \(port.applicationIdentifier ?? "-")")
+        port.messageHandler = { [weak port] m, _ in
+            log("port message \((m as? [String: Any])?["q"] as? String ?? "-")")
+            port?.sendMessage(["reply": "pong"], completionHandler: nil)
+        }
+        port.disconnectHandler = { _ in log("port disconnected") }
+        owner?.port = port
+        completionHandler(nil)
+    }
+    func webExtensionController(_ controller: WKWebExtensionController, didUpdate action: WKWebExtension.Action, forExtensionContext context: WKWebExtensionContext) {
+        log("action updated badge \(action.badgeText) unread \(action.hasUnreadBadgeText)")
+    }
+    func webExtensionController(_ controller: WKWebExtensionController, presentActionPopup action: WKWebExtension.Action, for context: WKWebExtensionContext,
+                                completionHandler: @escaping ((any Error)?) -> Void) {
+        guard let popup = action.popupViewController else { completionHandler(nil); return }
+        popup.modalPresentationStyle = .pageSheet
+        popup.sheetPresentationController?.detents = [.medium()]
+        owner?.present(popup, animated: true)
+        log("present popup \(action.label) web=\(action.popupWebView != nil)")
+        completionHandler(nil)
+    }
+}
+
+final class ExtensionViewController: UIViewController {
+    let controller: AnyObject? = { if #available(iOS 18.4, *) { return WKWebExtensionController(configuration: .nonPersistent()) } else { return nil } }()
+    var context: AnyObject?, delegate: AnyObject?, tab: AnyObject?, browserWindow: AnyObject?, port: AnyObject?
+    var observation: NSKeyValueObservation?
+    var commanded = false
+    lazy var web: WKWebView = {
+        let c = WKWebViewConfiguration()
+        if #available(iOS 18.4, *) { c.webExtensionController = controller as? WKWebExtensionController }
+        return WKWebView(frame: .zero, configuration: c)
+    }()
+    let page = "<!doctype html><html><head><meta name=viewport content='width=device-width'><title>Notes page</title></head>"
+        + "<body style='font:17px -apple-system,sans-serif;margin:16px'><h2>A page with an extension</h2><p>The banner and the popup come from the extension.</p></body></html>"
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Extension"
+        view.backgroundColor = .systemBackground
+        web.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(web)
+        let g = view.safeAreaLayoutGuide
+        NSLayoutConstraint.activate([web.topAnchor.constraint(equalTo: g.topAnchor), web.bottomAnchor.constraint(equalTo: g.bottomAnchor),
+                                     web.leadingAnchor.constraint(equalTo: view.leadingAnchor), web.trailingAnchor.constraint(equalTo: view.trailingAnchor)])
+        guard #available(iOS 18.4, *) else { log("extension: needs iOS 18.4"); return }
+        observation = web.observe(\.title) { [weak self] w, _ in
+            guard let t = w.title, t.hasPrefix("ext ") else { return }
+            log("page \(t)")
+            MainActor.assumeIsolated { self?.runCommand() }
+        }
+        Task { await load() }
+    }
+
+    @available(iOS 18.4, *)
+    func load() async {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("NotesHelper")
+        try? FileManager.default.createDirectory(at: dir.appendingPathComponent("_locales/en"), withIntermediateDirectories: true)
+        let files = [
+            "manifest.json": """
+            {"manifest_version": 3, "name": "__MSG_extName__", "version": "2.0", "default_locale": "en",
+             "permissions": ["storage", "scripting", "tabs", "nativeMessaging"], "host_permissions": ["https://*.example/*"],
+             "background": {"service_worker": "background.js"},
+             "action": {"default_title": "Notes", "default_popup": "popup.html"},
+             "commands": {"collect": {"suggested_key": {"default": "Ctrl+Shift+Y"}, "description": "Collect notes"}},
+             "content_scripts": [{"matches": ["https://*.example/*"], "js": ["content.js"]}]}
+            """,
+            "_locales/en/messages.json": #"{"extName": {"message": "Notes Helper"}, "greet": {"message": "Hello, $who$!", "placeholders": {"who": {"content": "$1"}}}}"#,
+            "background.js": """
+            const say = o => browser.runtime.sendNativeMessage('log', o);
+            browser.runtime.onInstalled.addListener(d => { browser.storage.local.set({installed: d.reason}); });
+            browser.runtime.onMessage.addListener((m, s, reply) => {
+              if (m.kind === 'hello') reply({echo: m.text, tab: s.tab ? s.tab.id : -1, host: s.tab ? new URL(s.tab.url).host : ''});
+            });
+            browser.commands.onCommand.addListener(async (name, tab) => {
+              try {
+                const [t] = await browser.tabs.query({active: true, currentWindow: true});
+                const r = await browser.scripting.executeScript({target: {tabId: t.id}, func: s => document.querySelector('h2').textContent.split(' ')[0] + s, args: ['!']});
+                const ping = await browser.tabs.sendMessage(t.id, {kind: 'ping'});
+                const nat = await browser.runtime.sendNativeMessage('com.example.notes', {q: 'answer'});
+                await browser.tabs.update(t.id, {pinned: true});
+                await browser.action.setBadgeText({text: '3'});
+                const got = await browser.storage.local.get('installed');
+                const wins = await browser.windows.getAll({populate: true});
+                await say({kind: 'command', name: name, same: tab.id === t.id, title: t.title, script: r[0].result, ping: ping, native: nat.answer,
+                           installed: got.installed, windows: wins.length, tabs: wins[0].tabs.length, i18n: browser.i18n.getMessage('greet', 'Ada')});
+                const port = browser.runtime.connectNative('com.example.notes');
+                port.onMessage.addListener(m => { say({kind: 'port', reply: m.reply}); port.disconnect(); });
+                port.postMessage({q: 'port'});
+              } catch (e) { say({kind: 'error', message: e.message}); }
+            });
+            """,
+            "content.js": """
+            const b = document.createElement('div'); b.id = 'notes-banner'; b.textContent = browser.i18n.getMessage('extName') + ' is on';
+            b.style.cssText = 'background:#5e5ce6;color:#fff;padding:8px;font-weight:600'; document.body.prepend(b);
+            browser.runtime.onMessage.addListener((m, s, reply) => { if (m.kind === 'ping') reply('pong from ' + location.host); });
+            browser.storage.local.set({seen: location.host}).then(() => browser.runtime.sendMessage({kind: 'hello', text: 'from content'}))
+              .then(r => { document.title = 'ext ' + r.echo + ' tab=' + (r.tab > 0) + ' ' + r.host; });
+            """,
+            "popup.html": "<!doctype html><html><head><meta name=viewport content='width=device-width'></head><body style='font:17px -apple-system,sans-serif;margin:16px'>"
+                + "<h3>Notes Helper</h3><p id=p>…</p><script src=popup.js></script></body></html>",
+            "popup.js": """
+            Promise.all([browser.action.getBadgeText({}), browser.storage.local.get(null)]).then(([badge, all]) => {
+              document.getElementById('p').textContent = 'Badge ' + badge + ', ' + Object.keys(all).length + ' stored values';
+              return browser.runtime.sendNativeMessage('log', {kind: 'popup', badge: badge, keys: Object.keys(all).sort()});
+            });
+            """,
+        ]
+        for (name, text) in files { try? text.write(to: dir.appendingPathComponent(name), atomically: true, encoding: .utf8) }
+        guard let c = controller as? WKWebExtensionController, let ext = try? await WKWebExtension(resourceBaseURL: dir) else { log("extension: no extension"); return }
+        let d = SampleExtensionDelegate(self)
+        c.delegate = d; delegate = d
+        let ctx = WKWebExtensionContext(for: ext)
+        context = ctx
+        NotificationCenter.default.addObserver(forName: WKWebExtensionContext.permissionsWereGrantedNotification, object: ctx, queue: nil) { n in
+            let p = n.userInfo?[WKWebExtensionContext.NotificationUserInfoKey.permissions.rawValue] as? Set<WKWebExtension.Permission> ?? []
+            log("granted \(p.map(\.rawValue).sorted().joined(separator: ","))")
+        }
+        for p in [WKWebExtension.Permission.storage, .scripting, .tabs, .nativeMessaging] { ctx.setPermissionStatus(.grantedExplicitly, for: p) }
+        ctx.setPermissionStatus(.grantedExplicitly, for: URL(string: "https://notes.example/")!)
+        let t = SampleExtensionTab(web), w = SampleExtensionWindow(t)
+        tab = t; browserWindow = w
+        do { try c.load(ctx) } catch { log("extension load error \(error)") }
+        ctx.didOpenWindow(w)
+        ctx.didFocusWindow(w)
+        ctx.didOpenTab(t)
+        ctx.didActivateTab(t, previousActiveTab: nil)
+        let cmd = ctx.commands.first
+        log("extension \(ext.displayName ?? "-") background \(ext.hasBackgroundContent) commands \(ctx.commands.count) \(cmd?.id ?? "-") key \(cmd?.activationKey ?? "-") "
+            + "command-shift \(cmd?.modifierFlags == [.command, .shift]) action \(ctx.action(for: nil)?.label ?? "-") popup \(ctx.action(for: nil)?.presentsPopup ?? false) "
+            + "windows \(ctx.openWindows.count) tabs \(ctx.openTabs.count) focused \(ctx.focusedWindow === w)")
+        web.loadHTMLString(page, baseURL: URL(string: "https://notes.example/"))
+    }
+
+    /// the content script round trip worked: run the extension's command with its keyboard shortcut
+    func runCommand() {
+        guard #available(iOS 18.4, *), !commanded, let ctx = context as? WKWebExtensionContext, let key = ctx.commands.first?.keyCommand else { return }
+        commanded = true
+        log("perform command \(key.input ?? "-") \(ctx.performCommand(for: key))")
+    }
+
+    func extensionSaid(_ m: [String: Any]) {
+        guard #available(iOS 18.4, *), let ctx = context as? WKWebExtensionContext, let t = tab as? SampleExtensionTab else { return }
+        switch m["kind"] as? String {
+        case "port":
+            ctx.performAction(for: t)
+            log("user gesture \(ctx.hasActiveUserGesture(in: t))")
+        case "popup":
+            (controller as? WKWebExtensionController)?.fetchDataRecords(ofTypes: WKWebExtensionController.allExtensionDataTypes) { records in
+                let r = records.first
+                log("data records \(records.count) \(r?.displayName ?? "-") types \(r?.containedDataTypes.map(\.rawValue).sorted().joined(separator: ",") ?? "-") "
+                    + "bytes \((r?.totalSizeInBytes ?? 0) > 0)")
+            }
+        default: break
+        }
     }
 }
 

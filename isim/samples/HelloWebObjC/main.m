@@ -55,6 +55,15 @@ static NSString *const kHTML =
 - (void)webView:(WKWebView *)webView stopURLSchemeTask:(id<WKURLSchemeTask>)task {}
 @end
 
+/* issue #791: a browser tab as web extensions see it */
+API_AVAILABLE(ios(18.4))
+@interface ObjCTab : NSObject <WKWebExtensionTab>
+@end
+@implementation ObjCTab
+- (NSString *)titleForWebExtensionContext:(WKWebExtensionContext *)context { return @"Tab"; }
+- (NSURL *)urlForWebExtensionContext:(WKWebExtensionContext *)context { return [NSURL URLWithString:@"https://notes.example/a"]; }
+@end
+
 @interface WebViewController : UIViewController <WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, WKScriptMessageHandlerWithReply, WKDownloadDelegate>
 @property (nonatomic, strong) WKWebView *webView;
 @property (nonatomic, strong) SampleContentController *contentController;
@@ -115,7 +124,8 @@ static NSString *const kHTML =
     NSURL *dir = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:@"ObjCExtension"]];
     [NSFileManager.defaultManager createDirectoryAtURL:dir withIntermediateDirectories:YES attributes:nil error:nil];
     NSString *manifest = @"{\"manifest_version\": 2, \"name\": \"Notes\", \"version\": \"3.0\", \"permissions\": [\"tabs\", \"https://notes.example/*\"],"
-                          "\"background\": {\"scripts\": [\"bg.js\"]}, \"options_page\": \"options.html\"}";
+                          "\"background\": {\"scripts\": [\"bg.js\"]}, \"options_page\": \"options.html\", \"browser_action\": {\"default_title\": \"Jot\"},"
+                          "\"commands\": {\"_execute_browser_action\": {\"suggested_key\": {\"default\": \"Alt+J\"}}}}";
     [manifest writeToURL:[dir URLByAppendingPathComponent:@"manifest.json"] atomically:YES encoding:NSUTF8StringEncoding error:nil];
     [WKWebExtension extensionWithResourceBaseURL:dir completionHandler:^(WKWebExtension *extension, NSError *loadError) {
         WKWebExtensionContext *context = [WKWebExtensionContext contextForExtension:extension];
@@ -131,6 +141,23 @@ static NSString *const kHTML =
              (unsigned long)controller.extensionContexts.count, context.optionsPageURL.lastPathComponent]);
         [WKWebExtension extensionWithResourceBaseURL:[NSURL fileURLWithPath:@"/nonexistent"] completionHandler:^(WKWebExtension *none, NSError *missing) {
             say([NSString stringWithFormat:@"missing extension %@ %@/%ld", none, missing.domain, (long)missing.code]);
+        }];
+        // issue #791: an Objective-C tab, the action, a command, data types and data records
+        ObjCTab *tab = [ObjCTab new];
+        [context didOpenTab:tab];
+        NSUInteger open = context.openTabs.count;
+        BOOL gesture = [context hasActiveUserGestureInTab:tab];
+        [context userGesturePerformedInTab:tab];
+        BOOL gestured = [context hasActiveUserGestureInTab:tab];
+        [context didCloseTab:tab windowIsClosing:NO];
+        WKWebExtensionAction *action = [context actionForTab:nil];
+        WKWebExtensionCommand *command = context.commands.firstObject;
+        NSSet<WKWebExtensionDataType> *types = WKWebExtensionController.allExtensionDataTypes;
+        [controller fetchDataRecordsOfTypes:types completionHandler:^(NSArray<WKWebExtensionDataRecord *> *records) {
+            say([NSString stringWithFormat:@"extension tabs %lu then %lu gesture %d %d action %@ popup %d command %@ %@ alt %d types %lu local %d records %lu",
+                 (unsigned long)open, (unsigned long)context.openTabs.count, gesture, gestured, action.label, action.presentsPopup, command.title,
+                 command.activationKey, (command.modifierFlags & UIKeyModifierAlternate) != 0, (unsigned long)types.count,
+                 [types containsObject:WKWebExtensionDataTypeLocal], (unsigned long)records.count]);
         }];
     }];
 }

@@ -217,6 +217,8 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
     /// points per CSS px: the page zoom and the 980-px viewport's fit
     var _zoom: CGFloat { pageZoom * _fit }
     var _hasViewportMeta = true
+    /// the web extension script message handlers already registered with the engine (WebExtension+Runtime.swift)
+    var _extHandlers: Set<String> = []
     func _updateFit() { _fit = _hasViewportMeta ? 1 : min(1, max(_engineSize.width, 1) / 980) }   /* as isim-webkit computes it */
     // Panels.swift: element fullscreen
     var _fullscreenState: FullscreenState = .notInFullscreen
@@ -331,6 +333,12 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
         guard #available(iOS 18.4, *), let c = configuration.webExtensionController else { return }
         c._attach(self)
         for s in c._userScripts() { _installScript(s) }
+        for ctx in c._contexts {
+            for (world, name) in [(ctx._world, ctx._contentHandler), (WKContentWorld.page, ctx._pageHandler)] where !_extHandlers.contains(name) {
+                _extHandlers.insert(name)
+                _send(["handler", world._engineName, name, "1"])
+            }
+        }
     }
     func _installHandler(_ h: WKUserContentController.Handler) { _send(["handler", h.world._engineName, h.name, h.withReply ? "1" : "0"]) }
     func _removeHandler(_ h: WKUserContentController.Handler) { _send(["rmhandler", h.world._engineName, h.name]) }
@@ -854,6 +862,14 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
         guard f.count >= 3 else { return }
         let req = f[0], name = f[1]
         let body: Any = _wkJSONValue(f[2]) ?? NSNull()
+        if name.hasPrefix("isimExt"), #available(iOS 18.4, *) {          // browser.* from a web extension
+            _WKExtBridge.receive(self, name: name, body: body) { [weak self] value, error in
+                if req == "0" { return }
+                if let error { self?._send(["reply", req, "0", error]) } else { self?._send(["reply", req, "1", _wkJSONText(_wkJSONText(value ?? NSNull()))])  /* as JSON text, which the shim parses:
+                                                                                        objects and arrays in replies arrive empty (#828) */ }
+            }
+            return
+        }
         let ucc = configuration.userContentController
         guard let h = ucc._handlers.first(where: { $0.name == name }) else { return }
         let msg = WKScriptMessage(body: body, webView: self, frameInfo: WKFrameInfo(main: true, url: url, webView: self), name: name, world: h.world)

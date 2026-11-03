@@ -19,6 +19,8 @@ public final class WebPage: Observable {
         public var urlSchemeHandlers: [URLScheme: any URLSchemeHandler] = [:]
         public var limitsNavigationsToAppBoundDomains = false
         public var upgradeKnownHostsToHTTPS = true
+        /// the web extensions whose content scripts run in the page (issue #791)
+        public var webExtensionController: WKWebExtensionController?
         public init() {}
     }
     /// a custom URL scheme a page serves itself (Configuration.urlSchemeHandlers)
@@ -82,6 +84,7 @@ public final class WebPage: Observable {
         c.websiteDataStore = configuration.websiteDataStore
         c.userContentController = configuration.userContentController
         c.applicationNameForUserAgent = configuration.applicationNameForUserAgent
+        c.webExtensionController = configuration.webExtensionController
         for (scheme, handler) in configuration.urlSchemeHandlers { c.setURLSchemeHandler(_WebPageSchemeHandler(handler), forURLScheme: scheme.rawValue) }
         webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 600), configuration: c)
         bridge.page = self
