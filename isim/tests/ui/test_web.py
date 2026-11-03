@@ -216,7 +216,8 @@ def test_web_webpage_decider(launch, web, ios):
 def test_web_objc(launch):
     """WebKit from Objective-C (HelloWebObjC, #200): Apple's class names, a WKUserContentController subclass, a category,
     delegates under Apple's selectors, script messages, KVO on Apple's key paths, JavaScript calls and a snapshot; web
-    extensions (#421: match patterns, a manifest version 2 extension, a context's permissions, a controller)"""
+    extensions (#421: match patterns, a manifest version 2 extension, a context's permissions, a controller; #791: a tab,
+    the browser action, a command, data types and records)"""
     if not (ROOT / "out/bin/isim-webkit").exists():
         pytest.skip("no web engine helper (needs WebKitGTK 6.0 and gtk4-broadwayd on the host)")
     app = launch("HelloWebObjC", os_version="18.4")                    # web extensions are iOS 18.4
@@ -232,6 +233,8 @@ def test_web_objc(launch):
     app.wait_log(r"^HelloWebObjC: extension Notes 3\.0 mv=2 persistentBackground=1 options=1 permissions=tabs hosts=1 tabs=3 notes=-1 "
                  r"loaded=1 contexts=1 options=options\.html$")
     app.wait_log(r"^HelloWebObjC: missing extension \(null\) WKWebExtensionErrorDomain/2$")
+    # issue #791: an Objective-C WKWebExtensionTab, the browser action, its command, data types and data records
+    app.wait_log(r"^HelloWebObjC: extension tabs 1 then 0 gesture 0 1 action Jot popup 0 command Jot j alt 1 types 3 local 1 records 0$")
     app.wait_log(r"^HelloWebObjC: fullscreenState 0 open panel 1$")
     app.wait_log(r"^HelloWebObjC: didStartProvisionalNavigation", timeout=30)
     for line in ( "didCommitNavigation", r"didFinishNavigation https://objc\.example/ loading=0",
@@ -336,6 +339,37 @@ def test_web_links(launch, web):
     app.wait_log(r"isim: open URL http://127\.0\.0\.1:\d+/article")
     assert shot and cards and app.quit() == 0
 
+
+
+
+def test_web_extension_runtime(launch, web):
+    """Issue #791: a web extension's background script (service worker), content script and action popup using browser.*
+    on isim: runtime messaging both ways, storage, tabs and windows (the app's WKWebExtensionTab / WKWebExtensionWindow,
+    with the async form of setPinned), scripting.executeScript, i18n placeholders, action badges, a manifest command run
+    through its UIKeyCommand, native messaging and a message port through WKWebExtensionControllerDelegate, the popup
+    web view presented by the app, permission notifications and data records."""
+    app = launch("HelloWeb", args=["-extension"], os_version="18.4")
+    app.wait_log(r"^HelloWeb: granted storage$")
+    app.wait_log(r"^HelloWeb: extension Notes Helper background true commands 1 collect key y command-shift true action Notes popup true "
+                 r"windows 1 tabs 1 focused true$")
+    app.wait_log(r"^HelloWeb: page ext from content tab=true notes\.example$", timeout=30)
+    app.wait_log(r"^HelloWeb: perform command y true$")
+    app.wait_log(r"^HelloWeb: native message to com\.example\.notes$")
+    app.wait_log(r"^HelloWeb: extension tab pinned true$")
+    app.wait_log(r"^HelloWeb: action updated badge 3 unread true$")
+    app.wait_log(r'^HelloWeb: extension says \{"i18n":"Hello, Ada!","installed":"install","kind":"command","name":"collect",'
+                 r'"native":42,"ping":"pong from notes\.example","same":true,"script":"A!","tabs":1,"title":"ext from content tab=true notes\.example","windows":1\}$')
+    app.wait_log(r"^HelloWeb: native port com\.example\.notes$")
+    app.wait_log(r"^HelloWeb: port message port$")
+    app.wait_log(r'^HelloWeb: extension says \{"kind":"port","reply":"pong"\}$')
+    app.wait_log(r"^HelloWeb: port disconnected$")
+    app.wait_log(r"^HelloWeb: present popup Notes web=true$")
+    app.wait_log(r"^HelloWeb: user gesture true$")
+    app.wait_log(r'^HelloWeb: extension says \{"badge":"3","keys":\["installed","seen"\],"kind":"popup"\}$')
+    app.wait_log(r"^HelloWeb: data records 1 Notes Helper types local bytes true$")
+    app.wait_still()
+    app.screenshot("web-extension-popup")
+    assert app.quit() == 0
 
 
 @pytest.mark.os_matrix

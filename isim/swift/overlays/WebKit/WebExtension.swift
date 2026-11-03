@@ -7,9 +7,9 @@
 //   granted or denied (with expiration dates);
 // - a loaded context's content scripts (JavaScript and CSS, run_at, all_frames, matches / exclude_matches) are injected
 //   into the controller's web views (WKWebViewConfiguration.webExtensionController) in a content world of their own, on
-//   pages the context has access to; they get a small `browser.runtime` (id, getManifest, getURL).
-// Not on isim: background pages and service workers, the other `browser.*` APIs (tabs, storage, messaging…), actions,
-// commands, tabs and windows, declarative net request rules, data records.
+//   pages the context has access to; they get `browser.*` (WebExtension+Runtime.swift, issue #791).
+// Tabs, windows, actions, commands, native messaging and data records: WebExtension+Tabs.swift; background content
+// and the `browser.*` APIs: WebExtension+Runtime.swift. Not on isim: declarative net request rules.
 import UIKit
 
 @available(iOS 18.4, *)
@@ -135,6 +135,8 @@ import UIKit
 
     // MARK: manifest
     private var _messages: [String: String] = [:]
+    /// the messages.json entries (lowercased names and placeholders), for browser.i18n.getMessage
+    var _messageEntries: [String: [String: Any]] = [:]
     func _localized(_ s: String?) -> String? {
         guard var s else { return nil }
         while let r = s.range(of: "__MSG_"), let end = s.range(of: "__", range: r.upperBound..<s.endIndex) {
@@ -152,7 +154,15 @@ import UIKit
             tried.append(l)
             let u = _base.appendingPathComponent("_locales/\(l)/messages.json")
             guard let d = FileManager.default.contents(atPath: u.path), let o = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] else { continue }
-            for (k, v) in o where _messages[k.lowercased()] == nil { if let msg = (v as? [String: Any])?["message"] as? String { _messages[k.lowercased()] = msg } }
+            for (k, v) in o where _messages[k.lowercased()] == nil {
+                guard let e = v as? [String: Any], let msg = e["message"] as? String else { continue }
+                _messages[k.lowercased()] = msg
+                var entry: [String: Any] = ["message": msg]
+                if let ph = e["placeholders"] as? [String: Any] {
+                    entry["placeholders"] = Dictionary(ph.map { ($0.key.lowercased(), $0.value) }, uniquingKeysWith: { a, _ in a })
+                }
+                _messageEntries[k.lowercased()] = entry
+            }
         }
     }
     private func _entryError(_ message: String) { _errors.append(Error.make(.invalidManifestEntry, message)) }
@@ -267,6 +277,7 @@ extension WKWebExtension {
             public static var invalidHost: Code { .invalidHost }
             public static var invalidPath: Code { .invalidPath }
         }
+        public class var errorDomain: String { WKWebExtensionMatchPatternErrorDomain }
         public struct Options: OptionSet, Sendable {
             public let rawValue: UInt
             public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -412,6 +423,8 @@ extension WKWebExtension {
     }
 
     @objc open private(set) var configuration: Configuration
+    /// the app's answers for its extensions: tabs, windows, permission prompts, popups, native messaging (issue #791)
+    @objc open weak var delegate: (any WKWebExtensionControllerDelegate)?
     var _contexts: [WKWebExtensionContext] = []
     var _webViews: [_WKWeakView] = []
     @objc public convenience override init() { self.init(configuration: .default()) }
@@ -434,11 +447,13 @@ extension WKWebExtension {
         extensionContext._controller = self
         NSLog("isim: loaded web extension %@ (%d content scripts)", extensionContext.webExtension.displayName ?? "-", extensionContext.webExtension._contentScripts.count)
         _refreshWebViews()
+        extensionContext._didLoad()
     }
     @objc(unloadExtensionContext:error:) open func unload(_ extensionContext: WKWebExtensionContext) throws {
         guard let i = _contexts.firstIndex(where: { $0 === extensionContext }) else {
             throw WKWebExtensionContext.Error(.notLoaded, userInfo: [NSLocalizedDescriptionKey: "Extension context is not loaded."])
         }
+        extensionContext._didUnload()
         _contexts.remove(at: i)
         extensionContext._controller = nil
         _refreshWebViews()
@@ -490,10 +505,28 @@ extension WKWebExtension {
     @objc open var unsupportedAPIs: Set<String>! = []
     @objc open var hasAccessToPrivateData = false
     open var errors: [any Swift.Error] { webExtension.errors }
-    open var grantedPermissions: [WKWebExtension.Permission: Date] = [:]
-    open var deniedPermissions: [WKWebExtension.Permission: Date] = [:]
-    open var grantedPermissionMatchPatterns: [WKWebExtension.MatchPattern: Date] = [:] { didSet { _controller?._refreshWebViews() } }
-    open var deniedPermissionMatchPatterns: [WKWebExtension.MatchPattern: Date] = [:] { didSet { _controller?._refreshWebViews() } }
+    open var grantedPermissions: [WKWebExtension.Permission: Date] = [:] {
+        didSet { _postChanges(oldValue, grantedPermissions, added: Self.permissionsWereGrantedNotification, removed: Self.grantedPermissionsWereRemovedNotification, key: .permissions) }
+    }
+    open var deniedPermissions: [WKWebExtension.Permission: Date] = [:] {
+        didSet { _postChanges(oldValue, deniedPermissions, added: Self.permissionsWereDeniedNotification, removed: Self.deniedPermissionsWereRemovedNotification, key: .permissions) }
+    }
+    open var grantedPermissionMatchPatterns: [WKWebExtension.MatchPattern: Date] = [:] {
+        didSet {
+            _controller?._refreshWebViews()
+            _postChanges(oldValue, grantedPermissionMatchPatterns, added: Self.permissionMatchPatternsWereGrantedNotification,
+                         removed: Self.grantedPermissionMatchPatternsWereRemovedNotification, key: .matchPatterns)
+        }
+    }
+    open var deniedPermissionMatchPatterns: [WKWebExtension.MatchPattern: Date] = [:] {
+        didSet {
+            _controller?._refreshWebViews()
+            _postChanges(oldValue, deniedPermissionMatchPatterns, added: Self.permissionMatchPatternsWereDeniedNotification,
+                         removed: Self.deniedPermissionMatchPatternsWereRemovedNotification, key: .matchPatterns)
+        }
+    }
+    /// tabs, windows, actions, storage, background content (WebExtension+Runtime.swift)
+    lazy var _rt = _WKExtState(self)
 
     @objc(initForExtension:) public init(for extension: WKWebExtension) {
         webExtension = `extension`
@@ -509,6 +542,7 @@ extension WKWebExtension {
         guard let c = _controller else { return nil }
         let w = c.configuration.webViewConfiguration ?? WKWebViewConfiguration()
         w.webExtensionController = c
+        if w.urlSchemeHandler(forURLScheme: "webkit-extension") == nil { w.setURLSchemeHandler(_WKExtSchemeHandler.shared, forURLScheme: "webkit-extension") }
         return w
     }
     @objc open var optionsPageURL: URL? { webExtension._optionsPage.map { baseURL.appendingPathComponent($0) } }
@@ -575,6 +609,9 @@ extension WKWebExtension {
         default: granted[key] = nil; denied[key] = nil
         }
     }
+    open func setPermissionStatus(_ status: PermissionStatus, for permission: WKWebExtension.Permission) { setPermissionStatus(status, for: permission, expirationDate: nil) }
+    open func setPermissionStatus(_ status: PermissionStatus, for pattern: WKWebExtension.MatchPattern) { setPermissionStatus(status, for: pattern, expirationDate: nil) }
+    open func setPermissionStatus(_ status: PermissionStatus, for url: URL) { setPermissionStatus(status, for: url, expirationDate: nil) }
     open func setPermissionStatus(_ status: PermissionStatus, for permission: WKWebExtension.Permission, expirationDate: Date? = nil) {
         Self._set(status, permission, expirationDate, granted: &grantedPermissions, denied: &deniedPermissions)
     }
@@ -608,13 +645,12 @@ extension WKWebExtension {
     // MARK: content scripts
     var _world: WKContentWorld { .world(name: "isim-extension-" + uniqueIdentifier) }
     func _userScripts() -> [WKUserScript] {
+        // extension pages (background, popups, options): `browser.*` in the page world, on the extension's origin only
+        var out = [WKUserScript(source: _WKExtBridge.script(self, content: false), injectionTime: .atDocumentStart, forMainFrameOnly: false, in: .page)]
         let granted = _live(grantedPermissionMatchPatterns), denied = _live(deniedPermissionMatchPatterns)
-        guard !granted.isEmpty else { return [] }
+        guard !granted.isEmpty else { return out }
         func list(_ ps: [WKWebExtension.MatchPattern]) -> String { "[" + ps.map { _wkJSLiteral($0._regex) }.joined(separator: ",") + "]" }
-        let manifestJSON = webExtension._localizedManifestJSON
-        let runtime = "if(!window.browser){window.browser={runtime:{id:\(_wkJSLiteral(uniqueIdentifier)),getManifest:function(){return \(manifestJSON)},"
-            + "getURL:function(p){return \(_wkJSLiteral(baseURL.absoluteString))+String(p).replace(/^\\//,'')}}};window.chrome=window.browser}"
-        var out = [WKUserScript(source: runtime, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: _world)]
+        out.append(WKUserScript(source: _WKExtBridge.script(self, content: true), injectionTime: .atDocumentStart, forMainFrameOnly: false, in: _world))
         for s in webExtension._contentScripts {
             var body = ""
             for css in s.css { if let c = webExtension._resource(css) { body += "(function(c){var st=document.createElement('style');st.textContent=c;(document.head||document.documentElement).appendChild(st)})(\(_wkJSLiteral(c)));" } }
