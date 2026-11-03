@@ -157,7 +157,7 @@ func _transformBGRA(_ px: [UInt8], _ w: Int, _ h: Int, angle: CGFloat, mirror: B
 
 // MARK: - devices
 
-open class AVCaptureDevice: NSObject, @unchecked Sendable {
+@objc(AVCaptureDevice) open class AVCaptureDevice: NSObject, @unchecked Sendable {
     public struct DeviceType: RawRepresentable, Hashable, Sendable {
         public let rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
@@ -209,7 +209,7 @@ open class AVCaptureDevice: NSObject, @unchecked Sendable {
     public static let subjectAreaDidChangeNotification = Notification.Name("AVCaptureDeviceSubjectAreaDidChangeNotification")
 
     /// A capture format: the simulated feed's size at 30 fps (video), its depth formats, or the microphone's PCM.
-    public final class Format: NSObject, @unchecked Sendable {
+    @objc(AVCaptureDeviceFormat) public final class Format: NSObject, @unchecked Sendable {
         public let formatDescription: CMFormatDescription
         public let videoSupportedFrameRateRanges: [FrameRateRange]
         let _depthFormats: [Format]
@@ -287,7 +287,7 @@ open class AVCaptureDevice: NSObject, @unchecked Sendable {
         public var factors: Factors { _factors }
     }
 
-    public final class DiscoverySession: NSObject, @unchecked Sendable {
+    @objc(AVCaptureDeviceDiscoverySession) public final class DiscoverySession: NSObject, @unchecked Sendable {
         public let devices: [AVCaptureDevice]
         public init(deviceTypes: [DeviceType], mediaType: AVMediaType?, position: Position) {
             devices = AVCaptureDevice._all.filter { d in
@@ -601,8 +601,8 @@ open class AVCaptureDevice: NSObject, @unchecked Sendable {
 
 // MARK: - inputs, ports, connections
 
-open class AVCaptureInput: NSObject, @unchecked Sendable {
-    public final class Port: NSObject, @unchecked Sendable {
+@objc(AVCaptureInput) open class AVCaptureInput: NSObject, @unchecked Sendable {
+    @objc(AVCaptureInputPort) public final class Port: NSObject, @unchecked Sendable {
         public let mediaType: AVMediaType
         public unowned let input: AVCaptureInput
         public var isEnabled = true
@@ -619,7 +619,7 @@ open class AVCaptureInput: NSObject, @unchecked Sendable {
     open var ports: [Port] { [] }
     var _noConnections = false
 }
-open class AVCaptureDeviceInput: AVCaptureInput, @unchecked Sendable {
+@objc(AVCaptureDeviceInput) open class AVCaptureDeviceInput: AVCaptureInput, @unchecked Sendable {
     public let device: AVCaptureDevice
     lazy var _ports: [Port] = device._isMicrophone ? [Port(.audio, self)]
         : [Port(.video, self), Port(.metadataObject, self)] + (device._depth ? [Port(.depthData, self)] : [])
@@ -656,7 +656,7 @@ public final class AVCaptureAudioChannel: NSObject, @unchecked Sendable {
     var _peakTime = 0.0
 }
 
-public final class AVCaptureConnection: NSObject, @unchecked Sendable {
+@objc(AVCaptureConnection) public final class AVCaptureConnection: NSObject, @unchecked Sendable {
     public let inputPorts: [AVCaptureInput.Port]
     public weak var output: AVCaptureOutput?
     public weak var videoPreviewLayer: AVCaptureVideoPreviewLayer?
@@ -703,7 +703,7 @@ public final class AVCaptureConnection: NSObject, @unchecked Sendable {
 public let AVCaptureSessionInterruptionReasonKey = "AVCaptureSessionInterruptionReasonKey"
 public let AVCaptureSessionErrorKey = "AVCaptureSessionErrorKey"
 
-open class AVCaptureSession: NSObject, @unchecked Sendable {
+@objc(AVCaptureSession) open class AVCaptureSession: NSObject, @unchecked Sendable {
     public struct Preset: RawRepresentable, Hashable, Sendable {
         public let rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
@@ -980,7 +980,7 @@ open class AVCaptureSession: NSObject, @unchecked Sendable {
 
 /// iOS 13: a session that runs several cameras at once (here: one back and one front, or two back cameras; cameras on
 /// the same side share a feed). Connections are made by the app (addInputWithNoConnections, addConnection).
-open class AVCaptureMultiCamSession: AVCaptureSession, @unchecked Sendable {
+@objc(AVCaptureMultiCamSession) open class AVCaptureMultiCamSession: AVCaptureSession, @unchecked Sendable {
     open class var isMultiCamSupported: Bool { true }
     public override init() { super.init() }
     override var _maxCameras: Int { 3 }
@@ -1120,7 +1120,7 @@ final class _CameraFeed: @unchecked Sendable {
 // MARK: - preview layer
 
 /// Shows the session's camera feed (redrawn every display frame while the session runs).
-open class AVCaptureVideoPreviewLayer: CALayer {
+@objc(AVCaptureVideoPreviewLayer) open class AVCaptureVideoPreviewLayer: CALayer {
     public override init() { super.init() }
     public required init?(coder: NSCoder) { super.init(coder: coder) }
     public override init(layer: Any) { super.init(layer: layer) }

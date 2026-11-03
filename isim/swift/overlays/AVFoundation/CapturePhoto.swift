@@ -23,7 +23,7 @@ public struct AVVideoCodecType: RawRepresentable, Hashable, Sendable {
 
 // MARK: - settings
 
-open class AVCapturePhotoSettings: NSObject, @unchecked Sendable {
+@objc(AVCapturePhotoSettings) open class AVCapturePhotoSettings: NSObject, @unchecked Sendable {
     nonisolated(unsafe) static var _next: Int64 = 1
     public let uniqueID: Int64
     public let format: [String: Any]?
@@ -135,7 +135,7 @@ open class AVCapturePhotoBracketSettings: AVCapturePhotoSettings, @unchecked Sen
     }
 }
 
-open class AVCaptureResolvedPhotoSettings: NSObject, @unchecked Sendable {
+@objc(AVCaptureResolvedPhotoSettings) open class AVCaptureResolvedPhotoSettings: NSObject, @unchecked Sendable {
     public let uniqueID: Int64
     public let photoDimensions: CMVideoDimensions
     public let rawPhotoDimensions: CMVideoDimensions
@@ -187,7 +187,7 @@ func _previewSize(_ f: [String: Any]?, _ size: CGSize) -> CGSize? {
 
 // MARK: - photo
 
-open class AVCapturePhoto: NSObject, @unchecked Sendable {
+@objc(AVCapturePhoto) open class AVCapturePhoto: NSObject, @unchecked Sendable {
     @objc public enum LensStabilizationStatus: Int, Sendable { case unsupported = 0, off, active, outOfRange, unavailable }
     public let timestamp: CMTime
     public let resolvedSettings: AVCaptureResolvedPhotoSettings
@@ -261,7 +261,7 @@ extension AVCapturePhotoCaptureDelegate {
 
 // MARK: - output
 
-open class AVCapturePhotoOutput: AVCaptureOutput, @unchecked Sendable {
+@objc(AVCapturePhotoOutput) open class AVCapturePhotoOutput: AVCaptureOutput, @unchecked Sendable {
     @objc public enum QualityPrioritization: Int, Sendable { case speed = 1, balanced, quality }
     @objc public enum CaptureReadiness: Int, Sendable { case sessionNotRunning = 0, ready, notReadyMomentarily, notReadyWaitingForCapture, notReadyWaitingForProcessing }
     public override init() { super.init() }

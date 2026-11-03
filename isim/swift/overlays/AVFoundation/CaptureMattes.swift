@@ -54,7 +54,7 @@ func _oriented(_ b: CVPixelBuffer, _ o: CGImagePropertyOrientation) -> CVPixelBu
 }
 
 /// A matte separating the person from the background (for portrait effects).
-public final class AVPortraitEffectsMatte: NSObject, @unchecked Sendable {
+@objc(AVPortraitEffectsMatte) public final class AVPortraitEffectsMatte: NSObject, @unchecked Sendable {
     public let mattingImage: CVPixelBuffer
     init(_ b: CVPixelBuffer) { mattingImage = b }
     public var pixelFormatType: OSType { mattingImage._format }
@@ -74,7 +74,7 @@ public final class AVPortraitEffectsMatte: NSObject, @unchecked Sendable {
 }
 
 /// A matte of one kind of region of the person: hair, skin, teeth or glasses.
-public final class AVSemanticSegmentationMatte: NSObject, @unchecked Sendable {
+@objc(AVSemanticSegmentationMatte) public final class AVSemanticSegmentationMatte: NSObject, @unchecked Sendable {
     public struct MatteType: RawRepresentable, Hashable, Sendable {
         public let rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
@@ -114,7 +114,7 @@ public final class AVSemanticSegmentationMatte: NSObject, @unchecked Sendable {
 }
 
 /// The simulated lens: a centred pinhole with the format's field of view and no distortion.
-public final class AVCameraCalibrationData: NSObject, @unchecked Sendable {
+@objc(AVCameraCalibrationData) public final class AVCameraCalibrationData: NSObject, @unchecked Sendable {
     public let intrinsicMatrix: matrix_float3x3
     public let intrinsicMatrixReferenceDimensions: CGSize
     public let extrinsicMatrix: matrix_float4x3

@@ -148,7 +148,7 @@ func _path(_ u: URL) -> String { u.isFileURL ? u.path : u.absoluteString }
 
 /// A segment of a composition track: `source` (file) range `sourceRange` placed at `target`, lasting `duration`
 /// (different from sourceRange.duration when scaled).
-public final class AVCompositionTrackSegment: NSObject, @unchecked Sendable {
+@objc(AVCompositionTrackSegment) public final class AVCompositionTrackSegment: NSObject, @unchecked Sendable {
     public let isEmpty: Bool
     let _url: URL?
     let _sourceRange: CMTimeRange
@@ -163,7 +163,7 @@ public final class AVCompositionTrackSegment: NSObject, @unchecked Sendable {
     public var timeMapping: CMTimeMapping { CMTimeMapping(source: _sourceRange, target: _target) }
 }
 
-open class AVCompositionTrack: AVAssetTrack, @unchecked Sendable {
+@objc(AVCompositionTrack) open class AVCompositionTrack: AVAssetTrack, @unchecked Sendable {
     var _segments: [AVCompositionTrackSegment] { get { _segmentList } set { _segmentList = newValue } }
     open var segments: [AVCompositionTrackSegment] { _segments }
     var _segmentList: [AVCompositionTrackSegment] = [] { didSet { _updateRange() } }
@@ -174,7 +174,7 @@ open class AVCompositionTrack: AVAssetTrack, @unchecked Sendable {
     open func segment(forTrackTime t: CMTime) -> AVCompositionTrackSegment? { _segments.first { $0._target.containsTime(t) } }
 }
 
-open class AVMutableCompositionTrack: AVCompositionTrack, @unchecked Sendable {
+@objc(AVMutableCompositionTrack) open class AVMutableCompositionTrack: AVCompositionTrack, @unchecked Sendable {
     var _transform = CGAffineTransform.identity
     var _volume: Float = 1
     open override var preferredTransform: CGAffineTransform { get { _transform } set { _transform = newValue } }
@@ -278,7 +278,7 @@ open class AVMutableCompositionTrack: AVCompositionTrack, @unchecked Sendable {
     }
 }
 
-open class AVComposition: AVAsset, @unchecked Sendable {
+@objc(AVComposition) open class AVComposition: AVAsset, @unchecked Sendable {
     var _tracks: [AVMutableCompositionTrack] = []
     var _naturalSize: CGSize = .zero
     init() { super.init(_url: nil) }
@@ -300,7 +300,7 @@ open class AVComposition: AVAsset, @unchecked Sendable {
     open override func track(withTrackID id: CMPersistentTrackID) -> AVCompositionTrack? { _tracks.first { $0.trackID == id } }
 }
 
-open class AVMutableComposition: AVComposition, @unchecked Sendable {
+@objc(AVMutableComposition) open class AVMutableComposition: AVComposition, @unchecked Sendable {
     public override init() { super.init() }
     public convenience init(urlAssetInitializationOptions: [String: Any]? = nil) { self.init() }
     open override var naturalSize: CGSize { get { super.naturalSize } set { _naturalSize = newValue } }
@@ -331,11 +331,11 @@ open class AVMutableComposition: AVComposition, @unchecked Sendable {
 }
 public let kCMPersistentTrackID_Invalid: CMPersistentTrackID = 0
 
-open class AVAudioMix: NSObject, @unchecked Sendable {}
-open class AVMutableAudioMix: AVAudioMix, @unchecked Sendable {
+@objc(AVAudioMix) open class AVAudioMix: NSObject, @unchecked Sendable {}
+@objc(AVMutableAudioMix) open class AVMutableAudioMix: AVAudioMix, @unchecked Sendable {
     open var inputParameters: [AVAudioMixInputParameters] = []
 }
-open class AVAudioMixInputParameters: NSObject, @unchecked Sendable {
+@objc(AVAudioMixInputParameters) open class AVAudioMixInputParameters: NSObject, @unchecked Sendable {
     open var trackID: CMPersistentTrackID = 0
     open var audioTimePitchAlgorithm: AVAudioTimePitchAlgorithm?
     /// volume changes in time order: a constant volume from `start`, or a ramp over [start, end]
@@ -369,7 +369,7 @@ open class AVAudioMixInputParameters: NSObject, @unchecked Sendable {
     }
     func _filter(offset: Double = 0) -> String? { _expression(offset: offset).map { "volume='\($0)':eval=frame" } }
 }
-open class AVMutableAudioMixInputParameters: AVAudioMixInputParameters, @unchecked Sendable {
+@objc(AVMutableAudioMixInputParameters) open class AVMutableAudioMixInputParameters: AVAudioMixInputParameters, @unchecked Sendable {
     public convenience init(track: AVAssetTrack?) { self.init(); trackID = track?.trackID ?? 0 }
     open func setVolume(_ volume: Float, at time: CMTime) {
         let t = time.isNumeric ? time.seconds : 0
@@ -413,7 +413,7 @@ public let AVAssetExportPresetHEVC1920x1080 = "AVAssetExportPresetHEVC1920x1080"
 public let AVAssetExportPresetHEVC3840x2160 = "AVAssetExportPresetHEVC3840x2160"
 public let AVAssetExportPresetAppleM4A = "AVAssetExportPresetAppleM4A"
 
-open class AVAssetExportSession: NSObject, @unchecked Sendable {
+@objc(AVAssetExportSession) open class AVAssetExportSession: NSObject, @unchecked Sendable {
     @objc public enum Status: Int, Sendable { case unknown = 0, waiting, exporting, completed, failed, cancelled }
     public let asset: AVAsset
     public let presetName: String
@@ -686,7 +686,7 @@ extension Double { var nonZero: Double? { self > 0 ? self : nil } }
 
 // MARK: - AVAssetReader
 
-open class AVAssetReaderOutput: NSObject, @unchecked Sendable {
+@objc(AVAssetReaderOutput) open class AVAssetReaderOutput: NSObject, @unchecked Sendable {
     open var mediaType: AVMediaType { .video }
     open var alwaysCopiesSampleData = true
     /// with random access, the output ends each time range (copyNextSampleBuffer returns nil) and reads the next ones
@@ -888,7 +888,7 @@ final class _PassthroughStream: _ReaderStream {
 
 /// Decoded (or, with nil output settings, stored compressed) samples of one track: video as CVPixelBuffers (32BGRA or
 /// 420 per outputSettings), audio as linear PCM. Composition tracks are rendered first.
-open class AVAssetReaderTrackOutput: AVAssetReaderOutput, @unchecked Sendable {
+@objc(AVAssetReaderTrackOutput) open class AVAssetReaderTrackOutput: AVAssetReaderOutput, @unchecked Sendable {
     public let track: AVAssetTrack
     public let outputSettings: [String: Any]?
     open override var mediaType: AVMediaType { track.mediaType }
@@ -910,7 +910,7 @@ open class AVAssetReaderTrackOutput: AVAssetReaderOutput, @unchecked Sendable {
 }
 
 /// The asset's audio tracks mixed (at the audio mix's volumes and ramps) as linear PCM.
-open class AVAssetReaderAudioMixOutput: AVAssetReaderOutput, @unchecked Sendable {
+@objc(AVAssetReaderAudioMixOutput) open class AVAssetReaderAudioMixOutput: AVAssetReaderOutput, @unchecked Sendable {
     public let audioTracks: [AVAssetTrack]
     public let audioSettings: [String: Any]?
     open var audioMix: AVAudioMix?
@@ -924,7 +924,7 @@ open class AVAssetReaderAudioMixOutput: AVAssetReaderOutput, @unchecked Sendable
 }
 
 /// The asset's video as the video composition renders it (render size, frame duration).
-open class AVAssetReaderVideoCompositionOutput: AVAssetReaderOutput, @unchecked Sendable {
+@objc(AVAssetReaderVideoCompositionOutput) open class AVAssetReaderVideoCompositionOutput: AVAssetReaderOutput, @unchecked Sendable {
     public let videoTracks: [AVAssetTrack]
     public let videoSettings: [String: Any]?
     open var videoComposition: AVVideoComposition?
@@ -934,7 +934,7 @@ open class AVAssetReaderVideoCompositionOutput: AVAssetReaderOutput, @unchecked 
     open override var mediaType: AVMediaType { .video }
     public init(videoTracks: [AVAssetTrack], videoSettings: [String: Any]?) { self.videoTracks = videoTracks; self.videoSettings = videoSettings }
     override func _open(_ range: CMTimeRange) -> _ReaderStream? {
-        if _compositor == nil, let k = videoComposition?.customVideoCompositorClass { _compositor = _avMakeCompositor(k) }
+        if _compositor == nil, let vc = videoComposition { _compositor = _avMakeCompositor(vc) }
         guard let asset = _reader?.asset,
               let u = _reader?._render(video: true, audioTrackIDs: [], audioMix: nil, videoComposition: videoComposition, compositor: _compositor) else { return nil }
         let size = videoComposition.map { $0.renderSize.width > 0 ? $0.renderSize : asset.naturalSize } ?? asset.naturalSize
@@ -943,7 +943,7 @@ open class AVAssetReaderVideoCompositionOutput: AVAssetReaderOutput, @unchecked 
     }
 }
 
-open class AVAssetReader: NSObject, @unchecked Sendable {
+@objc(AVAssetReader) open class AVAssetReader: NSObject, @unchecked Sendable {
     @objc public enum Status: Int, Sendable { case unknown = 0, reading, completed, failed, cancelled }
     public let asset: AVAsset
     open private(set) var outputs: [AVAssetReaderOutput] = []
@@ -1028,7 +1028,7 @@ final class _RawVideoSink: @unchecked Sendable {
     }
 }
 
-open class AVAssetWriterInput: NSObject, @unchecked Sendable {
+@objc(AVAssetWriterInput) open class AVAssetWriterInput: NSObject, @unchecked Sendable {
     public let mediaType: AVMediaType
     public let outputSettings: [String: Any]?
     public let sourceFormatHint: CMFormatDescription?
@@ -1104,7 +1104,7 @@ open class AVAssetWriterInput: NSObject, @unchecked Sendable {
     open func addTrackAssociation(withTrackOf input: AVAssetWriterInput, type: String) {}
 }
 
-open class AVAssetWriterInputPixelBufferAdaptor: NSObject, @unchecked Sendable {
+@objc(AVAssetWriterInputPixelBufferAdaptor) open class AVAssetWriterInputPixelBufferAdaptor: NSObject, @unchecked Sendable {
     public let assetWriterInput: AVAssetWriterInput
     public let sourcePixelBufferAttributes: [String: Any]?
     public init(assetWriterInput input: AVAssetWriterInput, sourcePixelBufferAttributes: [String: Any]?) {
@@ -1126,7 +1126,7 @@ open class AVAssetWriterInputPixelBufferAdaptor: NSObject, @unchecked Sendable {
     }
 }
 
-open class AVAssetWriter: NSObject, @unchecked Sendable {
+@objc(AVAssetWriter) open class AVAssetWriter: NSObject, @unchecked Sendable {
     @objc public enum Status: Int, Sendable { case unknown = 0, writing, completed, failed, cancelled }
     public let outputURL: URL
     public let outputFileType: AVFileType
