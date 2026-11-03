@@ -425,7 +425,8 @@ int BNNSFilterApplyTwoInputBatch(BNNSFilter filter, size_t batch_size, const voi
         float *bb = bn_load(bd, (const char *)inB + bn_bytes(bd, b * inB_stride), NULL);
         if (!a || !bb) r = -1;
         else r = f->kind == BK_BMM ? bmm_compute(L, a, bb, y) : contract_run(L, a, bb, NULL, y, NULL, NULL);
-        if (!r) r = bn_store(&L->o, (char *)out + bn_bytes(&L->o, b * out_stride), y, 0);
+        int acc = (f->kind == BK_BMM && L->p.bmm.beta != 0) || (f->kind == BK_CONTRACT && L->p.contract.beta != 0);
+        if (!r) r = bn_store(&L->o, (char *)out + bn_bytes(&L->o, b * out_stride), y, acc);
         free(a); free(bb);
     }
     free(y);

@@ -666,7 +666,9 @@ static int apply_batch(bn_filter *f, size_t batch, const void *in, size_t in_str
             r = pool_forward(L, x[b], y[b], indices[b], 1);
         }
     } else if (!r && f->kind != BK_EMBED) r = bn_layer_forward(f, batch, x, y, training);
-    for (size_t b = 0; b < batch && !r; b++) r = bn_store(od, (char *)out + bn_bytes(od, b * out_stride), y[b], 0);
+    /* beta = 1: the matrix product and the contraction add to what the output holds */
+    int acc = (f->kind == BK_BMM && L->p.bmm.beta != 0) || (f->kind == BK_CONTRACT && L->p.contract.beta != 0);
+    for (size_t b = 0; b < batch && !r; b++) r = bn_store(od, (char *)out + bn_bytes(od, b * out_stride), y[b], acc);
     for (size_t b = 0; b < batch; b++) { free(x[b]); free(y[b]); }
     free(x); free(y);
     return r;

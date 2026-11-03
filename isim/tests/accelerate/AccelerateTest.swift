@@ -318,6 +318,7 @@ func close<T: BinaryFloatingPoint>(_ a: [T], _ b: [Double], _ tol: Double = 1e-9
             check(e == .integrateMaxEval && !e.errorDescription.isEmpty, "Quadrature.Error.integrateMaxEval")
         } else { check(false, "Quadrature max eval") }
 
+        bnnsSwiftChecks()   // BNNSTest.swift (issue #823)
         print("accelerate swift: \(checks - failures)/\(checks) passed")
         exit(failures == 0 ? 0 : 1)
     }
