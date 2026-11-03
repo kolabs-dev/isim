@@ -129,6 +129,9 @@ import UIKit
             if d.progress.totalUnitCount < 0 { d.progress.totalUnitCount = d.progress.completedUnitCount }
             d.progress.completedUnitCount = d.progress.totalUnitCount
             d.delegate?.downloadDidFinish?(d)
+            // it finished before a cancel reached the engine: like WebKit, the cancel's handler still runs, with no
+            // resume data (there is nothing left to resume) (#769)
+            if let c = d.cancelled { d.cancelled = nil; c(nil) }
         case "dlfail":
             guard let d = live.removeValue(forKey: id) else { return }
             d.finished = true

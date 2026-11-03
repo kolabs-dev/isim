@@ -460,7 +460,7 @@ final class TransfersViewController: UIViewController, WKNavigationDelegate, WKU
     let web = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
     var step = 0
     var resumable: Data?
-    var cancelling = false
+    var slow: WKDownload?                 // the download to cancel: if it finishes first, the cancel came too late
     var observation: NSKeyValueObservation?
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -492,19 +492,22 @@ final class TransfersViewController: UIViewController, WKNavigationDelegate, WKU
                 d.delegate = self
             }
         case 5:
-            web.startDownload(using: URLRequest(url: URL(string: serverURL + "/slowbytes/400000")!)) { d in d.delegate = self; self.watchToCancel(d) }
+            web.startDownload(using: URLRequest(url: URL(string: serverURL + "/slowbytes/400000")!)) { d in
+                d.delegate = self; self.slow = d; self.watchToCancel(d)
+            }
         case 6: web.load(URLRequest(url: URL(string: serverURL + "/camera")!))
         default: break
         }
     }
     func watchToCancel(_ d: WKDownload) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            guard d === self.slow else { return }                       // it finished first (downloadDidFinish)
             guard d.progress.completedUnitCount > 0 else { self.watchToCancel(d); return }
-            self.cancelling = true
             d.cancel { data in
-                log("cancelled resumeData \(data != nil)")
+                guard let data, d === self.slow else { return }         // it finished before the cancel arrived
+                self.slow = nil
+                log("cancelled resumeData true")
                 self.resumable = data
-                guard let data else { return }
                 self.web.resumeDownload(fromResumeData: data) { r in r.delegate = self; log("resumed") }
             }
         }
@@ -550,6 +553,13 @@ final class TransfersViewController: UIViewController, WKNavigationDelegate, WKU
         completionHandler(dest)
     }
     func downloadDidFinish(_ download: WKDownload) {
+        if download === slow {
+            // it finished before the cancel reached it (a busy machine): there is nothing to resume, so cancel a new one
+            slow = nil
+            log("the download finished before it could be cancelled; again")
+            step -= 1; next()
+            return
+        }
         let path = FileManager.default.temporaryDirectory.appendingPathComponent(download.originalRequest?.url?.lastPathComponent ?? "-")
         let name = download.originalRequest?.url?.path == "/attachment" ? "report.txt" : path.lastPathComponent
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(name)
