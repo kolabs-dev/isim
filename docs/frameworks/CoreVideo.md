@@ -15,7 +15,7 @@
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
-| `CVPixelBufferCreate`, `CVPixelBufferCreateWithBytes`, getters (width, height, pixel format, bytes per row, data size, planes), `CVPixelBufferRetain` / `Release`, `CVPixelBufferGetTypeID`, from C | ✅ | 4.0 | adapted: main memory, no IOSurface; `pixelBufferAttributes` ignored on create. Tested (HelloQuartzCoreObjC) |
+| `CVPixelBufferCreate`, `CVPixelBufferCreateWithBytes`, getters (width, height, pixel format, bytes per row, data size, planes), `CVPixelBufferRetain` / `Release`, `CVPixelBufferGetTypeID`, from C | ✅ | 4.0 | adapted: main memory, no IOSurface; `pixelBufferAttributes` ignored on create; `CVPixelBufferCreateWithBytes` wraps any single-plane format given its row stride (packed Y'CbCr such as `2vuy` or `v216` too, used by vImage: #693). Tested (HelloQuartzCoreObjC) |
 | `CVPixelBufferLockBaseAddress` / `UnlockBaseAddress`, `CVPixelBufferGetBaseAddress(OfPlane)` | ✅ | 4.0 | adapted: the memory is always mapped; locking only checks its argument. Tested (HelloQuartzCoreObjC: write rows, read back) |
 | `CVPixelBufferCreateWithPlanarBytes` (Swift and C) | ✅ | 4.0 | bi-planar formats (`420v`, `420f`) over the caller's planes; the release callback gets the plane addresses. Tested (HelloQuartzCoreObjC) |
 | `CVBufferSetAttachment` / `GetAttachment` / `CopyAttachment` / `HasAttachment` / `RemoveAttachment` / `RemoveAllAttachments`, `CVBufferGetAttachments` / `CopyAttachments` / `SetAttachments`, `CVBufferPropagateAttachments`, `CVAttachmentMode` (Swift and C) | ✅ | 4.0 | adapted: kept with the buffer; propagation copies the `shouldPropagate` ones. `kCVImageBuffer…` colour keys and values. Tested (HelloQuartzCoreObjC) |

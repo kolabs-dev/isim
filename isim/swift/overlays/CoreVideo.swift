@@ -207,7 +207,8 @@ public typealias CVPixelBufferReleaseBytesCallback = @convention(c) (UnsafeMutab
                                          _ releaseCallback: CVPixelBufferReleaseBytesCallback?, _ releaseRefCon: UnsafeMutableRawPointer?,
                                          _ pixelBufferAttributes: CFDictionary?, _ pixelBufferOut: UnsafeMutablePointer<CVPixelBuffer?>) -> CVReturn {
     guard width > 0, height > 0 else { return kCVReturnInvalidSize }
-    guard CVBuffer.bytesPerPixel(pixelFormatType) != nil else { return kCVReturnInvalidPixelFormat }
+    // any single-plane format: the caller's bytes and row stride describe it (packed Y'CbCr like 2vuy or v210 too)
+    guard !CVBuffer.isBiPlanar(pixelFormatType), bytesPerRow > 0 else { return kCVReturnInvalidPixelFormat }
     let base = UnsafeRawPointer(baseAddress)
     pixelBufferOut.pointee = CVBuffer(_wrapping: baseAddress, width: width, height: height, format: pixelFormatType, bytesPerRow: bytesPerRow,
                                       release: releaseCallback.map { cb in { cb(releaseRefCon, base) } })

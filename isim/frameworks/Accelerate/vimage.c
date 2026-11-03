@@ -442,7 +442,11 @@ struct vImageConverter {
     vImage_CGImageFormat src, dst;
     float bg[3];
     int has_bg;
-    vImageBufferTypeCode src_order[2], dst_order[2];
+    vImageBufferTypeCode src_order[6], dst_order[6];
+    /* a Core Video converter (vimage_cv.c): its own data, how to run and free it */
+    void *cv;
+    vImage_Error (*cv_run)(void *cv, const vImage_Buffer *srcs, const vImage_Buffer *dests, vImage_Flags flags);
+    void (*cv_free)(void *cv);
 };
 
 static void converter_free(void *p) {
@@ -450,6 +454,7 @@ static void converter_free(void *p) {
     if (c->src.colorSpace) CGColorSpaceRelease(c->src.colorSpace);
     if (c->dst.colorSpace) CGColorSpaceRelease(c->dst.colorSpace);
     free((void *)c->src.decode); free((void *)c->dst.decode);
+    if (c->cv_free) c->cv_free(c->cv);
 }
 
 static void format_copy(vImage_CGImageFormat *d, const vImage_CGImageFormat *s) {
@@ -478,13 +483,27 @@ vImageConverterRef vImageConverter_CreateWithCGImageFormat(const vImage_CGImageF
 
 vImageConverterRef vImageConverter_Retain(vImageConverterRef c) { return c ? (vImageConverterRef)CFRetain(c) : NULL; }
 void vImageConverter_Release(vImageConverterRef c) { if (c) CFRelease(c); }
-unsigned long vImageConverter_GetNumberOfSourceBuffers(const vImageConverterRef converter) { return converter ? 1 : 0; }
-unsigned long vImageConverter_GetNumberOfDestinationBuffers(const vImageConverterRef converter) { return converter ? 1 : 0; }
+static unsigned long order_count(const vImageBufferTypeCode *o) { unsigned long n = 0; while (n < 5 && o[n] != kvImageBufferTypeCode_EndOfList) n++; return n; }
+unsigned long vImageConverter_GetNumberOfSourceBuffers(const vImageConverterRef converter) { return converter ? order_count(converter->src_order) : 0; }
+unsigned long vImageConverter_GetNumberOfDestinationBuffers(const vImageConverterRef converter) { return converter ? order_count(converter->dst_order) : 0; }
+
+/* for vimage_cv.c */
+vImageConverterRef vimage_cv_converter(void *cv, vImage_Error (*run)(void *, const vImage_Buffer *, const vImage_Buffer *, vImage_Flags),
+                                       void (*cv_free)(void *), const vImageBufferTypeCode *src_order, const vImageBufferTypeCode *dst_order) {
+    struct vImageConverter *c = isim_cg_obj_new("vImageConverter", sizeof *c, converter_free);
+    if (!c) return NULL;
+    c->cv = cv; c->cv_run = run; c->cv_free = cv_free;
+    for (int i = 0; i < 5; i++) { c->src_order[i] = src_order[i]; if (!src_order[i]) break; }
+    for (int i = 0; i < 5; i++) { c->dst_order[i] = dst_order[i]; if (!dst_order[i]) break; }
+    return c;
+}
+void *vimage_converter_cv(vImageConverterRef c) { return c ? c->cv : NULL; }
 const vImageBufferTypeCode *vImageConverter_GetSourceBufferOrder(const vImageConverterRef converter) { return converter ? converter->src_order : NULL; }
 const vImageBufferTypeCode *vImageConverter_GetDestinationBufferOrder(const vImageConverterRef converter) { return converter ? converter->dst_order : NULL; }
 vImage_Error vImageConverter_MustOperateOutOfPlace(const vImageConverterRef converter, const vImage_Buffer *srcs, const vImage_Buffer *dests,
                                                    vImage_Flags flags) {
     if (!converter) return kvImageNullPointerArgument;
+    if (converter->cv_run) return kvImageOutOfPlaceOperationRequired;
     if (!srcs || !dests || srcs->data != dests->data) return kvImageNoError;
     return converter->src.bitsPerPixel == converter->dst.bitsPerPixel ? kvImageNoError : kvImageOutOfPlaceOperationRequired;
 }
@@ -493,6 +512,7 @@ vImage_Error vImageConvert_AnyToAny(const vImageConverterRef converter, const vI
                                     vImage_Flags flags) {
     if (flags & kvImageGetTempBufferSize) return 0;
     if (!converter || !srcs || !dests) return kvImageNullPointerArgument;
+    if (converter->cv_run) return converter->cv_run(converter->cv, srcs, dests, flags);
     vImage_Error e = vsame(srcs, dests);
     if (e) return e;
     cglayout a, b;

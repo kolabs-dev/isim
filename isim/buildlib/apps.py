@@ -1398,7 +1398,7 @@ def _(a):
     os.replace(os.path.join(b, "C-Info.plist"), os.path.join(b, "Info.plist"))
     b = a.swift_app("VImageTest", srcs=["VImageTest.swift"], plist="VImage-Info.plist")
     os.replace(os.path.join(b, "VImage-Info.plist"), os.path.join(b, "Info.plist"))
-    b = a.objc_app(["vimage_main.m"], "VImageC-Info.plist", ["-framework", "Accelerate", "-framework", "CoreGraphics"], name="VImageCTest")
+    b = a.objc_app(["vimage_main.m"], "VImageC-Info.plist", ["-framework", "Accelerate", "-framework", "CoreGraphics", "-framework", "CoreVideo"], name="VImageCTest")
     os.replace(os.path.join(b, "VImageC-Info.plist"), os.path.join(b, "Info.plist"))
 
 

@@ -696,6 +696,126 @@ VIMAGE_PF vImage_Error vImageNewResamplingFilterForFunctionUsingBuffer(Resamplin
 VIMAGE_PF vImageConverterRef vImageConverter_Retain(vImageConverterRef converter);
 VIMAGE_PF void vImageConverter_Release(vImageConverterRef converter);
 
+/* ---- issue #693: 10/16-bit Y'CbCr, 4:2:2 with an alpha plane ---- */
+VIMAGE_PF vImage_Error vImageConvert_422CbYpCrYp16ToARGB8888(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_YpCbCrToARGB *info, const uint8_t permuteMap[4], const uint8_t alpha, vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_422CbYpCrYp16ToARGB16U(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_YpCbCrToARGB *info, const uint8_t permuteMap[4], const uint16_t alpha, vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB8888To422CbYpCrYp16(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_ARGBToYpCbCr *info, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB16UTo422CbYpCrYp16(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_ARGBToYpCbCr *info, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_444AYpCbCr16ToARGB8888(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_YpCbCrToARGB *info, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_444AYpCbCr16ToARGB16U(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_YpCbCrToARGB *info, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB8888To444AYpCbCr16(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_ARGBToYpCbCr *info, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB16UTo444AYpCbCr16(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_ARGBToYpCbCr *info, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_444CrYpCb10ToARGB8888(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_YpCbCrToARGB *info, const uint8_t permuteMap[4], const uint8_t alpha, vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_444CrYpCb10ToARGB16Q12(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_YpCbCrToARGB *info, const uint8_t permuteMap[4], const Pixel_16Q12 alpha, vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB8888To444CrYpCb10(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_ARGBToYpCbCr *info, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB16Q12To444CrYpCb10(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_ARGBToYpCbCr *info, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_422CrYpCbYpCbYpCbYpCrYpCrYp10ToARGB8888(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_YpCbCrToARGB *info, const uint8_t permuteMap[4], const uint8_t alpha, vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_422CrYpCbYpCbYpCbYpCrYpCrYp10ToARGB16Q12(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_YpCbCrToARGB *info, const uint8_t permuteMap[4], const Pixel_16Q12 alpha, vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB8888To422CrYpCbYpCbYpCbYpCrYpCrYp10(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_ARGBToYpCbCr *info, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB16Q12To422CrYpCbYpCbYpCbYpCrYpCrYp10(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_ARGBToYpCbCr *info, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_422CbYpCrYp8_AA8ToARGB8888(const vImage_Buffer *src, const vImage_Buffer *srcA, const vImage_Buffer *dest, const vImage_YpCbCrToARGB *info, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB8888To422CbYpCrYp8_AA8(const vImage_Buffer *src, const vImage_Buffer *dest, const vImage_Buffer *destA, const vImage_ARGBToYpCbCr *info, const uint8_t permuteMap[4], vImage_Flags flags);
+
+/* ---- issue #693: 10-bit packed RGB (one host-order 32-bit word per pixel) ---- */
+typedef uint32_t Pixel_32U;
+VIMAGE_PF vImage_Error vImageConvert_ARGB8888ToARGB2101010(const vImage_Buffer *src, const vImage_Buffer *dest, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB8888ToXRGB2101010(const vImage_Buffer *src, const vImage_Buffer *dest, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB8888ToRGBA1010102(const vImage_Buffer *src, const vImage_Buffer *dest, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB16UToARGB2101010(const vImage_Buffer *src, const vImage_Buffer *dest, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB16UToXRGB2101010(const vImage_Buffer *src, const vImage_Buffer *dest, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB16UToRGBA1010102(const vImage_Buffer *src, const vImage_Buffer *dest, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGBFFFFToARGB2101010(const vImage_Buffer *src, const vImage_Buffer *dest, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGBFFFFToXRGB2101010(const vImage_Buffer *src, const vImage_Buffer *dest, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB16Q12ToARGB2101010(const vImage_Buffer *src, const vImage_Buffer *dest, int32_t RGB101010BlackPoint, int32_t RGB101010WhitePoint, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB16Q12ToXRGB2101010(const vImage_Buffer *src, const vImage_Buffer *dest, int32_t RGB101010BlackPoint, int32_t RGB101010WhitePoint, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB16Q12ToRGBA1010102(const vImage_Buffer *src, const vImage_Buffer *dest, int32_t RGB101010BlackPoint, int32_t RGB101010WhitePoint, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB2101010ToARGB8888(const vImage_Buffer *src, const vImage_Buffer *dest, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB2101010ToARGB16U(const vImage_Buffer *src, const vImage_Buffer *dest, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB2101010ToARGBFFFF(const vImage_Buffer *src, const vImage_Buffer *dest, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB2101010ToARGB16F(const vImage_Buffer *src, const vImage_Buffer *dest, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_ARGB2101010ToARGB16Q12(const vImage_Buffer *src, const vImage_Buffer *dest, int32_t RGB101010BlackPoint, int32_t RGB101010WhitePoint, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_RGBA1010102ToARGB8888(const vImage_Buffer *src, const vImage_Buffer *dest, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_RGBA1010102ToARGB16U(const vImage_Buffer *src, const vImage_Buffer *dest, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_RGBA1010102ToARGB16Q12(const vImage_Buffer *src, const vImage_Buffer *dest, int32_t RGB101010BlackPoint, int32_t RGB101010WhitePoint, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_XRGB2101010ToARGB8888(const vImage_Buffer *src, Pixel_8 alpha, const vImage_Buffer *dest, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_XRGB2101010ToARGB16U(const vImage_Buffer *src, uint16_t alpha, const vImage_Buffer *dest, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_XRGB2101010ToARGBFFFF(const vImage_Buffer *src, Pixel_F alpha, const vImage_Buffer *dest, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_XRGB2101010ToARGB16F(const vImage_Buffer *src, Pixel_F alpha, const vImage_Buffer *dest, int32_t RGB101010RangeMin, int32_t RGB101010RangeMax, const uint8_t permuteMap[4], vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_XRGB2101010ToARGB16Q12(const vImage_Buffer *src, Pixel_16Q12 alpha, const vImage_Buffer *dest, int32_t RGB101010BlackPoint, int32_t RGB101010WhitePoint, const uint8_t permuteMap[4], vImage_Flags flags);
+/* XRGB2101010W: extended range, 384 is 0.0 and 894 is 1.0 */
+VIMAGE_PF vImage_Error vImageScale_XRGB2101010W(const vImage_Buffer *src, const vImage_Buffer *dest, void *tempBuffer, vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageHorizontalShear_XRGB2101010W(const vImage_Buffer *src, const vImage_Buffer *dest, vImagePixelCount srcOffsetToROI_X, vImagePixelCount srcOffsetToROI_Y, float xTranslate, float shearSlope, ResamplingFilter filter, Pixel_32U backColor, vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageVerticalShear_XRGB2101010W(const vImage_Buffer *src, const vImage_Buffer *dest, vImagePixelCount srcOffsetToROI_X, vImagePixelCount srcOffsetToROI_Y, float yTranslate, float shearSlope, ResamplingFilter filter, Pixel_32U backColor, vImage_Flags flags);
+
+/* ---- issue #693: Planar8 to indexed, multidimensional tables, Richardson-Lucy, Planar8 -> 16U, PNG filters, colour spaces ---- */
+VIMAGE_PF vImage_Error vImageConvert_Planar8toIndexed1(const vImage_Buffer *src, const vImage_Buffer *dest, void *tempBuffer, Pixel_8 colors[2], int dither, vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_Planar8toIndexed2(const vImage_Buffer *src, const vImage_Buffer *dest, void *tempBuffer, Pixel_8 colors[4], int dither, vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageConvert_Planar8toIndexed4(const vImage_Buffer *src, const vImage_Buffer *dest, void *tempBuffer, Pixel_8 colors[16], int dither, vImage_Flags flags);
+typedef struct vImage_MultidimensionalTableData *vImage_MultidimensionalTable;
+typedef uint32_t vImageMDTableUsageHint;
+enum { kvImageMDTableHint_16Q12 = 1, kvImageMDTableHint_Float = 2 };
+typedef uint32_t vImage_InterpolationMethod;
+enum { kvImageNoInterpolation = 0, kvImageFullInterpolation = 1, kvImageHalfInterpolation = 2 };
+VIMAGE_PF vImage_MultidimensionalTable vImageMultidimensionalTable_Create(const uint16_t *tableData, uint32_t numSrcChannels, uint32_t numDestChannels, const uint8_t table_entries_per_dimension[], vImageMDTableUsageHint hint, vImage_Flags flags, vImage_Error *err);
+VIMAGE_PF vImage_Error vImageMultidimensionalTable_Retain(vImage_MultidimensionalTable table);
+VIMAGE_PF vImage_Error vImageMultidimensionalTable_Release(vImage_MultidimensionalTable table);
+VIMAGE_PF vImage_Error vImageMultiDimensionalInterpolatedLookupTable_PlanarF(const vImage_Buffer srcs[], const vImage_Buffer dests[], void *tempBuffer, vImage_MultidimensionalTable table, vImage_InterpolationMethod method, vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageMultiDimensionalInterpolatedLookupTable_Planar16Q12(const vImage_Buffer srcs[], const vImage_Buffer dests[], void *tempBuffer, vImage_MultidimensionalTable table, vImage_InterpolationMethod method, vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageRichardsonLucyDeConvolve_Planar8(const vImage_Buffer *src, const vImage_Buffer *dest, void *tempBuffer, vImagePixelCount srcOffsetToROI_X, vImagePixelCount srcOffsetToROI_Y, const int16_t *kernel, const int16_t *kernel2, uint32_t kernel_height, uint32_t kernel_width, uint32_t kernel_height2, uint32_t kernel_width2, int32_t divisor, int32_t divisor2, Pixel_8 backgroundColor, uint32_t iterationCount, vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageRichardsonLucyDeConvolve_PlanarF(const vImage_Buffer *src, const vImage_Buffer *dest, void *tempBuffer, vImagePixelCount srcOffsetToROI_X, vImagePixelCount srcOffsetToROI_Y, const float *kernel, const float *kernel2, uint32_t kernel_height, uint32_t kernel_width, uint32_t kernel_height2, uint32_t kernel_width2, Pixel_F backgroundColor, uint32_t iterationCount, vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageRichardsonLucyDeConvolve_ARGB8888(const vImage_Buffer *src, const vImage_Buffer *dest, void *tempBuffer, vImagePixelCount srcOffsetToROI_X, vImagePixelCount srcOffsetToROI_Y, const int16_t *kernel, const int16_t *kernel2, uint32_t kernel_height, uint32_t kernel_width, uint32_t kernel_height2, uint32_t kernel_width2, int32_t divisor, int32_t divisor2, const Pixel_8888 backgroundColor, uint32_t iterationCount, vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageRichardsonLucyDeConvolve_ARGBFFFF(const vImage_Buffer *src, const vImage_Buffer *dest, void *tempBuffer, vImagePixelCount srcOffsetToROI_X, vImagePixelCount srcOffsetToROI_Y, const float *kernel, const float *kernel2, uint32_t kernel_height, uint32_t kernel_width, uint32_t kernel_height2, uint32_t kernel_width2, const Pixel_FFFF backgroundColor, uint32_t iterationCount, vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageSepConvolve_Planar8to16U(const vImage_Buffer *src, const vImage_Buffer *dest, void *tempBuffer, vImagePixelCount srcOffsetToROI_X, vImagePixelCount srcOffsetToROI_Y, const float *kernelX, uint32_t kernelX_width, const float *kernelY, uint32_t kernelY_width, float scale, float bias, Pixel_8 backgroundColor, vImage_Flags flags);
+enum { kvImage_PNG_FILTER_VALUE_NONE = 0, kvImage_PNG_FILTER_VALUE_SUB = 1, kvImage_PNG_FILTER_VALUE_UP = 2, kvImage_PNG_FILTER_VALUE_AVG = 3, kvImage_PNG_FILTER_VALUE_PAETH = 4 };
+VIMAGE_PF vImage_Error vImagePNGDecompressionFilter(const vImage_Buffer *buffer, vImagePixelCount startScanline, vImagePixelCount scanlineCount, uint32_t bitsPerPixel, uint32_t filterMethodNumber, uint32_t filterType, vImage_Flags flags);
+typedef struct vImageRGBPrimaries { float red_x, green_x, blue_x, white_x, red_y, green_y, blue_y, white_y; } vImageRGBPrimaries;
+typedef struct vImageWhitePoint { float white_x, white_y; } vImageWhitePoint;
+/* y = c0 * (c1 * x + c2)^gamma + c3 for x >= cutoff, c4 * x + c5 below */
+typedef struct vImageTransferFunction { CGFloat c0, c1, c2, c3, gamma, cutoff, c4, c5; } vImageTransferFunction;
+VIMAGE_PF CGColorSpaceRef vImageCreateRGBColorSpaceWithPrimariesAndTransferFunction(const vImageRGBPrimaries *primaries, const vImageTransferFunction *tf, CGColorRenderingIntent intent, vImage_Flags flags, vImage_Error *error);
+VIMAGE_PF CGColorSpaceRef vImageCreateMonochromeColorSpaceWithWhitePointAndTransferFunction(const vImageWhitePoint *whitePoint, const vImageTransferFunction *tf, CGColorRenderingIntent intent, vImage_Flags flags, vImage_Error *error);
+
+/* ---- issue #693: Core Video ---- */
+typedef struct __attribute__((objc_bridge(id))) vImageCVImageFormat *vImageCVImageFormatRef;
+typedef const struct __attribute__((objc_bridge(id))) vImageCVImageFormat *vImageConstCVImageFormatRef;
+typedef struct vImageChannelDescription { CGFloat min, zero, full, max; } vImageChannelDescription;
+typedef uint32_t vImageMatrixType;
+enum { kvImageMatrixType_None = 0, kvImageMatrixType_ARGBToYpCbCrMatrix = 1 };
+enum {
+    kvImageCVImageFormat_NoError = 0, kvImageCVImageFormat_ConversionMatrix = -21590, kvImageCVImageFormat_ChromaSiting = -21591,
+    kvImageCVImageFormat_ColorSpace = -21592, kvImageCVImageFormat_VideoChannelDescription = -21593, kvImageCVImageFormat_AlphaIsOneHint = -21594,
+};
+VIMAGE_PF vImageCVImageFormatRef vImageCVImageFormat_Create(uint32_t imageFormatType, const vImage_ARGBToYpCbCrMatrix *matrix, CFStringRef cvImageBufferChromaLocation, CGColorSpaceRef baseColorspace, int alphaIsOneHint);
+VIMAGE_PF vImageCVImageFormatRef vImageCVImageFormat_Copy(vImageConstCVImageFormatRef format);
+VIMAGE_PF vImageCVImageFormatRef vImageCVImageFormat_Retain(vImageCVImageFormatRef fmt);
+VIMAGE_PF void vImageCVImageFormat_Release(vImageCVImageFormatRef fmt);
+VIMAGE_PF uint32_t vImageCVImageFormat_GetFormatCode(vImageConstCVImageFormatRef format);
+VIMAGE_PF uint32_t vImageCVImageFormat_GetChannelCount(vImageConstCVImageFormatRef format);
+VIMAGE_PF const vImageBufferTypeCode *vImageCVImageFormat_GetChannelNames(vImageConstCVImageFormatRef format);
+VIMAGE_PF const vImageChannelDescription *vImageCVImageFormat_GetChannelDescription(vImageConstCVImageFormatRef format, vImageBufferTypeCode type);
+VIMAGE_PF vImage_Error vImageCVImageFormat_CopyChannelDescription(vImageCVImageFormatRef format, const vImageChannelDescription *desc, vImageBufferTypeCode type);
+VIMAGE_PF CFStringRef vImageCVImageFormat_GetChromaSiting(vImageConstCVImageFormatRef format);
+VIMAGE_PF vImage_Error vImageCVImageFormat_SetChromaSiting(vImageCVImageFormatRef format, CFStringRef siting);
+VIMAGE_PF CGColorSpaceRef vImageCVImageFormat_GetColorSpace(vImageConstCVImageFormatRef format);
+VIMAGE_PF vImage_Error vImageCVImageFormat_SetColorSpace(vImageCVImageFormatRef format, CGColorSpaceRef colorspace);
+VIMAGE_PF int vImageCVImageFormat_GetAlphaHint(vImageConstCVImageFormatRef format);
+VIMAGE_PF vImage_Error vImageCVImageFormat_SetAlphaHint(vImageCVImageFormatRef format, int alphaIsOne);
+VIMAGE_PF const void *vImageCVImageFormat_GetConversionMatrix(vImageConstCVImageFormatRef format, vImageMatrixType *outType);
+VIMAGE_PF vImage_Error vImageCVImageFormat_CopyConversionMatrix(vImageCVImageFormatRef format, const void *matrix, vImageMatrixType inType);
+VIMAGE_PF void *vImageCVImageFormat_GetUserData(vImageConstCVImageFormatRef format);
+VIMAGE_PF vImage_Error vImageCVImageFormat_SetUserData(vImageCVImageFormatRef format, void *userData, void (*userDataReleaseCallback)(vImageCVImageFormatRef arg, void *userData));
+VIMAGE_PF vImageConverterRef vImageConverter_CreateForCGToCVImageFormat(const vImage_CGImageFormat *srcFormat, vImageCVImageFormatRef destFormat, const CGFloat *backgroundColor, vImage_Flags flags, vImage_Error *error);
+VIMAGE_PF vImageConverterRef vImageConverter_CreateForCVToCGImageFormat(vImageCVImageFormatRef srcFormat, const vImage_CGImageFormat *destFormat, const CGFloat *backgroundColor, vImage_Flags flags, vImage_Error *error);
+/* the functions taking a CVPixelBuffer (Swift has its own over Swift's CVPixelBuffer, in the overlay) */
+#if !defined(__swift__)
+#include <CoreVideo/CoreVideo.h>
+VIMAGE_PF vImageCVImageFormatRef vImageCVImageFormat_CreateWithCVPixelBuffer(CVPixelBufferRef buffer);
+VIMAGE_PF vImage_Error vImageBuffer_InitWithCVPixelBuffer(vImage_Buffer *buffer, vImage_CGImageFormat *desiredFormat, CVPixelBufferRef cvPixelBuffer, vImageCVImageFormatRef cvImageFormat, const CGFloat *backgroundColor, vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageBuffer_CopyToCVPixelBuffer(const vImage_Buffer *buffer, const vImage_CGImageFormat *bufferFormat, CVPixelBufferRef cvPixelBuffer, vImageCVImageFormatRef cvImageFormat, const CGFloat *backgroundColor, vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageBuffer_InitForCopyToCVPixelBuffer(vImage_Buffer *buffers, const vImageConverterRef converter, const CVPixelBufferRef pixelBuffer, vImage_Flags flags);
+VIMAGE_PF vImage_Error vImageBuffer_InitForCopyFromCVPixelBuffer(vImage_Buffer *buffers, const vImageConverterRef converter, const CVPixelBufferRef pixelBuffer, vImage_Flags flags);
+#endif
+
 #ifdef __cplusplus
 }
 #endif
