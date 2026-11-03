@@ -95,7 +95,20 @@ static int isim_dft_length_ok(size_t n) {
 #define FT FFTSetup
 #define DFTSETUP vDSP_DFT_Setup
 #define DFTSTRUCT struct vDSP_DFT_SetupStruct
+#define IDFTSETUP vDSP_DFT_Interleaved_Setup
+#define IDFTSTRUCT struct vDSP_DFT_Interleaved_SetupStruct
+#define BQSETUP vDSP_biquad_Setup
+#define BQSTRUCT struct vDSP_biquad_SetupStruct
+#define BQMSETUP vDSP_biquadm_Setup
+#define BQMSTRUCT struct vDSP_biquadm_SetupStruct
 #include "vdsp_t.h"
+#include "vdsp2_t.h"
+#undef IDFTSETUP
+#undef IDFTSTRUCT
+#undef BQSETUP
+#undef BQSTRUCT
+#undef BQMSETUP
+#undef BQMSTRUCT
 #undef T
 #undef D
 #undef CT
@@ -110,7 +123,47 @@ static int isim_dft_length_ok(size_t n) {
 #define FT FFTSetupD
 #define DFTSETUP vDSP_DFT_SetupD
 #define DFTSTRUCT struct vDSP_DFT_SetupStructD
+#define IDFTSETUP vDSP_DFT_Interleaved_SetupD
+#define IDFTSTRUCT struct vDSP_DFT_Interleaved_SetupStructD
+#define BQSETUP vDSP_biquad_SetupD
+#define BQSTRUCT struct vDSP_biquad_SetupStructD
+#define BQMSETUP vDSP_biquadm_SetupD
+#define BQMSTRUCT struct vDSP_biquadm_SetupStructD
 #include "vdsp_t.h"
+#include "vdsp2_t.h"
+
+/* the DCT (single precision, as Apple's): lengths f * 2^n, f in 1, 3, 5, 15, n >= 4; unnormalized
+   II: X[k] = sum x[j] cos(pi / N (j + 1/2) k); III: X[k] = x[0] / 2 + sum_{j >= 1} x[j] cos(pi / N j (k + 1/2));
+   IV: X[k] = sum x[j] cos(pi / N (j + 1/2) (k + 1/2)). III undoes II up to N / 2. */
+struct isim_dct { vDSP_Length length; int type; double table[]; };   /* table[m] = cos(pi m / 2N), m < 4N */
+vDSP_DFT_Setup vDSP_DCT_CreateSetup(vDSP_DFT_Setup Previous, vDSP_Length Length, vDSP_DCT_Type Type) {
+    (void)Previous;
+    if (!isim_dft_length_ok(Length) || Length < 16 || (Type != vDSP_DCT_II && Type != vDSP_DCT_III && Type != vDSP_DCT_IV)) return NULL;
+    size_t m = (size_t)8 * Length;                              /* angles in units of pi / 4N cover the IV case */
+    struct isim_dct *s = malloc(sizeof *s + sizeof(double) * m);
+    if (!s) return NULL;
+    s->length = Length; s->type = Type;
+    for (size_t i = 0; i < m; i++) s->table[i] = cos(M_PI * (double)i / (4.0 * (double)Length));
+    return (vDSP_DFT_Setup)s;
+}
+void vDSP_DCT_Execute(const struct vDSP_DFT_SetupStruct *Setup, const float *Input, float *Output) {
+    const struct isim_dct *s = (const struct isim_dct *)Setup;
+    size_t n = s->length, m = 8 * n;
+    double *out = malloc(sizeof(double) * n);
+    for (size_t k = 0; k < n; k++) {
+        double acc = s->type == vDSP_DCT_III ? Input[0] / 2.0 : 0;
+        for (size_t j = (s->type == vDSP_DCT_III ? 1 : 0); j < n; j++) {
+            size_t idx;                                          /* the angle in units of pi / 4N */
+            if (s->type == vDSP_DCT_II) idx = (2 * j + 1) * 2 * k;
+            else if (s->type == vDSP_DCT_III) idx = 2 * j * (2 * k + 1);
+            else idx = (2 * j + 1) * (2 * k + 1);
+            acc += Input[j] * s->table[idx % m];
+        }
+        out[k] = acc;
+    }
+    for (size_t k = 0; k < n; k++) Output[k] = (float)out[k];
+    free(out);
+}
 
 /* conversions: vfix truncates toward zero, vfixr rounds to nearest; both saturate */
 #define CONV(name, IN, OUT, op) \

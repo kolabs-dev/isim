@@ -1,6 +1,7 @@
 // Sample: Accelerate on isim — a signal of two tones (440 Hz and 1 kHz at 8 kHz) windowed with vDSP.window, its
 // spectrum from vDSP.FFT drawn as bars, the peaks found with vDSP.indexOfMaximum, vForce over the magnitudes, and a
-// linear system solved with LAPACK (dgesv_) and checked with BLAS (cblas_dgemv). Every result logs a line the test reads.
+// linear system solved with LAPACK (dgesv_) and checked with BLAS (cblas_dgemv), a vDSP.Biquad low-pass measured on each
+// tone, and an integral from Quadrature. Every result logs a line the test reads.
 // With -vimage: vImage's page instead (VImagePage.swift).
 import UIKit
 import Accelerate
@@ -54,6 +55,24 @@ func solve() -> [Double] {
     return b
 }
 
+/// A 600 Hz low-pass biquad (Butterworth, the RBJ cookbook) on each tone alone: the steady-state gain of each, and
+/// pi as the integral of 4 / (1 + x^2) over [0, 1].
+func filterAndIntegrate() {
+    let w0 = 2 * Double.pi * 600 / rate, alpha = sin(w0) / (2 * 0.5.squareRoot()), a0 = 1 + alpha
+    let coefficients = [(1 - cos(w0)) / 2 / a0, (1 - cos(w0)) / a0, (1 - cos(w0)) / 2 / a0, -2 * cos(w0) / a0, (1 - alpha) / a0]
+    func gain(_ f: Double) -> Double {
+        let x = (0 ..< 8000).map { sin(2 * Double.pi * f * Double($0) / rate) }
+        var lowPass = vDSP.Biquad(coefficients: coefficients, channelCount: 1, sectionCount: 1, ofType: Double.self)!
+        let y = lowPass.apply(input: x)
+        return vDSP.rootMeanSquare(y[4000...]) / vDSP.rootMeanSquare(x[4000...])
+    }
+    log(String(format: "biquad 440 Hz gain %.2f 1 kHz gain %.2f", gain(440), gain(1000)))
+    let quadrature = Quadrature(integrator: .adaptive(pointsPerInterval: .twentyOne, maxIntervals: 20), absoluteTolerance: 1e-12, relativeTolerance: 0)
+    if case .success(let r) = quadrature.integrate(over: 0 ... 1, integrand: { 4 / (1 + $0 * $0) }) {
+        log(String(format: "quadrature pi %.10f", r.integralResult))
+    }
+}
+
 final class SpectrumView: UIView {
     var signal: [Float] = [], spectrum: [Float] = []
     override func draw(_ rect: CGRect) {
@@ -93,6 +112,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         let (signal, spectrum, peaks) = analyse()
         log(String(format: "peaks %.0f Hz %.0f Hz", peaks[0], peaks[1]))
         let x = solve()
+        filterAndIntegrate()
 
         let title = UILabel(frame: CGRect(x: 20, y: 70, width: vc.view.bounds.width - 40, height: 30))
         title.text = "Accelerate"

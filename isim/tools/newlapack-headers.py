@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+"""Generates isim's Accelerate new-LAPACK headers (issue #543): with ACCELERATE_NEW_LAPACK, Apple's SDK declares BLAS and
+LAPACK with `__LAPACK_int`, const-correct pointers and `void` LAPACK results, each bound by an asm label to a
+`<name>$NEWLAPACK` symbol. This reads the functions isim implements from its classic headers (cblas.h, clapack.h,
+preprocessed), takes each one's parameter types and nullability from Apple's documented signatures
+(data/apple-api/apple-api.json.gz), and writes sdk-src/Frameworks/Accelerate/lapack_new.h. The $NEWLAPACK symbols
+are aliases of the classic functions (same LP64 ABI), listed in data/newlapack-symbols.txt for the link."""
+import gzip
+import json
+import os
+import re
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.join(HERE, "..")
+FW = os.path.join(ROOT, "sdk-src", "Frameworks")
+
+
+def classic():
+    """{name: (ret, [param types])} from the classic headers"""
+    src = "#include <Accelerate/cblas.h>\n#include <Accelerate/clapack.h>\n"
+    out = subprocess.run(["clang", "-E", "-P", "-x", "c", "-I", FW, "-"], input=src, text=True, capture_output=True, check=True).stdout
+    out = re.sub(r"\s+", " ", out)
+    decls = {}
+    for m in re.finditer(r'extern __attribute__\(\(visibility\("default"\)\)\) ([\w ]+?) (\w+)\(([^;]*?)\);', out):
+        ret, name, args = m.group(1).strip(), m.group(2), m.group(3)
+        params = [re.sub(r"\s*\b\w+$", "", a.strip()) if not a.strip().endswith("*") else a.strip() for a in args.split(",")]
+        decls[name] = (ret, params)
+    return decls
+
+
+def apple():
+    """{name: [swift signature strings]} for Accelerate's C functions"""
+    d = json.load(gzip.open(os.path.join(ROOT, "data", "apple-api", "apple-api.json.gz")))
+    sigs = {}
+    for e in d["symbols"]["Accelerate"]:
+        m = re.match(r"func (\w+)\((.*)\)( -> (.+))?$", e[1])
+        if m and e[2] == "func":
+            sigs.setdefault(m.group(1), []).append((split(m.group(2)), m.group(4)))
+    return sigs
+
+
+def split(s):
+    out, depth, cur = [], 0, ""
+    for ch in s:
+        if ch in "<(": depth += 1
+        if ch in ">)": depth -= 1
+        if ch == "," and depth == 0:
+            out.append(cur.strip()); cur = ""
+        else:
+            cur += ch
+    if cur.strip(): out.append(cur.strip())
+    return out
+
+
+SCALAR = {"Double": "double", "Float": "float", "CChar": "char", "__LAPACK_int": "__LAPACK_int", "Int32": "int",
+          "CBLAS_ORDER": "const enum CBLAS_ORDER", "CBLAS_TRANSPOSE": "const enum CBLAS_TRANSPOSE", "CBLAS_UPLO": "const enum CBLAS_UPLO",
+          "CBLAS_DIAG": "const enum CBLAS_DIAG", "CBLAS_SIDE": "const enum CBLAS_SIDE"}
+
+
+def ctype(swift, old, cplx, const_hint):
+    nullable = swift.endswith("?")
+    sw = swift.rstrip("?")
+    nn = " _Nullable" if nullable else " _Nonnull"
+    m = re.match(r"(UnsafePointer|UnsafeMutablePointer)<(\w+)>$", sw)
+    if m:
+        base = SCALAR.get(m.group(2))
+        if base is None: return None
+        return ("const " if m.group(1) == "UnsafePointer" else "") + base + " *" + nn
+    if sw == "OpaquePointer":
+        const = old.startswith("const") or const_hint
+        return ("const " if const else "") + cplx + " *" + nn
+    if sw in SCALAR:
+        return SCALAR[sw]
+    return None
+
+
+def main():
+    old, sigs = classic(), apple()
+    lines, symbols, skipped = [], [], []
+    for name in sorted(old):
+        ret, params = old[name]
+        cands = [s for s in sigs.get(name, []) if len(s[0]) == len(params)]
+        if not cands:
+            skipped.append(name); continue
+        args, sret = cands[0]
+        cplx = "__LAPACK_float_complex" if re.match(r"(cblas_)?(c|ic|sc|cs)", name) else "__LAPACK_double_complex"
+        if name.startswith("cblas_"):
+            core = name[len("cblas_"):]
+            cplx = "__LAPACK_float_complex" if core[:1] == "c" or core[:2] in ("ic", "sc", "cs") else "__LAPACK_double_complex"
+        else:
+            cplx = "__LAPACK_float_complex" if name[0] == "c" else "__LAPACK_double_complex"
+        # complex LAPACK: the real function's const-ness at the same position
+        real = None
+        if not name.startswith("cblas_") and name[0] in "cz":
+            rn = {"c": "s", "z": "d"}[name[0]] + name[1:].replace("heev_", "syev_")
+            real = next((s[0] for s in sigs.get(rn, []) if len(s[0]) == len(params)), None)
+        out = []
+        for i, (a, o) in enumerate(zip(args, params)):
+            hint = bool(real) and real[i].startswith("UnsafePointer<")
+            t = ctype(a, o, cplx, hint)
+            if t is None: break
+            out.append(t)
+        if len(out) != len(params):
+            skipped.append(name); continue
+        if sret is None: r = "void"
+        else: r = {"Double": "double", "Float": "float", "__LAPACK_int": "__LAPACK_int", "Int32": "int"}.get(sret)
+        if r is None:
+            skipped.append(name); continue
+        sym = name[:-1] if name.endswith("_") else name
+        lines.append(f"VECLIB_EXTERN {r} {name}({', '.join(out)}) __LAPACK_ALIAS({sym});")
+        symbols.append((name, sym))
+    header = """#pragma once
+/* isim Accelerate: the new BLAS and LAPACK interface (ACCELERATE_NEW_LAPACK), generated by tools/newlapack-headers.py
+   from isim's classic headers and Apple's documented signatures. Each function binds to `<name>$NEWLAPACK`, an alias
+   of the classic one. ACCELERATE_LAPACK_ILP64 (64-bit integers) is not available in isim yet. */
+#include <Accelerate/vecLibTypes.h>
+#if defined(ACCELERATE_LAPACK_ILP64)
+#error "isim: ACCELERATE_LAPACK_ILP64 (64-bit LAPACK integers) is not supported yet; use the LP64 interface (ACCELERATE_NEW_LAPACK alone)"
+#endif
+typedef int __LAPACK_int;
+#ifndef __LAPACK_float_complex
+#define __LAPACK_float_complex _Complex float
+#endif
+#ifndef __LAPACK_double_complex
+#define __LAPACK_double_complex _Complex double
+#endif
+#define __LAPACK_ALIAS(sym) __asm("_" #sym "$NEWLAPACK")
+"""
+    with open(os.path.join(FW, "Accelerate", "lapack_new.h"), "w") as f:
+        f.write(header + "\n".join(lines) + "\n#undef __LAPACK_ALIAS\n")
+    with open(os.path.join(ROOT, "data", "newlapack-symbols.txt"), "w") as f:
+        f.write("# classic symbol -> new-LAPACK alias (generated by tools/newlapack-headers.py)\n")
+        for n, s in symbols: f.write(f"{n} {s}$NEWLAPACK\n")
+    print(f"{len(lines)} functions; skipped {len(skipped)}: {' '.join(skipped)}", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,5 +1,7 @@
 """Accelerate's sample (HelloAccelerate, issue #279): two tones through vDSP.window and vDSP.FFT give peaks at 440 Hz
-(bin 56, 437.5 Hz) and 1 kHz; LAPACK solves A x = b and BLAS checks it; the spectrum is drawn as bars."""
+(bin 56, 437.5 Hz) and 1 kHz; LAPACK solves A x = b and BLAS checks it; the spectrum is drawn as bars. A 600 Hz
+low-pass vDSP.Biquad passes 440 Hz (|H| 0.88) and cuts 1 kHz (|H| 0.32); Quadrature integrates 4 / (1 + x^2) to pi
+(issue #543)."""
 from isimtest import near, rgb
 
 ORANGE = (255, 149, 0)
@@ -10,6 +12,8 @@ def test_hello_accelerate(launch):
     app.wait_log(r"HelloAccelerate: done")
     app.wait_log(r"peaks 438 Hz 1000 Hz")
     app.wait_log(r"solve info 0 x 2\.000 3\.000 1\.000 residual \d\.\de[-+]\d\d")
+    app.wait_log(r"biquad 440 Hz gain 0\.8[78] 1 kHz gain 0\.3[12]")
+    app.wait_log(r"quadrature pi 3\.14159265(35|36)")
     app.wait_view(r"id=status text=Peaks: 438 Hz and 1000 Hz")
     app.wait_view(r"id=spectrum")
     # the spectrum view is at x 20, y 180, 360 tall, 128 bars across (two bins each): the 1 kHz bar (64) reaches
