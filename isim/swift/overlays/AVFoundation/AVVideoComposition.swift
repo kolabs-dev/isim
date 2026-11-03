@@ -29,7 +29,7 @@ extension AVVideoCompositionInstructionProtocol {
 /// isim's compositor's instruction: the layers (top first) over a background color during the time range.
 /// isim: requiredSourceTrackIDs is optional here (Apple's class declares it non-optional, which a Swift protocol
 /// conformance cannot express).
-open class AVVideoCompositionInstruction: NSObject, NSSecureCoding, NSCopying, NSMutableCopying, AVVideoCompositionInstructionProtocol, @unchecked Sendable {
+@objc(AVVideoCompositionInstruction) open class AVVideoCompositionInstruction: NSObject, NSSecureCoding, NSCopying, NSMutableCopying, AVVideoCompositionInstructionProtocol, @unchecked Sendable {
     var _timeRange = CMTimeRange.invalid
     var _backgroundColor: CGColor?
     var _layerInstructions: [AVVideoCompositionLayerInstruction] = []
@@ -67,7 +67,7 @@ open class AVVideoCompositionInstruction: NSObject, NSSecureCoding, NSCopying, N
     open func mutableCopy(with zone: NSZone? = nil) -> Any { _copy(into: AVMutableVideoCompositionInstruction()) }
 }
 
-open class AVMutableVideoCompositionInstruction: AVVideoCompositionInstruction, @unchecked Sendable {
+@objc(AVMutableVideoCompositionInstruction) open class AVMutableVideoCompositionInstruction: AVVideoCompositionInstruction, @unchecked Sendable {
     public override init() { super.init() }
     public required init?(coder: NSCoder) { super.init(coder: coder) }
     open override var timeRange: CMTimeRange { get { _timeRange } set { _timeRange = newValue } }
@@ -152,7 +152,7 @@ func _avLerp(_ a: CGRect, _ b: CGRect, _ f: Double) -> CGRect {
 }
 
 /// How one track's frames are placed: transform (into the render size), opacity and crop, each held or ramped.
-open class AVVideoCompositionLayerInstruction: NSObject, NSSecureCoding, NSCopying, NSMutableCopying, @unchecked Sendable {
+@objc(AVVideoCompositionLayerInstruction) open class AVVideoCompositionLayerInstruction: NSObject, NSSecureCoding, NSCopying, NSMutableCopying, @unchecked Sendable {
     var _trackID: CMPersistentTrackID = kCMPersistentTrackID_Invalid
     var _transforms = _AVRamps<CGAffineTransform>()
     var _opacities = _AVRamps<Float>()
@@ -195,7 +195,7 @@ open class AVVideoCompositionLayerInstruction: NSObject, NSSecureCoding, NSCopyi
     open func mutableCopy(with zone: NSZone? = nil) -> Any { _copy(into: AVMutableVideoCompositionLayerInstruction()) }
 }
 
-open class AVMutableVideoCompositionLayerInstruction: AVVideoCompositionLayerInstruction, @unchecked Sendable {
+@objc(AVMutableVideoCompositionLayerInstruction) open class AVMutableVideoCompositionLayerInstruction: AVVideoCompositionLayerInstruction, @unchecked Sendable {
     public override init() { super.init() }
     public required init?(coder: NSCoder) { super.init(coder: coder) }
     public convenience init(assetTrack track: AVAssetTrack) { self.init(); _trackID = track.trackID }
@@ -318,7 +318,7 @@ open class AVVideoCompositionRenderHint: NSObject, @unchecked Sendable {
 }
 
 /// The output frames' size and the pool they come from.
-open class AVVideoCompositionRenderContext: NSObject, @unchecked Sendable {
+@objc(AVVideoCompositionRenderContext) open class AVVideoCompositionRenderContext: NSObject, @unchecked Sendable {
     let _size: CGSize
     let _composition: AVVideoComposition
     let _format: OSType
@@ -335,7 +335,7 @@ open class AVVideoCompositionRenderContext: NSObject, @unchecked Sendable {
 }
 
 /// One output frame to compose: the source frames of the instruction's tracks at `compositionTime`.
-open class AVAsynchronousVideoCompositionRequest: NSObject, NSCopying, @unchecked Sendable {
+@objc(AVAsynchronousVideoCompositionRequest) open class AVAsynchronousVideoCompositionRequest: NSObject, NSCopying, @unchecked Sendable {
     let _context: AVVideoCompositionRenderContext
     let _time: CMTime
     let _instruction: any AVVideoCompositionInstructionProtocol
@@ -408,7 +408,7 @@ public struct AVCIImageFilteringResult: @unchecked Sendable {
 
 /// Core Animation in exported video: the composed frame shown in the video layers of a layer tree drawn over it
 /// (post-processing), or a layer rendered as an extra source track.
-open class AVVideoCompositionCoreAnimationTool: NSObject, @unchecked Sendable {
+@objc(AVVideoCompositionCoreAnimationTool) open class AVVideoCompositionCoreAnimationTool: NSObject, @unchecked Sendable {
     let _videoLayers: [CALayer]
     let _containing: CALayer?
     let _additional: CALayer?
@@ -489,7 +489,7 @@ extension AVVideoCompositionValidationHandling {
 
 // MARK: - the composition
 
-open class AVVideoComposition: NSObject, NSCopying, NSMutableCopying, @unchecked Sendable {
+@objc(AVVideoComposition) open class AVVideoComposition: NSObject, NSCopying, NSMutableCopying, @unchecked Sendable {
     public struct PerFrameHDRDisplayMetadataPolicy: RawRepresentable, Hashable, Sendable {
         public let rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
@@ -502,6 +502,8 @@ open class AVVideoComposition: NSObject, NSCopying, NSMutableCopying, @unchecked
     var _instructions: [any AVVideoCompositionInstructionProtocol] = []
     var _animationTool: AVVideoCompositionCoreAnimationTool?
     var _compositorClass: (any AVVideoCompositing.Type)?
+    /// an Objective-C compositor class (customVideoCompositorClass from Objective-C, ObjCComposition.swift)
+    var _objcCompositorClass: AnyClass?
     var _colorPrimaries: String?, _colorTransferFunction: String?, _colorYCbCrMatrix: String?
     var _frameTimingTrackID = kCMPersistentTrackID_Invalid
     var _sampleDataTrackIDs: [CMPersistentTrackID] = []
@@ -520,11 +522,11 @@ open class AVVideoComposition: NSObject, NSCopying, NSMutableCopying, @unchecked
     open var perFrameHDRDisplayMetadataPolicy: PerFrameHDRDisplayMetadataPolicy { _hdrPolicy }
 
     /// renders through isim's compositor (not just at a size and frame rate)
-    var _composites: Bool { !_instructions.isEmpty || _animationTool != nil || _compositorClass != nil || _ciHandler != nil }
+    var _composites: Bool { !_instructions.isEmpty || _animationTool != nil || _compositorClass != nil || _objcCompositorClass != nil || _ciHandler != nil }
 
     func _copy<T: AVVideoComposition>(into c: T) -> T {
         c.renderSize = renderSize; c.frameDuration = frameDuration; c.renderScale = renderScale
-        c._instructions = _instructions; c._animationTool = _animationTool; c._compositorClass = _compositorClass
+        c._instructions = _instructions; c._animationTool = _animationTool; c._compositorClass = _compositorClass; c._objcCompositorClass = _objcCompositorClass
         c._colorPrimaries = _colorPrimaries; c._colorTransferFunction = _colorTransferFunction; c._colorYCbCrMatrix = _colorYCbCrMatrix
         c._frameTimingTrackID = _frameTimingTrackID; c._sampleDataTrackIDs = _sampleDataTrackIDs; c._hdrPolicy = _hdrPolicy; c._ciHandler = _ciHandler
         return c
@@ -632,7 +634,7 @@ open class AVVideoComposition: NSObject, NSCopying, NSMutableCopying, @unchecked
     }
 }
 
-open class AVMutableVideoComposition: AVVideoComposition, @unchecked Sendable {
+@objc(AVMutableVideoComposition) open class AVMutableVideoComposition: AVVideoComposition, @unchecked Sendable {
     public override init() { super.init() }
     public convenience init(propertiesOf asset: AVAsset) { self.init(); _fill(from: asset) }
     public convenience init(propertiesOf asset: AVAsset, prototypeInstruction: AVVideoCompositionInstruction) {
@@ -758,8 +760,8 @@ extension AVAssetExportSession {
         // the compositor and its render context
         let compositor: any AVVideoCompositing
         if let c = _compositor { compositor = c }
-        else if let k = vc.customVideoCompositorClass {
-            guard let o = _avMakeCompositor(k) else {
+        else if vc.customVideoCompositorClass != nil || vc._objcCompositorClass != nil {
+            guard let o = _avMakeCompositor(vc) else {
                 _fail(_avNSError(.invalidVideoComposition, "the custom video compositor class cannot be instantiated")); return nil
             }
             compositor = o
@@ -920,13 +922,18 @@ func _avFormats(_ v: Any?) -> [OSType] {
     return []
 }
 
-func _avMakeCompositor(_ k: any AVVideoCompositing.Type) -> (any AVVideoCompositing)? { (k as? NSObject.Type)?.init() as? any AVVideoCompositing }
+/// an instance of the video composition's compositor class: Swift's, or an Objective-C class behind an adapter
+func _avMakeCompositor(_ vc: AVVideoComposition) -> (any AVVideoCompositing)? {
+    if let k = vc.customVideoCompositorClass { return (k as? NSObject.Type)?.init() as? any AVVideoCompositing }
+    if let k = vc._objcCompositorClass as? NSObject.Type { return _ObjCCompositorAdapter(k.init()) }
+    return nil
+}
 
 extension AVAssetImageGenerator {
     /// one frame composed at t (AVAssetExportSession's compositor over [t, t + frame duration])
     func _composedImage(_ vc: AVVideoComposition, at t: Double, actualTime: UnsafeMutablePointer<CMTime>?) throws -> CGImage {
         guard let s = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else { throw _avLoadError(asset) }
-        if _compositor == nil, let k = vc.customVideoCompositorClass { _compositor = _avMakeCompositor(k) }
+        if _compositor == nil { _compositor = _avMakeCompositor(vc) }
         s._compositor = _compositor
         let fd = vc.frameDuration.isNumeric && vc.frameDuration.seconds > 0 ? vc.frameDuration.seconds : 1.0 / 30
         let d = asset.duration.seconds

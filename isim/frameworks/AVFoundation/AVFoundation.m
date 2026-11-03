@@ -330,3 +330,291 @@ const MusicDeviceInstrumentID AVExtendedNoteOnEventDefaultInstrument = 0;
     [self _isim_transitionToItemWithIdentifier:item timebase:timebase];
 }
 @end
+
+/* capture, compositions, export, readers, writers and video compositions (issue #707): the constants, and the members
+   with a CMTime / CMTimeRange (passed as a pointer to the struct), CMVideoDimensions, CVPixelBufferRef or
+   CMSampleBufferRef (the overlay's Swift objects), over the `_isim_` entry points of ObjCCapture.swift and
+   ObjCComposition.swift. */
+AVCaptureDeviceType const AVCaptureDeviceTypeBuiltInWideAngleCamera = @"AVCaptureDeviceTypeBuiltInWideAngleCamera";
+AVCaptureDeviceType const AVCaptureDeviceTypeBuiltInUltraWideCamera = @"AVCaptureDeviceTypeBuiltInUltraWideCamera";
+AVCaptureDeviceType const AVCaptureDeviceTypeBuiltInTelephotoCamera = @"AVCaptureDeviceTypeBuiltInTelephotoCamera";
+AVCaptureDeviceType const AVCaptureDeviceTypeBuiltInDualCamera = @"AVCaptureDeviceTypeBuiltInDualCamera";
+AVCaptureDeviceType const AVCaptureDeviceTypeBuiltInDualWideCamera = @"AVCaptureDeviceTypeBuiltInDualWideCamera";
+AVCaptureDeviceType const AVCaptureDeviceTypeBuiltInTripleCamera = @"AVCaptureDeviceTypeBuiltInTripleCamera";
+AVCaptureDeviceType const AVCaptureDeviceTypeBuiltInTrueDepthCamera = @"AVCaptureDeviceTypeBuiltInTrueDepthCamera";
+AVCaptureDeviceType const AVCaptureDeviceTypeBuiltInLiDARDepthCamera = @"AVCaptureDeviceTypeBuiltInLiDARDepthCamera";
+AVCaptureDeviceType const AVCaptureDeviceTypeMicrophone = @"AVCaptureDeviceTypeMicrophone";
+AVCaptureDeviceType const AVCaptureDeviceTypeBuiltInMicrophone = @"AVCaptureDeviceTypeBuiltInMicrophone";
+AVCaptureDeviceType const AVCaptureDeviceTypeContinuityCamera = @"AVCaptureDeviceTypeContinuityCamera";
+AVCaptureDeviceType const AVCaptureDeviceTypeExternal = @"AVCaptureDeviceTypeExternal";
+AVCaptureSessionPreset const AVCaptureSessionPresetPhoto = @"AVCaptureSessionPresetPhoto";
+AVCaptureSessionPreset const AVCaptureSessionPresetHigh = @"AVCaptureSessionPresetHigh";
+AVCaptureSessionPreset const AVCaptureSessionPresetMedium = @"AVCaptureSessionPresetMedium";
+AVCaptureSessionPreset const AVCaptureSessionPresetLow = @"AVCaptureSessionPresetLow";
+AVCaptureSessionPreset const AVCaptureSessionPreset1280x720 = @"AVCaptureSessionPreset1280x720";
+AVCaptureSessionPreset const AVCaptureSessionPreset1920x1080 = @"AVCaptureSessionPreset1920x1080";
+AVCaptureSessionPreset const AVCaptureSessionPreset3840x2160 = @"AVCaptureSessionPreset3840x2160";
+AVCaptureSessionPreset const AVCaptureSessionPreset640x480 = @"AVCaptureSessionPreset640x480";
+AVCaptureSessionPreset const AVCaptureSessionPreset352x288 = @"AVCaptureSessionPreset352x288";
+AVCaptureSessionPreset const AVCaptureSessionPresetiFrame960x540 = @"AVCaptureSessionPresetiFrame960x540";
+AVCaptureSessionPreset const AVCaptureSessionPresetiFrame1280x720 = @"AVCaptureSessionPresetiFrame1280x720";
+AVCaptureSessionPreset const AVCaptureSessionPresetInputPriority = @"AVCaptureSessionPresetInputPriority";
+AVVideoCodecType const AVVideoCodecTypeH264 = @"avc1";
+AVVideoCodecType const AVVideoCodecTypeHEVC = @"hvc1";
+AVVideoCodecType const AVVideoCodecTypeHEVCWithAlpha = @"muxa";
+AVVideoCodecType const AVVideoCodecTypeJPEG = @"jpeg";
+AVVideoCodecType const AVVideoCodecTypeAppleProRes422 = @"apcn";
+AVVideoCodecType const AVVideoCodecTypeAppleProRes4444 = @"ap4h";
+AVFileType const AVFileTypeQuickTimeMovie = @"com.apple.quicktime-movie";
+AVFileType const AVFileTypeMPEG4 = @"public.mpeg-4";
+AVFileType const AVFileTypeAppleM4V = @"com.apple.m4v-video";
+AVFileType const AVFileTypeAppleM4A = @"com.apple.m4a-audio";
+AVFileType const AVFileTypeWAVE = @"com.microsoft.waveform-audio";
+AVFileType const AVFileTypeCoreAudioFormat = @"com.apple.coreaudio-format";
+AVFileType const AVFileTypeAIFF = @"public.aiff-audio";
+AVFileType const AVFileTypeAIFC = @"public.aifc-audio";
+AVFileType const AVFileTypeMPEGLayer3 = @"public.mp3";
+AVFileType const AVFileTypeAC3 = @"public.ac3-audio";
+AVFileType const AVFileTypeHEIC = @"public.heic";
+AVFileType const AVFileTypeJPEG = @"public.jpeg";
+AVFileType const AVFileType3GPP = @"public.3gpp";
+AVMetadataObjectType const AVMetadataObjectTypeQRCode = @"org.iso.QRCode";
+AVMetadataObjectType const AVMetadataObjectTypeFace = @"face";
+AVSemanticSegmentationMatteType const AVSemanticSegmentationMatteTypeHair = @"AVSemanticSegmentationMatteTypeHair";
+AVSemanticSegmentationMatteType const AVSemanticSegmentationMatteTypeSkin = @"AVSemanticSegmentationMatteTypeSkin";
+AVSemanticSegmentationMatteType const AVSemanticSegmentationMatteTypeTeeth = @"AVSemanticSegmentationMatteTypeTeeth";
+AVSemanticSegmentationMatteType const AVSemanticSegmentationMatteTypeGlasses = @"AVSemanticSegmentationMatteTypeGlasses";
+AVMediaType const AVMediaTypeDepthData = @"dpth";
+AVMediaType const AVMediaTypeMetadataObject = @"mobj";
+NSString * const AVVideoCodecKey = @"AVVideoCodecKey";
+NSString * const AVVideoWidthKey = @"AVVideoWidthKey";
+NSString * const AVVideoHeightKey = @"AVVideoHeightKey";
+NSString * const AVVideoCompressionPropertiesKey = @"AVVideoCompressionPropertiesKey";
+NSString * const AVVideoAverageBitRateKey = @"AVVideoAverageBitRateKey";
+NSString * const AVVideoQualityKey = @"AVVideoQualityKey";
+NSString * const AVVideoMaxKeyFrameIntervalKey = @"AVVideoMaxKeyFrameIntervalKey";
+NSString * const AVVideoExpectedSourceFrameRateKey = @"AVVideoExpectedSourceFrameRateKey";
+NSString * const AVVideoProfileLevelKey = @"AVVideoProfileLevelKey";
+NSString * const AVVideoScalingModeKey = @"AVVideoScalingModeKey";
+NSNotificationName const AVCaptureSessionDidStartRunningNotification = @"AVCaptureSessionDidStartRunningNotification";
+NSNotificationName const AVCaptureSessionDidStopRunningNotification = @"AVCaptureSessionDidStopRunningNotification";
+NSNotificationName const AVCaptureSessionWasInterruptedNotification = @"AVCaptureSessionWasInterruptedNotification";
+NSNotificationName const AVCaptureSessionInterruptionEndedNotification = @"AVCaptureSessionInterruptionEndedNotification";
+NSNotificationName const AVCaptureSessionRuntimeErrorNotification = @"AVCaptureSessionRuntimeErrorNotification";
+NSNotificationName const AVCaptureDeviceWasConnectedNotification = @"AVCaptureDeviceWasConnectedNotification";
+NSNotificationName const AVCaptureDeviceWasDisconnectedNotification = @"AVCaptureDeviceWasDisconnectedNotification";
+NSNotificationName const AVCaptureDeviceSubjectAreaDidChangeNotification = @"AVCaptureDeviceSubjectAreaDidChangeNotification";
+NSString * const AVAssetExportPresetPassthrough = @"AVAssetExportPresetPassthrough";
+NSString * const AVAssetExportPresetLowQuality = @"AVAssetExportPresetLowQuality";
+NSString * const AVAssetExportPresetMediumQuality = @"AVAssetExportPresetMediumQuality";
+NSString * const AVAssetExportPresetHighestQuality = @"AVAssetExportPresetHighestQuality";
+NSString * const AVAssetExportPresetHEVCHighestQuality = @"AVAssetExportPresetHEVCHighestQuality";
+NSString * const AVAssetExportPreset640x480 = @"AVAssetExportPreset640x480";
+NSString * const AVAssetExportPreset960x540 = @"AVAssetExportPreset960x540";
+NSString * const AVAssetExportPreset1280x720 = @"AVAssetExportPreset1280x720";
+NSString * const AVAssetExportPreset1920x1080 = @"AVAssetExportPreset1920x1080";
+NSString * const AVAssetExportPreset3840x2160 = @"AVAssetExportPreset3840x2160";
+NSString * const AVAssetExportPresetHEVC1920x1080 = @"AVAssetExportPresetHEVC1920x1080";
+NSString * const AVAssetExportPresetHEVC3840x2160 = @"AVAssetExportPresetHEVC3840x2160";
+NSString * const AVAssetExportPresetAppleM4A = @"AVAssetExportPresetAppleM4A";
+
+@interface AVCaptureDevice (ISIMTime)
+- (void)_isim_getTime:(NSInteger)which out:(void *)out;
+- (void)_isim_setTime:(NSInteger)which value:(const void *)value;
+- (void)_isim_setExposureBias:(float)bias completion:(nullable void (^)(const void *))handler;
+- (void)_isim_setFocusLocked:(float)position completion:(nullable void (^)(const void *))handler;
+@end
+@implementation AVCaptureDevice (ISIMCMTime)
+static CMTime device_time(AVCaptureDevice *d, NSInteger which) { CMTime t = kCMTimeInvalid; [d _isim_getTime:which out:&t]; return t; }
+- (CMTime)activeVideoMinFrameDuration { return device_time(self, 0); }
+- (CMTime)activeVideoMaxFrameDuration { return device_time(self, 1); }
+- (CMTime)exposureDuration { return device_time(self, 2); }
+- (CMTime)activeMaxExposureDuration { return device_time(self, 3); }
+- (void)setActiveVideoMinFrameDuration:(CMTime)t { [self _isim_setTime:0 value:&t]; }
+- (void)setActiveVideoMaxFrameDuration:(CMTime)t { [self _isim_setTime:1 value:&t]; }
+- (void)setActiveMaxExposureDuration:(CMTime)t { [self _isim_setTime:3 value:&t]; }
+- (void)setExposureTargetBias:(float)bias completionHandler:(void (^)(CMTime))handler {
+    [self _isim_setExposureBias:bias completion:handler ? ^(const void *p) { handler(*(const CMTime *)p); } : nil];
+}
+- (void)setFocusModeLockedWithLensPosition:(float)position completionHandler:(void (^)(CMTime))handler {
+    [self _isim_setFocusLocked:position completion:handler ? ^(const void *p) { handler(*(const CMTime *)p); } : nil];
+}
+@end
+@interface AVCaptureDeviceFormat (ISIMDimensions)
+- (int32_t)_isim_width;
+- (int32_t)_isim_height;
+@end
+@implementation AVCaptureDeviceFormat (ISIMCMDimensions)
+- (CMVideoDimensions)highResolutionStillImageDimensions { return (CMVideoDimensions){ [self _isim_width], [self _isim_height] }; }
+@end
+@interface AVCaptureFileOutput (ISIMTime)
+- (void)_isim_recordedDuration:(void *)out;
+- (void)_isim_maxRecordedDuration:(void *)out;
+- (void)_isim_setMaxRecordedDuration:(const void *)value;
+@end
+@implementation AVCaptureFileOutput (ISIMCMTime)
+- (CMTime)recordedDuration { CMTime t = kCMTimeInvalid; [self _isim_recordedDuration:&t]; return t; }
+- (CMTime)maxRecordedDuration { CMTime t = kCMTimeInvalid; [self _isim_maxRecordedDuration:&t]; return t; }
+- (void)setMaxRecordedDuration:(CMTime)t { [self _isim_setMaxRecordedDuration:&t]; }
+@end
+@interface NSObject (ISIMPhotoDimensions)
+- (int32_t)_isim_maxPhotoWidth;
+- (int32_t)_isim_maxPhotoHeight;
+- (void)_isim_setMaxPhotoWidth:(int32_t)w height:(int32_t)h;
+- (int32_t)_isim_photoWidth;
+- (int32_t)_isim_photoHeight;
+- (void)_isim_timestamp:(void *)out;
+- (nullable void *)_isim_pixelBuffer;
+- (nullable void *)_isim_previewPixelBuffer;
+- (nullable void *)_isim_mattingImage;
+@end
+@implementation AVCapturePhotoSettings (ISIMCMDimensions)
+- (CMVideoDimensions)maxPhotoDimensions { return (CMVideoDimensions){ [self _isim_maxPhotoWidth], [self _isim_maxPhotoHeight] }; }
+- (void)setMaxPhotoDimensions:(CMVideoDimensions)d { [self _isim_setMaxPhotoWidth:d.width height:d.height]; }
+@end
+@implementation AVCapturePhotoOutput (ISIMCMDimensions)
+- (CMVideoDimensions)maxPhotoDimensions { return (CMVideoDimensions){ [self _isim_maxPhotoWidth], [self _isim_maxPhotoHeight] }; }
+- (void)setMaxPhotoDimensions:(CMVideoDimensions)d { [self _isim_setMaxPhotoWidth:d.width height:d.height]; }
+@end
+@implementation AVCaptureResolvedPhotoSettings (ISIMCMDimensions)
+- (CMVideoDimensions)photoDimensions { return (CMVideoDimensions){ [self _isim_photoWidth], [self _isim_photoHeight] }; }
+@end
+@implementation AVCapturePhoto (ISIMCMTime)
+- (CMTime)timestamp { CMTime t = kCMTimeInvalid; [self _isim_timestamp:&t]; return t; }
+- (CVPixelBufferRef)pixelBuffer { return (CVPixelBufferRef)[self _isim_pixelBuffer]; }
+- (CVPixelBufferRef)previewPixelBuffer { return (CVPixelBufferRef)[self _isim_previewPixelBuffer]; }
+@end
+@implementation AVPortraitEffectsMatte (ISIMPixelBuffer)
+- (CVPixelBufferRef)mattingImage { return (CVPixelBufferRef)[self _isim_mattingImage]; }
+@end
+@implementation AVSemanticSegmentationMatte (ISIMPixelBuffer)
+- (CVPixelBufferRef)mattingImage { return (CVPixelBufferRef)[self _isim_mattingImage]; }
+@end
+
+@interface NSObject (ISIMTimeRange)
+- (void)_isim_timeRange:(void *)out;
+- (void)_isim_setTimeRange:(const void *)value;
+- (void)_isim_insertEmptyTimeRange:(const void *)range;
+- (void)_isim_removeTimeRange:(const void *)range;
+- (void)_isim_scaleTimeRange:(const void *)range toDuration:(const void *)duration;
+@end
+static CMTimeRange range_of(id o) { CMTimeRange r = kCMTimeRangeInvalid; [o _isim_timeRange:&r]; return r; }
+@implementation AVAssetTrack (ISIMCMTimeRange)
+- (CMTimeRange)timeRange { return range_of(self); }
+@end
+@interface AVMutableCompositionTrack (ISIMTime)
+- (BOOL)_isim_insertTimeRange:(const void *)range ofTrack:(AVAssetTrack *)track atTime:(const void *)at error:(NSError **)error;
+@end
+@implementation AVMutableCompositionTrack (ISIMCMTime)
+- (BOOL)insertTimeRange:(CMTimeRange)r ofTrack:(AVAssetTrack *)track atTime:(CMTime)at error:(NSError **)error {
+    return [self _isim_insertTimeRange:&r ofTrack:track atTime:&at error:error];
+}
+- (void)insertEmptyTimeRange:(CMTimeRange)r { [self _isim_insertEmptyTimeRange:&r]; }
+- (void)removeTimeRange:(CMTimeRange)r { [self _isim_removeTimeRange:&r]; }
+- (void)scaleTimeRange:(CMTimeRange)r toDuration:(CMTime)d { [self _isim_scaleTimeRange:&r toDuration:&d]; }
+@end
+@interface AVMutableComposition (ISIMTime)
+- (BOOL)_isim_insertTimeRange:(const void *)range ofAsset:(AVAsset *)asset atTime:(const void *)at error:(NSError **)error;
+@end
+@implementation AVMutableComposition (ISIMCMTime)
+- (BOOL)insertTimeRange:(CMTimeRange)r ofAsset:(AVAsset *)asset atTime:(CMTime)at error:(NSError **)error {
+    return [self _isim_insertTimeRange:&r ofAsset:asset atTime:&at error:error];
+}
+- (void)insertEmptyTimeRange:(CMTimeRange)r { [self _isim_insertEmptyTimeRange:&r]; }
+- (void)removeTimeRange:(CMTimeRange)r { [self _isim_removeTimeRange:&r]; }
+- (void)scaleTimeRange:(CMTimeRange)r toDuration:(CMTime)d { [self _isim_scaleTimeRange:&r toDuration:&d]; }
+@end
+@interface AVMutableAudioMixInputParameters (ISIMTime)
+- (void)_isim_setVolume:(float)volume atTime:(const void *)at;
+- (void)_isim_setVolumeRampFromStartVolume:(float)a toEndVolume:(float)b timeRange:(const void *)range;
+@end
+@implementation AVMutableAudioMixInputParameters (ISIMCMTime)
+- (void)setVolume:(float)v atTime:(CMTime)t { [self _isim_setVolume:v atTime:&t]; }
+- (void)setVolumeRampFromStartVolume:(float)a toEndVolume:(float)b timeRange:(CMTimeRange)r {
+    [self _isim_setVolumeRampFromStartVolume:a toEndVolume:b timeRange:&r];
+}
+@end
+@interface AVMutableVideoCompositionLayerInstruction (ISIMTime)
+- (void)_isim_setTransform:(CGAffineTransform)t atTime:(const void *)at;
+- (void)_isim_setOpacity:(float)o atTime:(const void *)at;
+- (void)_isim_setTransformRampFromStart:(CGAffineTransform)a toEnd:(CGAffineTransform)b timeRange:(const void *)range;
+- (void)_isim_setOpacityRampFromStart:(float)a toEnd:(float)b timeRange:(const void *)range;
+- (void)_isim_setCropRectangle:(CGRect)r atTime:(const void *)at;
+@end
+@implementation AVMutableVideoCompositionLayerInstruction (ISIMCMTime)
+- (void)setTransform:(CGAffineTransform)x atTime:(CMTime)t { [self _isim_setTransform:x atTime:&t]; }
+- (void)setOpacity:(float)o atTime:(CMTime)t { [self _isim_setOpacity:o atTime:&t]; }
+- (void)setTransformRampFromStartTransform:(CGAffineTransform)a toEndTransform:(CGAffineTransform)b timeRange:(CMTimeRange)r {
+    [self _isim_setTransformRampFromStart:a toEnd:b timeRange:&r];
+}
+- (void)setOpacityRampFromStartOpacity:(float)a toEndOpacity:(float)b timeRange:(CMTimeRange)r { [self _isim_setOpacityRampFromStart:a toEnd:b timeRange:&r]; }
+- (void)setCropRectangle:(CGRect)c atTime:(CMTime)t { [self _isim_setCropRectangle:c atTime:&t]; }
+@end
+@implementation AVVideoCompositionInstruction (ISIMCMTimeRange)
+- (CMTimeRange)timeRange { return range_of(self); }
+@end
+@implementation AVMutableVideoCompositionInstruction (ISIMCMTimeRange)
+- (void)setTimeRange:(CMTimeRange)r { [self _isim_setTimeRange:&r]; }
+@end
+@interface AVVideoComposition (ISIMTime)
+- (void)_isim_frameDuration:(void *)out;
+@end
+@interface AVMutableVideoComposition (ISIMTime)
+- (void)_isim_setFrameDuration:(const void *)value;
+@end
+@implementation AVVideoComposition (ISIMCMTime)
+- (CMTime)frameDuration { CMTime t = kCMTimeInvalid; [self _isim_frameDuration:&t]; return t; }
+@end
+@implementation AVMutableVideoComposition (ISIMCMTime)
+- (void)setFrameDuration:(CMTime)t { [self _isim_setFrameDuration:&t]; }
+@end
+@interface AVVideoCompositionRenderContext (ISIMPixelBuffer)
+- (nullable void *)_isim_newPixelBuffer;
+@end
+@implementation AVVideoCompositionRenderContext (ISIMCVPixelBuffer)
+- (CVPixelBufferRef)newPixelBuffer { return (CVPixelBufferRef)[self _isim_newPixelBuffer]; }
+@end
+@interface AVAsynchronousVideoCompositionRequest (ISIMTime)
+- (void)_isim_compositionTime:(void *)out;
+- (nullable void *)_isim_sourceFrameByTrackID:(CMPersistentTrackID)trackID;
+- (void)_isim_finishWithComposedVideoFrame:(void *)frame;
+@end
+@implementation AVAsynchronousVideoCompositionRequest (ISIMCMTime)
+- (CMTime)compositionTime { CMTime t = kCMTimeInvalid; [self _isim_compositionTime:&t]; return t; }
+- (CVPixelBufferRef)sourceFrameByTrackID:(CMPersistentTrackID)trackID { return (CVPixelBufferRef)[self _isim_sourceFrameByTrackID:trackID]; }
+- (void)finishWithComposedVideoFrame:(CVPixelBufferRef)frame { [self _isim_finishWithComposedVideoFrame:(void *)frame]; }
+@end
+@implementation AVAssetExportSession (ISIMCMTimeRange)
+- (CMTimeRange)timeRange { return range_of(self); }
+- (void)setTimeRange:(CMTimeRange)r { [self _isim_setTimeRange:&r]; }
+@end
+@implementation AVAssetReader (ISIMCMTimeRange)
+- (CMTimeRange)timeRange { return range_of(self); }
+- (void)setTimeRange:(CMTimeRange)r { [self _isim_setTimeRange:&r]; }
+@end
+@interface AVAssetReaderOutput (ISIMSampleBuffer)
+- (nullable void *)_isim_copyNextSampleBuffer;
+@end
+@implementation AVAssetReaderOutput (ISIMCMSampleBuffer)
+- (CMSampleBufferRef)copyNextSampleBuffer { return (CMSampleBufferRef)[self _isim_copyNextSampleBuffer]; }
+@end
+@interface AVAssetWriterInput (ISIMSampleBuffer)
+- (BOOL)_isim_appendSampleBuffer:(void *)buffer;
+@end
+@implementation AVAssetWriterInput (ISIMCMSampleBuffer)
+- (BOOL)appendSampleBuffer:(CMSampleBufferRef)buffer { return [self _isim_appendSampleBuffer:(void *)buffer]; }
+@end
+@interface AVAssetWriterInputPixelBufferAdaptor (ISIMTime)
+- (BOOL)_isim_appendPixelBuffer:(void *)buffer withPresentationTime:(const void *)time;
+@end
+@implementation AVAssetWriterInputPixelBufferAdaptor (ISIMCMTime)
+- (BOOL)appendPixelBuffer:(CVPixelBufferRef)buffer withPresentationTime:(CMTime)t { return [self _isim_appendPixelBuffer:(void *)buffer withPresentationTime:&t]; }
+@end
+@interface AVAssetWriter (ISIMTime)
+- (void)_isim_startSessionAtSourceTime:(const void *)time;
+- (void)_isim_endSessionAtSourceTime:(const void *)time;
+@end
+@implementation AVAssetWriter (ISIMCMTime)
+- (void)startSessionAtSourceTime:(CMTime)t { [self _isim_startSessionAtSourceTime:&t]; }
+- (void)endSessionAtSourceTime:(CMTime)t { [self _isim_endSessionAtSourceTime:&t]; }
+@end

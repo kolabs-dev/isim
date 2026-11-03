@@ -12,7 +12,7 @@ import isim_host
 // MARK: - controls
 
 /// A control the Camera Control shows for a running capture session.
-open class AVCaptureControl: NSObject, @unchecked Sendable {
+@objc(AVCaptureControl) open class AVCaptureControl: NSObject, @unchecked Sendable {
     open var isEnabled = true
     weak var _session: AVCaptureSession?
     override init() { super.init() }
@@ -29,7 +29,7 @@ open class AVCaptureControl: NSObject, @unchecked Sendable {
 }
 
 /// A slider over a range, with steps or over set values.
-open class AVCaptureSlider: AVCaptureControl, @unchecked Sendable {
+@objc(AVCaptureSlider) open class AVCaptureSlider: AVCaptureControl, @unchecked Sendable {
     public let localizedTitle: String
     public let symbolName: String
     let _range: ClosedRange<Float>
@@ -95,7 +95,7 @@ open class AVCaptureSlider: AVCaptureControl, @unchecked Sendable {
 }
 
 /// The system zoom slider: the Camera Control sets the device's zoom factor (in steps of 10%).
-open class AVCaptureSystemZoomSlider: AVCaptureControl, @unchecked Sendable {
+@objc(AVCaptureSystemZoomSlider) open class AVCaptureSystemZoomSlider: AVCaptureControl, @unchecked Sendable {
     let _device: AVCaptureDevice
     let _action: ((CGFloat) -> Void)?
     public init(device: AVCaptureDevice) { _device = device; _action = nil; super.init() }
@@ -120,7 +120,7 @@ open class AVCaptureSystemZoomSlider: AVCaptureControl, @unchecked Sendable {
 }
 
 /// The system exposure bias slider: the Camera Control sets the device's exposure target bias (in steps of 1/3 EV).
-open class AVCaptureSystemExposureBiasSlider: AVCaptureControl, @unchecked Sendable {
+@objc(AVCaptureSystemExposureBiasSlider) open class AVCaptureSystemExposureBiasSlider: AVCaptureControl, @unchecked Sendable {
     let _device: AVCaptureDevice
     let _action: ((Float) -> Void)?
     public init(device: AVCaptureDevice) { _device = device; _action = nil; super.init() }
@@ -144,7 +144,7 @@ open class AVCaptureSystemExposureBiasSlider: AVCaptureControl, @unchecked Senda
 }
 
 /// A picker between named (or numbered) choices.
-open class AVCaptureIndexPicker: AVCaptureControl, @unchecked Sendable {
+@objc(AVCaptureIndexPicker) open class AVCaptureIndexPicker: AVCaptureControl, @unchecked Sendable {
     public let localizedTitle: String
     public let symbolName: String
     public let numberOfIndexes: Int

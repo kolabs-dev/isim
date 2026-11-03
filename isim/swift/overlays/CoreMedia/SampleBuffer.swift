@@ -646,3 +646,31 @@ public enum _H26x {
         return (w, h)
     }
 }
+
+// MARK: - the C interface (issue #707): a CMSampleBufferRef is this Swift object; the functions returning a CMTime are
+// in frameworks/CoreMedia/CMSampleBuffer.c over _isim_CMSampleBufferGetTime.
+
+@inline(__always) func _sb(_ p: UnsafeRawPointer) -> CMSampleBuffer { Unmanaged<CMSampleBuffer>.fromOpaque(p).takeUnretainedValue() }
+@_cdecl("CMSampleBufferGetImageBuffer")
+public func _c_CMSampleBufferGetImageBuffer(_ b: UnsafeRawPointer?) -> UnsafeMutableRawPointer? {
+    b.flatMap { _sb($0).imageBuffer.map { Unmanaged.passUnretained($0).toOpaque() } }
+}
+@_cdecl("CMSampleBufferGetNumSamples") public func _c_CMSampleBufferGetNumSamples(_ b: UnsafeRawPointer?) -> Int { b.map { _sb($0).numSamples } ?? 0 }
+@_cdecl("CMSampleBufferIsValid") public func _c_CMSampleBufferIsValid(_ b: UnsafeRawPointer?) -> UInt8 { b.map { _sb($0).isValid ? 1 : 0 } ?? 0 }
+@_cdecl("CMSampleBufferDataIsReady") public func _c_CMSampleBufferDataIsReady(_ b: UnsafeRawPointer?) -> UInt8 { b.map { _sb($0).dataIsReady ? 1 : 0 } ?? 0 }
+@_cdecl("CMSampleBufferGetTotalSampleSize") public func _c_CMSampleBufferGetTotalSampleSize(_ b: UnsafeRawPointer?) -> Int { b.map { _sb($0).totalSampleSize } ?? 0 }
+@_cdecl("_isim_CMSampleBufferGetTime")
+public func _c_CMSampleBufferGetTime(_ b: UnsafeRawPointer?, _ which: Int32, _ out: UnsafeMutableRawPointer) {
+    var t = CMTime.invalid
+    if let b {
+        let s = _sb(b)
+        switch which {
+        case 0: t = s.presentationTimeStamp
+        case 1: t = s.decodeTimeStamp
+        case 2: t = s.duration
+        case 3: t = s.outputPresentationTimeStamp
+        default: t = s.outputDuration
+        }
+    }
+    out.storeBytes(of: t, as: CMTime.self)
+}

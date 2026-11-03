@@ -7,7 +7,7 @@ import UIKit
 import AudioToolbox
 import isim_host
 
-open class AVCaptureOutput: NSObject, @unchecked Sendable {
+@objc(AVCaptureOutput) open class AVCaptureOutput: NSObject, @unchecked Sendable {
     @objc public enum DataDroppedReason: Int, Sendable { case none = 0, lateData, outOfBuffers, discontinuity }
     weak var _session: AVCaptureSession?
     var _connections: [AVCaptureConnection] = []
@@ -53,7 +53,7 @@ extension AVCaptureVideoDataOutputSampleBufferDelegate {
     public func captureOutput(_ output: AVCaptureOutput, didDrop sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {}
 }
 
-open class AVCaptureVideoDataOutput: AVCaptureOutput, @unchecked Sendable {
+@objc(AVCaptureVideoDataOutput) open class AVCaptureVideoDataOutput: AVCaptureOutput, @unchecked Sendable {
     public override init() { super.init() }
     open var alwaysDiscardsLateVideoFrames = true
     open var videoSettings: [String: Any]! = [:]
@@ -185,7 +185,7 @@ extension AVCaptureAudioDataOutputSampleBufferDelegate {
     public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {}
 }
 /// Microphone audio as sample buffers: 1024 frames of mono 16-bit linear PCM at 48 kHz each.
-open class AVCaptureAudioDataOutput: AVCaptureOutput, @unchecked Sendable {
+@objc(AVCaptureAudioDataOutput) open class AVCaptureAudioDataOutput: AVCaptureOutput, @unchecked Sendable {
     public override init() { super.init() }
     override var _accepts: [AVMediaType] { [.audio] }
     open private(set) weak var sampleBufferDelegate: AVCaptureAudioDataOutputSampleBufferDelegate?
@@ -211,7 +211,7 @@ public protocol AVCaptureMetadataOutputObjectsDelegate: NSObjectProtocol {
 extension AVCaptureMetadataOutputObjectsDelegate {
     public func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {}
 }
-open class AVMetadataObject: NSObject, @unchecked Sendable {
+@objc(AVMetadataObject) open class AVMetadataObject: NSObject, @unchecked Sendable {
     public struct ObjectType: RawRepresentable, Hashable, Sendable {
         public let rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
@@ -254,7 +254,7 @@ open class AVMetadataObject: NSObject, @unchecked Sendable {
     /// the same object with other bounds (preview-layer / output coordinate conversion)
     func _copy(bounds b: CGRect) -> AVMetadataObject { AVMetadataObject(type: _type, bounds: b, time: time) }
 }
-open class AVMetadataMachineReadableCodeObject: AVMetadataObject, @unchecked Sendable {
+@objc(AVMetadataMachineReadableCodeObject) open class AVMetadataMachineReadableCodeObject: AVMetadataObject, @unchecked Sendable {
     let _string: String?
     var _corners: [CGPoint]
     let _descriptor: Data?
@@ -266,7 +266,7 @@ open class AVMetadataMachineReadableCodeObject: AVMetadataObject, @unchecked Sen
     open var stringValue: String? { _string }
     open var corners: [CGPoint] { _corners }
 }
-open class AVMetadataFaceObject: AVMetadataObject, @unchecked Sendable {
+@objc(AVMetadataFaceObject) open class AVMetadataFaceObject: AVMetadataObject, @unchecked Sendable {
     public let faceID: Int
     public let hasRollAngle: Bool, rollAngle: CGFloat, hasYawAngle: Bool, yawAngle: CGFloat
     init(faceID: Int, bounds: CGRect, time: CMTime) {
@@ -379,7 +379,7 @@ enum _SceneObjects {
     }
 }
 
-open class AVCaptureMetadataOutput: AVCaptureOutput, @unchecked Sendable {
+@objc(AVCaptureMetadataOutput) open class AVCaptureMetadataOutput: AVCaptureOutput, @unchecked Sendable {
     public override init() { super.init() }
     override var _accepts: [AVMediaType] { [.metadataObject] }
     /// isim: what the host can detect (codes: libzbar, plus Aztec / Data Matrix / Micro QR with zxing-cpp's tools;
@@ -461,7 +461,7 @@ extension AVCaptureFileOutputRecordingDelegate {
 }
 /// Records the connected camera and microphone. Frames are spooled and encoded with the sound (AAC) by ffmpeg when the
 /// recording stops (H.264 or HEVC; a microphone-only recording is an audio-only movie).
-open class AVCaptureFileOutput: AVCaptureOutput, @unchecked Sendable {
+@objc(AVCaptureFileOutput) open class AVCaptureFileOutput: AVCaptureOutput, @unchecked Sendable {
     override var _accepts: [AVMediaType] { [.video, .audio] }
     open var maxRecordedDuration: CMTime = .invalid
     open var maxRecordedFileSize: Int64 = 0
@@ -578,7 +578,7 @@ func _writeMovie(video: _RawVideoSink?, fps: Double, audio: [Int16]?, to url: UR
     args += ["-f", type._muxer.0, _path(url)]
     return _FFmpeg.run(args)
 }
-open class AVCaptureMovieFileOutput: AVCaptureFileOutput, @unchecked Sendable {
+@objc(AVCaptureMovieFileOutput) open class AVCaptureMovieFileOutput: AVCaptureFileOutput, @unchecked Sendable {
     public override init() { super.init() }
     /// HEVC when the host's ffmpeg has libx265 (like iPhones), else H.264
     open var availableVideoCodecTypes: [AVVideoCodecType] { _FFmpeg.hasHEVC ? [.hevc, .h264] : [.h264] }
@@ -660,7 +660,7 @@ enum _DepthScene {
 }
 
 /// Depth (meters) or disparity (1/meters) for a frame, as a depth-capable camera measures it.
-open class AVDepthData: NSObject, @unchecked Sendable {
+@objc(AVDepthData) open class AVDepthData: NSObject, @unchecked Sendable {
     @objc public enum Accuracy: Int, Sendable { case relative = 0, absolute = 1 }
     @objc public enum Quality: Int, Sendable { case low = 0, high = 1 }
     public let depthDataMap: CVPixelBuffer

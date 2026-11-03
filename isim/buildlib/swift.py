@@ -755,6 +755,20 @@ OBJC_NAMES["StoreKit"] = {**{c: c for c in """SKAdImpression SKAdNetwork SKOverl
                           "SKOverlay.AppClipConfiguration": "SKOverlayAppClipConfiguration", "SKOverlay.TransitionContext": "SKOverlayTransitionContext"}
 OBJC_NAMES["AVFoundation"] = {c: c for c in """AVAudioSession AVAudioSessionPortDescription AVAudioSessionRouteDescription AVAsset AVURLAsset
     AVAssetTrack AVPlayerItem AVPlayerItemTrack AVPlayer AVQueuePlayer AVPlayerLayer""".split()}
+# issue #707: capture, editing, export, readers, writers and video compositions from Objective-C
+OBJC_NAMES["AVFoundation"].update({c: c for c in """AVCaptureDevice AVCaptureInput AVCaptureDeviceInput AVCaptureConnection AVCaptureSession
+    AVCaptureMultiCamSession AVCaptureVideoPreviewLayer AVCaptureOutput AVCaptureVideoDataOutput AVCaptureAudioDataOutput AVCaptureMetadataOutput
+    AVMetadataObject AVMetadataMachineReadableCodeObject AVMetadataFaceObject AVCaptureFileOutput AVCaptureMovieFileOutput AVCapturePhotoSettings
+    AVCaptureResolvedPhotoSettings AVCapturePhoto AVCapturePhotoOutput AVDepthData AVPortraitEffectsMatte AVSemanticSegmentationMatte
+    AVCameraCalibrationData AVCaptureControl AVCaptureSlider AVCaptureSystemZoomSlider AVCaptureSystemExposureBiasSlider AVCaptureIndexPicker
+    AVCompositionTrackSegment AVCompositionTrack AVMutableCompositionTrack AVComposition AVMutableComposition AVAudioMix AVMutableAudioMix
+    AVAudioMixInputParameters AVMutableAudioMixInputParameters AVAssetExportSession AVAssetReader AVAssetReaderOutput AVAssetReaderTrackOutput
+    AVAssetReaderAudioMixOutput AVAssetReaderVideoCompositionOutput AVAssetWriter AVAssetWriterInput AVAssetWriterInputPixelBufferAdaptor
+    AVVideoComposition AVMutableVideoComposition AVVideoCompositionInstruction AVMutableVideoCompositionInstruction
+    AVVideoCompositionLayerInstruction AVMutableVideoCompositionLayerInstruction AVVideoCompositionCoreAnimationTool
+    AVVideoCompositionRenderContext AVAsynchronousVideoCompositionRequest""".split()})
+OBJC_NAMES["AVFoundation"].update({"AVCaptureDevice.Format": "AVCaptureDeviceFormat", "AVCaptureDevice.DiscoverySession": "AVCaptureDeviceDiscoverySession",
+                                   "AVCaptureInput.Port": "AVCaptureInputPort"})
 # issue #553: AVFAudio's engine, formats, buffers, converter, file, player and recorder from Objective-C
 OBJC_NAMES["AVFoundation"].update({c: c for c in """AVAudioChannelLayout AVAudioCompressedBuffer AVAudioConverter AVAudioTime AVAudioMixingDestination
     AVAudioConnectionPoint AVAudioNode AVAudioMixerNode AVAudioIONode AVAudioOutputNode AVAudioPlayerNode AVAudioSourceNode AVAudioSinkNode

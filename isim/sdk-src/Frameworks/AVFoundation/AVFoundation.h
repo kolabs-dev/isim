@@ -3,8 +3,8 @@
    libswiftAVFoundation.dylib): the audio session, assets, players, player items and the player layer (media decoded
    by the host's FFmpeg; see the overlay). Swift uses the overlay; these declarations are hidden from Swift. AVFAudio's
    classes (the engine, formats, buffers, audio players and recorders) are in <AVFAudio/AVFAudio.h>, imported at the end.
-   Not available from Objective-C yet: capture, editing and export, readers and writers. The classes are not
-   subclassable from Objective-C. */
+   Capture is in <AVFoundation/AVCapture.h>, compositions, export, readers, writers and video compositions in
+   <AVFoundation/AVEditing.h> (issue #707), both imported here. The classes are not subclassable from Objective-C. */
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <CoreMedia/CoreMedia.h>
@@ -273,6 +273,8 @@ typedef NS_OPTIONS(NSUInteger, AVDelegatingPlaybackCoordinatorSeekOptions) {
 @property (readonly, nullable) NSDate *completionDueDate;
 @end
 NS_ASSUME_NONNULL_END
+#import <AVFoundation/AVCapture.h>
+#import <AVFoundation/AVEditing.h>
 #import <AVFAudio/AVFAudio.h>
 #else
 @class AVAudioSession, AVAsset, AVURLAsset, AVPlayer, AVPlayerItem, AVPlayerLayer, AVPlaybackCoordinator, AVPlayerPlaybackCoordinator,
