@@ -59,3 +59,10 @@ usr/lib/swift/libswiftSpeech.dylib 0.34.0
 # 0.34.0 (issue #701): NaturalLanguage's Objective-C interface. The classes have Apple's Objective-C names and NLTokenUnit
 # is an @objc enum. Swift apps built with 0.33 or earlier that use NaturalLanguage must be rebuilt.
 usr/lib/swift/libswiftNaturalLanguage.dylib 0.34.0
+# 0.34.0 (issues #809, #814): Accelerate's Swift API in Apple's shape. vImage's pixel-format protocols are Apple's
+# (PixelFormat.ComponentType, StaticPixelFormat.channelCount, InitializableFromCGImage, MultiplePlanePixelFormat),
+# vImage.PixelBuffer holds a buffer per plane, Planar16F.makePixel / PlanarF.makePixel go Apple's way, the
+# non-Apple premultiply(destination:) / unpremultiply(destination:) are gone, and vDSP.DiscreteFourierTransform is
+# Apple's class over vDSP_DiscreteFourierTransformable. Swift apps built with 0.33 or earlier that use vImage's Swift
+# API or vDSP.DiscreteFourierTransform must be rebuilt.
+usr/lib/swift/libswiftAccelerate.dylib 0.34.0

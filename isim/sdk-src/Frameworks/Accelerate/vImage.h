@@ -143,6 +143,8 @@ enum {
     kvImageBufferTypeCode_Cr = 23,
     kvImageBufferTypeCode_CGFormat = 24,
     kvImageBufferTypeCode_UniqueFormatCount = 25,
+    /* a Core Video pixel buffer's Y'CbCr planes, as one buffer type (vImage_CVUtilities.h) */
+    kvImageBufferTypeCode_CVPixelBuffer_YCbCr = kvImageBufferTypeCode_UniqueFormatCount,
     kvImageBufferTypeCode_RGB_Red = kvImageBufferTypeCode_ColorSpaceChannel1,
     kvImageBufferTypeCode_RGB_Green = kvImageBufferTypeCode_ColorSpaceChannel2,
     kvImageBufferTypeCode_RGB_Blue = kvImageBufferTypeCode_ColorSpaceChannel3,
@@ -752,10 +754,8 @@ VIMAGE_PF vImage_Error vImageConvert_Planar8toIndexed1(const vImage_Buffer *src,
 VIMAGE_PF vImage_Error vImageConvert_Planar8toIndexed2(const vImage_Buffer *src, const vImage_Buffer *dest, void *tempBuffer, Pixel_8 colors[4], int dither, vImage_Flags flags);
 VIMAGE_PF vImage_Error vImageConvert_Planar8toIndexed4(const vImage_Buffer *src, const vImage_Buffer *dest, void *tempBuffer, Pixel_8 colors[16], int dither, vImage_Flags flags);
 typedef struct vImage_MultidimensionalTableData *vImage_MultidimensionalTable;
-typedef uint32_t vImageMDTableUsageHint;
-enum { kvImageMDTableHint_16Q12 = 1, kvImageMDTableHint_Float = 2 };
-typedef uint32_t vImage_InterpolationMethod;
-enum { kvImageNoInterpolation = 0, kvImageFullInterpolation = 1, kvImageHalfInterpolation = 2 };
+typedef enum : uint32_t { kvImageMDTableHint_16Q12 = 1, kvImageMDTableHint_Float = 2 } vImageMDTableUsageHint;
+typedef enum : uint32_t { kvImageNoInterpolation = 0, kvImageFullInterpolation = 1, kvImageHalfInterpolation = 2 } vImage_InterpolationMethod;
 VIMAGE_PF vImage_MultidimensionalTable vImageMultidimensionalTable_Create(const uint16_t *tableData, uint32_t numSrcChannels, uint32_t numDestChannels, const uint8_t table_entries_per_dimension[], vImageMDTableUsageHint hint, vImage_Flags flags, vImage_Error *err);
 VIMAGE_PF vImage_Error vImageMultidimensionalTable_Retain(vImage_MultidimensionalTable table);
 VIMAGE_PF vImage_Error vImageMultidimensionalTable_Release(vImage_MultidimensionalTable table);
@@ -778,6 +778,7 @@ VIMAGE_PF CGColorSpaceRef vImageCreateMonochromeColorSpaceWithWhitePointAndTrans
 /* ---- issue #693: Core Video ---- */
 typedef struct __attribute__((objc_bridge(id))) vImageCVImageFormat *vImageCVImageFormatRef;
 typedef const struct __attribute__((objc_bridge(id))) vImageCVImageFormat *vImageConstCVImageFormatRef;
+typedef vImage_Error vImageCVImageFormatError;
 typedef struct vImageChannelDescription { CGFloat min, zero, full, max; } vImageChannelDescription;
 typedef uint32_t vImageMatrixType;
 enum { kvImageMatrixType_None = 0, kvImageMatrixType_ARGBToYpCbCrMatrix = 1 };

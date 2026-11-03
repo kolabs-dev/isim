@@ -90,8 +90,9 @@ func check(_ ok: @autoclosure () -> Bool, _ what: String) {
         let argb = vImage.PixelBuffer(pixelValues: [UInt8]([128, 255, 100, 0, 255, 10, 20, 30]), size: vImage.Size(width: 2, height: 1),
                                       pixelFormat: vImage.Interleaved8x4.self)
         let pre = vImage.PixelBuffer(size: argb.size, pixelFormat: vImage.Interleaved8x4.self)
-        argb.premultiply(destination: pre)
-        check(pre.array == [128, 128, 50, 0, 255, 10, 20, 30], "premultiply(destination:)")
+        argb.copy(to: pre)
+        pre.premultiply(channelOrdering: .ARGB)
+        check(pre.array == [128, 128, 50, 0, 255, 10, 20, 30], "premultiply(channelOrdering:)")
         argb.permuteChannels(to: (3, 2, 1, 0), destination: pre)
         check(pre.array == [0, 100, 255, 128, 30, 20, 10, 255], "permuteChannels(to:destination:)")
         let wide = vImage.PixelBuffer(width: 4, height: 2, pixelFormat: vImage.Interleaved8x4.self)
@@ -119,6 +120,7 @@ func check(_ ok: @autoclosure () -> Bool, _ what: String) {
         }
         coreVideo()
         deepFormats()
+        pixelBufferMore()
         finish()
     }
     /// issue #693: vImageCVImageFormat, converters, and PixelBuffers over CVPixelBuffers
@@ -189,6 +191,163 @@ func check(_ ok: @autoclosure () -> Bool, _ what: String) {
         var e = vImage_Error(0)
         let cs = vImageCreateRGBColorSpaceWithPrimariesAndTransferFunction(&primaries, &tf, .defaultIntent, 0, &e)?.takeRetainedValue()
         check(cs?.numberOfComponents == 3 && e == 0, "vImageCreateRGBColorSpaceWithPrimariesAndTransferFunction from Swift")
+    }
+
+    /// issue #814: the rest of vImage.PixelBuffer
+    static func pixelBufferMore() {
+        let sz = vImage.Size(width: 4, height: 4)
+        // formats in Apple's shape
+        check(vImage.Planar8x3.planeCount == 3 && vImage.PlanarFx4.bitCountPerPlanarPixel == 32 && vImage.Interleaved8x4.channelCount == 4
+              && vImage.Interleaved16Fx4.bitCountPerPixel == 64 && vImage.PlanarF.bitCountPerComponent == 32, "MultiplePlanePixelFormat / StaticPixelFormat / InitializableFromCGImage")
+        check(vImage.PlanarF.makePixel(vImage.Planar16F.makePixel(0.5)) == 0.5 && vImage.InterleavedFx2.makePixel(vImage.Interleaved16Fx2.makePixel((1, 2))) == (1, 2),
+              "makePixel: Float <-> half")
+
+        // interleaving and the multiple-plane formats
+        let rgba = vImage.PixelBuffer(pixelValues: [UInt8](0..<64), size: sz, pixelFormat: vImage.Interleaved8x4.self)
+        let planes = rgba.planarBuffers()
+        check(planes.count == 4 && planes[1].array == stride(from: 1, to: 64, by: 4).map(UInt8.init), "planarBuffers(): channel 1")
+        let back = vImage.PixelBuffer<vImage.Interleaved8x4>(planarBuffers: planes)
+        check(back.array == rgba.array, "init(planarBuffers:)")
+        let p4 = vImage.PixelBuffer<vImage.Planar8x4>(interleavedBuffer: rgba)
+        let i4 = vImage.PixelBuffer(size: sz, pixelFormat: vImage.Interleaved8x4.self)
+        p4.interleave(destination: i4)
+        check(i4.array == rgba.array && p4.withUnsafePixelBuffer(at: 2) { $0.array } == planes[2].array, "Planar8x4: init(interleavedBuffer:), interleave, withUnsafePixelBuffer(at:)")
+        let shared = vImage.PixelBuffer(planarBuffers: planes, pixelFormat: vImage.Planar8x4.self)
+        check(shared.withUnsafePixelBuffers { $0.count } == 4 && shared.size == sz, "init(planarBuffers:pixelFormat:), withUnsafePixelBuffers")
+        check(rgba.makeArray(of: UInt32.self, channelCount: 1).count == 16 && rgba.cropped(to: CGRect(x: 1, y: 1, width: 2, height: 2)).array[0] == 20,
+              "makeArray(of:channelCount:), cropped(to:)")
+
+        // convolution and morphology
+        let flat = vImage.PixelBuffer(pixelValues: [Float](repeating: 0.5, count: 16), size: sz, pixelFormat: vImage.PlanarF.self)
+        let outF = vImage.PixelBuffer(size: sz, pixelFormat: vImage.PlanarF.self)
+        flat.convolve(with: vImage.ConvolutionKernel2D(values: [Float](repeating: 1 / 9, count: 9), width: 3, height: 3), edgeMode: .extend, destination: outF)
+        check(outF.array.allSatisfy { abs($0 - 0.5) < 1e-5 }, "convolve(with: ConvolutionKernel2D<Float>)")
+        flat.separableConvolve(horizontalKernel: vImage.ConvolutionKernel.gaussian1Dx3, verticalKernel: vImage.ConvolutionKernel.gaussian1Dx3,
+                               edgeMode: .extend, destination: outF)
+        check(outF.array.allSatisfy { abs($0 - 0.5) < 1e-5 }, "separableConvolve, ConvolutionKernel.gaussian1Dx3")
+        let dot = vImage.PixelBuffer(pixelValues: [UInt8](repeating: 0, count: 5) + [200] + [UInt8](repeating: 0, count: 10), size: sz, pixelFormat: vImage.Planar8.self)
+        let out8 = vImage.PixelBuffer(size: sz, pixelFormat: vImage.Planar8.self)
+        dot.applyMorphology(operation: .maximize(kernelSize: vImage.Size(width: 3, height: 3)), destination: out8)
+        check(out8.array.filter { $0 == 200 }.count == 9, "applyMorphology(.maximize)")
+        let op = vImage.MorphologyOperation<Pixel_8>.dilate(structuringElement: vImage.ConvolutionKernel2D(values: [UInt8](repeating: 0, count: 9), width: 3, height: 3))
+        check(op.width == 3 && op.structuringElement != nil, "MorphologyOperation's width, structuringElement")
+        dot.convolve(with: vImage.ConvolutionKernel2D(values: [Int16](repeating: 1, count: 9), width: 3, height: 3), edgeMode: .extend, destination: out8)
+        check(out8.array[0] == 22 && out8.array[15] == 0, "convolve(with: ConvolutionKernel2D<Int16>), divisor from the kernel")
+        let boxed = rgba.boxConvolved(kernelSize: vImage.Size(width: 1, height: 1), edgeMode: .extend)
+        check(boxed.array == rgba.array, "boxConvolved")
+
+        // tone and lookup
+        let ramp = vImage.PixelBuffer(pixelValues: (0..<16).map { Float($0) / 15 }, size: sz, pixelFormat: vImage.PlanarF.self)
+        ramp.applyGamma(.fullPrecision(2), destination: outF)
+        check(abs(outF.array[15] - 1) < 1e-4 && abs(outF.array[5] - pow(5 / 15, 2)) < 1e-3, "applyGamma(.fullPrecision)")
+        ramp.applyPolynomial(coefficientSegments: [[0, 2]], boundaries: [0, 1], destination: outF)
+        check(abs(outF.array[3] - 0.4) < 1e-5, "applyPolynomial: 2x")
+        ramp.clip(to: 0.25...0.5, destination: outF)
+        check(outF.array[0] == 0.25 && outF.array[15] == 0.5, "clip(to:)")
+        ramp.colorThreshold(0.5, destination: outF)
+        check(outF.array[7] == 0 && outF.array[8] == 1, "colorThreshold")
+        ramp.linearInterpolate(bufferB: flat, interpolationConstant: 0.5, destination: outF)
+        check(abs(outF.array[0] - 0.25) < 1e-6, "linearInterpolate(bufferB:interpolationConstant:)")
+        dot.applyLookup([UInt8](repeating: 0, count: 200) + [UInt8](repeating: 7, count: 56), destination: out8)
+        check(out8.array[5] == 7 && out8.array[0] == 0, "applyLookup([Pixel_8])")
+        let lut = vImage.PixelBuffer(size: sz, pixelFormat: vImage.InterleavedFx3.self)
+        dot.applyLookup([Pixel_FFFF](repeating: (0.25, 0.5, 0.75, 1), count: 256), destination: lut)
+        check(lut.array[0...2] == [0.25, 0.5, 0.75], "applyLookup([Pixel_FFFF]) into InterleavedFx3")
+        let gray8 = vImage.PixelBuffer(size: sz, pixelFormat: vImage.Planar8.self)
+        rgba.multiply(by: (0, 1, 0, 0), divisor: 1, preBias: (0, 0, 0, 0), postBias: 0, destination: gray8)
+        check(gray8.array == planes[1].array, "multiply(by:divisor:preBias:postBias:) into Planar8")
+        dot.multiply(by: 1, divisor: 2, preBias: 0, postBias: 0, destination: out8)
+        check(out8.array[5] == 100, "multiply(by: Int, divisor:)")
+        let fx4 = vImage.PixelBuffer(pixelValues: [Float](repeating: 0.5, count: 64), size: sz, pixelFormat: vImage.InterleavedFx4.self)
+        let fx4b = vImage.PixelBuffer(size: sz, pixelFormat: vImage.InterleavedFx4.self)
+        fx4.multiply(by: simd_float4x4(diagonal: SIMD4<Float>(repeating: 2)), preBias: (0, 0, 0, 0), postBias: (0, 0, 0, 0), destination: fx4b)
+        check(fx4b.array.allSatisfy { abs($0 - 1) < 1e-6 }, "multiply(by: simd_float4x4)")
+        let a8 = vImage.PixelBuffer(size: sz, pixelFormat: vImage.Interleaved8x4.self)
+        rgba.applyGamma(.fullPrecision(1), destination: a8)
+        check(zip(a8.array, rgba.array).allSatisfy { abs(Int($0) - Int($1)) <= 1 }, "applyGamma(_:intermediateBuffer:destination:), gamma 1")
+
+        // geometry
+        rgba.transform(CGAffineTransform.identity, backgroundColor: (0, 0, 0, 0), destination: a8)
+        check(a8.array == rgba.array, "transform(CGAffineTransform) identity")
+        let quad: vImage_PerpsectiveTransform.QuadrilateralPoints = (simd_float2(0, 0), simd_float2(4, 0), simd_float2(0, 4), simd_float2(4, 4))
+        if let t = vImage_PerpsectiveTransform(source: quad, destination: quad) {
+            dot.transform(t, interpolation: .nearest, backgroundColor: 0, destination: out8)
+            check(out8.array == dot.array, "vImage_PerpsectiveTransform(source:destination:), transform(_:interpolation:backgroundColor:)")
+        } else { check(false, "vImage_PerpsectiveTransform(source:destination:)") }
+        if let filter = vImageNewResamplingFilter(1, vImage_Flags(kvImageNoFlags)) {
+            dot.shear(direction: .horizontal, translate: Float(0), slope: Float(0), resamplingFilter: filter, backgroundColor: 0, destination: out8)
+            vImageDestroyResamplingFilter(filter)
+            check(out8.array[5] > 150, "shear(direction: .horizontal)")
+        }
+
+        // compositing and channels
+        let top = vImage.PixelBuffer(pixelValues: [UInt8](repeating: 0, count: 64), size: sz, pixelFormat: vImage.Interleaved8x4.self)
+        rgba.alphaComposite(.premultiplied, topLayer: top, destination: a8)
+        check(a8.array == rgba.array, "alphaComposite(.premultiplied) with a transparent top layer")
+        rgba.overwriteChannels([0], withScalar: 255, destination: a8)
+        check(a8.array[0] == 255 && a8.array[1] == 1 && a8.array[4] == 255, "overwriteChannels(_:withScalar:destination:)")
+        rgba.overwriteChannels([3], withPlanarBuffer: planes[0], destination: a8)
+        check(a8.array[3] == 0 && a8.array[7] == 4, "overwriteChannels(_:withPlanarBuffer:destination:)")
+        rgba.extractChannel(at: 2, destination: gray8)
+        check(gray8.array == planes[2].array, "extractChannel(at:destination:)")
+        let rgb = vImage.PixelBuffer(size: sz, pixelFormat: vImage.Interleaved8x3.self)
+        rgba.flatten(channelOrdering: .RGBA, backgroundColor: (0, 0, 0, 0), isPremultiplied: true, destination: rgb)
+        check(rgb.array[0...2] == [0, 1, 2], "flatten(channelOrdering:backgroundColor:isPremultiplied:destination:)")
+        let fill = vImage.PixelBuffer(pixelValues: [UInt8](repeating: 0, count: 16), size: sz, pixelFormat: vImage.Planar8.self)
+        fill.floodFill(from: CGPoint(x: 1, y: 1), newColor: 9, connectivity: .edges)
+        check(fill.array.allSatisfy { $0 == 9 }, "floodFill(from:newColor:connectivity:)")
+        fill.overwriteChannels(withScalar: 3)
+        check(fill.array.allSatisfy { $0 == 3 }, "overwriteChannels(withScalar:)")
+
+        // histograms of interleaved formats
+        let h = rgba.histogram()
+        check(h.0.reduce(0, +) == 16 && h.1[1] == 1 && h.3[3] == 1, "histogram() -> Histogram8888")
+        let hf = fx4.histogram(binCount: 4)
+        check(hf.0[2] == 16, "histogram(binCount:) -> HistogramFFFF")
+        rgba.specifyHistogram(h, destination: a8)
+        check(a8.size == sz, "specifyHistogram(Histogram8888)")
+
+        // conversions
+        let f2 = vImage.PixelBuffer(size: sz, pixelFormat: vImage.InterleavedFx2.self), i82 = vImage.PixelBuffer(size: sz, pixelFormat: vImage.Interleaved8x2.self)
+        let src82 = vImage.PixelBuffer(pixelValues: [UInt8](repeating: 255, count: 32), size: sz, pixelFormat: vImage.Interleaved8x2.self)
+        src82.convert(to: f2); f2.convert(to: i82)
+        check(f2.array.allSatisfy { $0 == 1 } && i82.array.allSatisfy { $0 == 255 }, "convert(to:) Interleaved8x2 <-> InterleavedFx2")
+        rgba.convert(to: rgb, channelOrdering: .RGBA)
+        check(rgb.array[0...2] == [0, 1, 2], "convert(to:channelOrdering:)")
+
+        // multidimensional lookup tables: an identity 2 x 2 x 2 table over three channels
+        var table = [UInt16]()
+        for r in 0..<2 { for g in 0..<2 { for b in 0..<2 { table += [UInt16(r * 4096), UInt16(g * 4096), UInt16(b * 4096)] } } }
+        let mdt = vImage.MultidimensionalLookupTable(entryCountPerSourceChannel: [2, 2, 2], destinationChannelCount: 3, data: table)
+        let srcP = vImage.PixelBuffer<vImage.PlanarFx3>(size: sz), dstP = vImage.PixelBuffer<vImage.PlanarFx3>(size: sz)
+        srcP.withUnsafePixelBuffers { ps in for (i, p) in ps.enumerated() { p.withUnsafeMutableBufferPointer { for j in $0.indices { $0[j] = Float(i + 1) / 4 } } } }
+        mdt.apply(source: srcP, destination: dstP, interpolation: .full)
+        check(mdt.sourceChannelCount == 3 && dstP.withUnsafePixelBuffer(at: 1) { abs($0.array[0] - 0.5) < 1e-3 }, "MultidimensionalLookupTable.apply(source:destination:interpolation:)")
+
+        // Core Video
+        var seen = 0
+        rgba.withCVPixelBuffer(readOnly: true) { cv in seen = CVPixelBufferGetWidth(cv) == 4 && CVPixelBufferGetPixelFormatType(cv) == kCVPixelFormatType_32ARGB ? 1 : -1 }
+        check(seen == 1, "withCVPixelBuffer(readOnly:body:)")
+        let y601 = vImage_ARGBToYpCbCrMatrix.itu_R_601_4
+        check(abs(y601.R_Yp - 0.299) < 1e-4 && abs(vImage_ARGBToYpCbCrMatrix.itu_R_709_2.R_Yp - 0.2126) < 1e-4, "vImage_ARGBToYpCbCrMatrix.itu_R_601_4 / itu_R_709_2")
+        if let cvf = vImageCVImageFormat.make(format: .format32ARGB, colorSpace: CGColorSpaceCreateDeviceRGB(), alphaIsOpaqueHint: false),
+           let cg = vImage_CGImageFormat(bitsPerComponent: 8, bitsPerPixel: 32, colorSpace: CGColorSpaceCreateDeviceRGB(),
+                                         bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.first.rawValue)),
+           let conv = try? vImageConverter.make(sourceFormat: cvf, destinationFormat: cg) {
+            var pb: CVPixelBuffer?
+            CVPixelBufferCreate(nil, 4, 4, kCVPixelFormatType_32ARGB, nil, &pb)
+            if let pb {
+                CVPixelBufferLockBaseAddress(pb, [])
+                let refs = try? conv.makeCVToCGPixelBuffers(referencing: pb)
+                let dyn = vImage.PixelBuffer(referencing: pb, converter: conv, destinationPixelFormat: vImage.DynamicPixelFormat.self)
+                let out = vImage.PixelBuffer(size: sz, pixelFormat: vImage.Interleaved8x4.self)
+                check(refs?.count == 1 && dyn.size == sz && (try? conv.convert(from: dyn, to: out)) != nil, "makeCVToCGPixelBuffers, PixelBuffer(referencing:converter:), vImageConverter.convert(from:to:)")
+                CVPixelBufferUnlockBaseAddress(pb, [])
+            }
+        } else { check(false, "a CV-to-CG converter for 32ARGB") }
+        _ = kvImageBufferTypeCode_CVPixelBuffer_YCbCr
+        let hint: vImageMDTableUsageHint = kvImageMDTableHint_Float, interp = vImage_InterpolationMethod(rawValue: 1)
+        check(hint.rawValue == 2 && interp == kvImageFullInterpolation, "vImageMDTableUsageHint / vImage_InterpolationMethod as Apple's structs")
     }
     static func finish_unused() {
     }

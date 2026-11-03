@@ -542,8 +542,66 @@ static void core_video(void) {
     vImageCVImageFormat_Release(none);
 }
 
+/* issue #814: the 10-bit bi-planar Y'CbCr and packed RGB Core Video formats, through converters and AnyToAny */
+static vImageConverterRef cv_pair(uint32_t code, vImageConverterRef *back, vImage_CGImageFormat *argb) {
+    vImageCVImageFormatRef f = vImageCVImageFormat_Create(code, kvImage_ARGBToYpCbCrMatrix_ITU_R_709_2, NULL, NULL, 1);
+    vImage_Error e1 = -1, e2 = -1;
+    vImageConverterRef to = f ? vImageConverter_CreateForCGToCVImageFormat(argb, f, NULL, 0, &e1) : NULL;
+    *back = f ? vImageConverter_CreateForCVToCGImageFormat(f, argb, NULL, 0, &e2) : NULL;
+    if (f) vImageCVImageFormat_Release(f);
+    return e1 == 0 && e2 == 0 ? to : NULL;
+}
+static void core_video_more(void) {
+    CGColorSpaceRef rgb = CGColorSpaceCreateDeviceRGB();
+    vImage_CGImageFormat argb = { 8, 32, rgb, (CGBitmapInfo)kCGImageAlphaFirst, 0, NULL, kCGRenderingIntentDefault };
+    /* 4 x 2 pixels: white, black, red, green / blue, grey, white, black */
+    uint8_t px[32] = { 255, 255, 255, 255,  255, 0, 0, 0,  255, 255, 0, 0,  255, 0, 255, 0,
+                       255, 0, 0, 255,  255, 128, 128, 128,  255, 255, 255, 255,  255, 0, 0, 0 }, out[32];
+    vImage_Buffer src = buf(px, 4, 2, 4), dst = buf(out, 4, 2, 4);
+    const uint32_t codes[] = { 'x420', 'xf20', 'x422', 'xf22', 'x444', 'xf44' };
+    for (int k = 0; k < 6; k++) {
+        vImageConverterRef back = NULL, to = cv_pair(codes[k], &back, &argb);
+        int sx = k >= 4 ? 1 : 2, sy = k < 2 ? 2 : 1, video = k % 2 == 0;
+        uint16_t luma[8], chroma[16];
+        vImage_Buffer planes[2] = { buf(luma, 4, 2, 2), { chroma, (vImagePixelCount)(2 / sy), (vImagePixelCount)(4 / sx), (size_t)(4 / sx) * 4 } };
+        memset(out, 0, sizeof out);
+        int ok = to && back && vImageConverter_GetNumberOfDestinationBuffers(to) == 2
+                 && vImageConvert_AnyToAny(to, &src, planes, NULL, 0) == 0 && vImageConvert_AnyToAny(back, planes, &dst, NULL, 0) == 0;
+        char what[96];
+        snprintf(what, sizeof what, "%c%c%c%c: white is Y' %d, black %d (10 bits, high bits)", codes[k] >> 24, codes[k] >> 16 & 255, codes[k] >> 8 & 255,
+                 codes[k] & 255, video ? 940 : 1023, video ? 64 : 0);
+        CHECK(ok && luma[0] >> 6 == (video ? 940 : 1023) && (luma[0] & 63) == 0 && luma[1] >> 6 == (video ? 64 : 0), what);
+        snprintf(what, sizeof what, "%c%c%c%c: a round trip through ARGB8888", codes[k] >> 24, codes[k] >> 16 & 255, codes[k] >> 8 & 255, codes[k] & 255);
+        if (k >= 4) CHECK(ok && same8(px, out, 32, 2), what);        /* 4:4:4 keeps every colour */
+        else CHECK(ok && same8(px, out, 4, 8) && out[0] == 255, what); /* subsampled chroma blends neighbours a little */
+        if (to) vImageConverter_Release(to);
+        if (back) vImageConverter_Release(back);
+    }
+    struct { uint32_t code; int bytes; uint32_t red; const char *what; } packed[] = {
+        { 'L565', 2, 0xF800, "L565: red is 0xF800" }, { 'B565', 2, 0x00F8, "B565: red is big-endian 0xF800" },
+        { 'L555', 2, 0xFC00, "L555: red is 0x7C00 with the unused bit set" }, { 0x10, 2, 0x00FC, "16BE555: red, big-endian" },
+        { '5551', 2, 0xF801, "5551: red, alpha bit 1" }, { 'R10k', 4, 0x0000C0FF, "R10k: red is big-endian 1023 << 22" },
+        { 'l10r', 4, 0xFFF00000, "l10r: red is 1023 << 20, alpha 3 << 30" }, { 'w30r', 4, 0x37E60180, "w30r: red is 894 << 20 (wide gamut 1.0)" },
+    };
+    for (size_t k = 0; k < sizeof packed / sizeof *packed; k++) {
+        vImageConverterRef back = NULL, to = cv_pair(packed[k].code, &back, &argb);
+        uint8_t red[8] = { 255, 255, 0, 0,  255, 0, 0, 255 }, words[8] = { 0 }, again[8] = { 0 };
+        vImage_Buffer s = buf(red, 2, 1, 4), w = buf(words, 2, 1, (size_t)packed[k].bytes), d = buf(again, 2, 1, 4);
+        int ok = to && back && vImageConvert_AnyToAny(to, &s, &w, NULL, 0) == 0 && vImageConvert_AnyToAny(back, &w, &d, NULL, 0) == 0;
+        uint32_t word = packed[k].bytes == 2 ? (uint32_t)(words[0] | words[1] << 8) : (uint32_t)(words[0] | words[1] << 8 | words[2] << 16 | (uint32_t)words[3] << 24);
+        if (!(ok && word == packed[k].red)) printf("      word %08x\n", word);
+        CHECK(ok && word == packed[k].red, packed[k].what);
+        char what[96];
+        snprintf(what, sizeof what, "%.4s: red and blue round trip", packed[k].what);
+        CHECK(ok && same8(red, again, 8, 8), what);
+        if (to) vImageConverter_Release(to);
+        if (back) vImageConverter_Release(back);
+    }
+    CGColorSpaceRelease(rgb);
+}
+
 int main(void) {
-    buffers(); conversions(); ycbcr(); geometry(); filters(); core_graphics(); ycbcr_deep(); packed10(); more_filters(); core_video();
+    buffers(); conversions(); ycbcr(); geometry(); filters(); core_graphics(); ycbcr_deep(); packed10(); more_filters(); core_video(); core_video_more();
     printf("vImage C: %d/%d passed\n", checks - failures, checks);
     return failures ? 1 : 0;
 }

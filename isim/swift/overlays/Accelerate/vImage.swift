@@ -267,78 +267,198 @@ extension vImageConverter {
 // MARK: - pixel formats
 
 /// A pixel format of a vImage.PixelBuffer.
-public protocol PixelFormat {}
+public protocol PixelFormat {
+    associatedtype ComponentType
+}
 /// A pixel format whose layout is known statically.
 public protocol StaticPixelFormat: PixelFormat {
-    associatedtype ComponentType
-    static var bitCountPerComponent: Int { get }
-    static var componentCount: Int { get }
-}
-extension StaticPixelFormat {
-    public static var bitCountPerPixel: Int { bitCountPerComponent * componentCount }
+    static var bitCountPerPixel: Int { get }
+    static var channelCount: Int { get }
 }
 /// A pixel format held in one buffer (planar, or interleaved channels).
 public protocol SinglePlanePixelFormat: StaticPixelFormat {}
+/// A pixel format a vImage.PixelBuffer can be made from a CGImage in.
+public protocol InitializableFromCGImage: StaticPixelFormat {
+    static var bitCountPerComponent: Int { get }
+}
+/// A pixel format held in one planar buffer per channel.
+public protocol MultiplePlanePixelFormat: StaticPixelFormat {
+    associatedtype PlanarPixelFormat: SinglePlanePixelFormat
+    static var planeCount: Int { get }
+    static var bitCountPerPlanarPixel: Int { get }
+}
+extension StaticPixelFormat {
+    /// The bits of one channel's value.
+    static var _componentBits: Int { MemoryLayout<ComponentType>.size * 8 }
+}
 
 extension vImage {
-    public struct Planar8: SinglePlanePixelFormat { public typealias ComponentType = Pixel_8; public static let bitCountPerComponent = 8; public static let componentCount = 1 }
-    public struct PlanarF: SinglePlanePixelFormat { public typealias ComponentType = Pixel_F; public static let bitCountPerComponent = 32; public static let componentCount = 1 }
-    public struct Planar16U: SinglePlanePixelFormat { public typealias ComponentType = Pixel_16U; public static let bitCountPerComponent = 16; public static let componentCount = 1 }
-    public struct Planar16F: SinglePlanePixelFormat {
-        public typealias ComponentType = Pixel_16F; public static let bitCountPerComponent = 16; public static let componentCount = 1
+    public struct Planar8: SinglePlanePixelFormat, InitializableFromCGImage {
+        public typealias ComponentType = Pixel_8
+        public static let bitCountPerComponent = 8, channelCount = 1, bitCountPerPixel = 8
+    }
+    public struct PlanarF: SinglePlanePixelFormat, InitializableFromCGImage {
+        public typealias ComponentType = Pixel_F
+        public static let bitCountPerComponent = 32, channelCount = 1, bitCountPerPixel = 32
         /// A half's bits as a float.
-        public static func makePixel(_ value: Pixel_16F) -> Pixel_F {
-            var h = value, f: Float = 0
-            withUnsafeMutablePointer(to: &h) { hp in withUnsafeMutablePointer(to: &f) { fp in
-                var s = vImage_Buffer(data: hp, height: 1, width: 1, rowBytes: 2), d = vImage_Buffer(data: fp, height: 1, width: 1, rowBytes: 4)
-                _ = vImageConvert_Planar16FtoPlanarF(&s, &d, vImage_Flags(kvImageNoFlags))
-            } }
-            return f
+        public static func makePixel(_ value: Pixel_16F) -> Pixel_F { _halfToFloat([value])[0] }
+    }
+    public struct Planar16U: SinglePlanePixelFormat, InitializableFromCGImage {
+        public typealias ComponentType = Pixel_16U
+        public static let bitCountPerComponent = 16, channelCount = 1, bitCountPerPixel = 16
+    }
+    public struct Planar16F: SinglePlanePixelFormat, InitializableFromCGImage {
+        public typealias ComponentType = Pixel_16F
+        public static let bitCountPerComponent = 16, channelCount = 1, bitCountPerPixel = 16
+        /// A float as a half's bits.
+        public static func makePixel(_ value: Pixel_F) -> Pixel_16F { _floatToHalf([value])[0] }
+    }
+    public struct Interleaved8x2: SinglePlanePixelFormat, InitializableFromCGImage {
+        public typealias ComponentType = Pixel_8
+        public static let bitCountPerComponent = 8, channelCount = 2, bitCountPerPixel = 16
+    }
+    public struct Interleaved8x3: SinglePlanePixelFormat, InitializableFromCGImage {
+        public typealias ComponentType = Pixel_8
+        public static let bitCountPerComponent = 8, channelCount = 3, bitCountPerPixel = 24
+    }
+    public struct Interleaved8x4: SinglePlanePixelFormat, InitializableFromCGImage {
+        public typealias ComponentType = Pixel_8
+        public static let bitCountPerComponent = 8, channelCount = 4, bitCountPerPixel = 32
+    }
+    public struct InterleavedFx2: SinglePlanePixelFormat, InitializableFromCGImage {
+        public typealias ComponentType = Pixel_F
+        public static let bitCountPerComponent = 32, channelCount = 2, bitCountPerPixel = 64
+        public static func makePixel(_ value: Pixel_16F16F) -> Pixel_FF { let f = _halfToFloat([value.0, value.1]); return (f[0], f[1]) }
+    }
+    public struct InterleavedFx3: SinglePlanePixelFormat, InitializableFromCGImage {
+        public typealias ComponentType = Pixel_F
+        public static let bitCountPerComponent = 32, channelCount = 3, bitCountPerPixel = 96
+    }
+    public struct InterleavedFx4: SinglePlanePixelFormat, InitializableFromCGImage {
+        public typealias ComponentType = Pixel_F
+        public static let bitCountPerComponent = 32, channelCount = 4, bitCountPerPixel = 128
+        public static func makePixel(_ value: Pixel_ARGB_16F) -> Pixel_FFFF {
+            let f = _halfToFloat([value.0, value.1, value.2, value.3]); return (f[0], f[1], f[2], f[3])
         }
     }
-    public struct Interleaved8x2: SinglePlanePixelFormat { public typealias ComponentType = Pixel_8; public static let bitCountPerComponent = 8; public static let componentCount = 2 }
-    public struct Interleaved8x3: SinglePlanePixelFormat { public typealias ComponentType = Pixel_8; public static let bitCountPerComponent = 8; public static let componentCount = 3 }
-    public struct Interleaved8x4: SinglePlanePixelFormat { public typealias ComponentType = Pixel_8; public static let bitCountPerComponent = 8; public static let componentCount = 4 }
-    public struct InterleavedFx2: SinglePlanePixelFormat { public typealias ComponentType = Pixel_F; public static let bitCountPerComponent = 32; public static let componentCount = 2 }
-    public struct InterleavedFx3: SinglePlanePixelFormat { public typealias ComponentType = Pixel_F; public static let bitCountPerComponent = 32; public static let componentCount = 3 }
-    public struct InterleavedFx4: SinglePlanePixelFormat { public typealias ComponentType = Pixel_F; public static let bitCountPerComponent = 32; public static let componentCount = 4 }
-    public struct Interleaved16Ux2: SinglePlanePixelFormat { public typealias ComponentType = Pixel_16U; public static let bitCountPerComponent = 16; public static let componentCount = 2 }
-    public struct Interleaved16Ux4: SinglePlanePixelFormat { public typealias ComponentType = Pixel_16U; public static let bitCountPerComponent = 16; public static let componentCount = 4 }
-    public struct Interleaved16Fx2: SinglePlanePixelFormat { public typealias ComponentType = Pixel_16F; public static let bitCountPerComponent = 16; public static let componentCount = 2 }
-    public struct Interleaved16Fx4: SinglePlanePixelFormat { public typealias ComponentType = Pixel_16F; public static let bitCountPerComponent = 16; public static let componentCount = 4 }
+    public struct Interleaved16Ux2: SinglePlanePixelFormat, InitializableFromCGImage {
+        public typealias ComponentType = Pixel_16U
+        public static let bitCountPerComponent = 16, channelCount = 2, bitCountPerPixel = 32
+    }
+    public struct Interleaved16Ux4: SinglePlanePixelFormat, InitializableFromCGImage {
+        public typealias ComponentType = Pixel_16U
+        public static let bitCountPerComponent = 16, channelCount = 4, bitCountPerPixel = 64
+    }
+    public struct Interleaved16Fx2: SinglePlanePixelFormat, InitializableFromCGImage {
+        public typealias ComponentType = Pixel_16F
+        public static let bitCountPerComponent = 16, channelCount = 2, bitCountPerPixel = 32
+        public static func makePixel(_ value: Pixel_FF) -> Pixel_16F16F { let h = _floatToHalf([value.0, value.1]); return (h[0], h[1]) }
+    }
+    public struct Interleaved16Fx4: SinglePlanePixelFormat, InitializableFromCGImage {
+        public typealias ComponentType = Pixel_16F
+        public static let bitCountPerComponent = 16, channelCount = 4, bitCountPerPixel = 64
+        public static func makePixel(_ value: Pixel_FFFF) -> Pixel_ARGB_16F {
+            let h = _floatToHalf([value.0, value.1, value.2, value.3]); return (h[0], h[1], h[2], h[3])
+        }
+    }
+
+    // the multiple-plane formats: one Planar8 or PlanarF buffer per channel
+    public struct Planar8x2: MultiplePlanePixelFormat {
+        public typealias ComponentType = Pixel_8; public typealias PlanarPixelFormat = Planar8
+        public static let planeCount = 2, channelCount = 2, bitCountPerPlanarPixel = 8, bitCountPerPixel = 16
+    }
+    public struct Planar8x3: MultiplePlanePixelFormat {
+        public typealias ComponentType = Pixel_8; public typealias PlanarPixelFormat = Planar8
+        public static let planeCount = 3, channelCount = 3, bitCountPerPlanarPixel = 8, bitCountPerPixel = 24
+    }
+    public struct Planar8x4: MultiplePlanePixelFormat {
+        public typealias ComponentType = Pixel_8; public typealias PlanarPixelFormat = Planar8
+        public static let planeCount = 4, channelCount = 4, bitCountPerPlanarPixel = 8, bitCountPerPixel = 32
+    }
+    public struct PlanarFx2: MultiplePlanePixelFormat {
+        public typealias ComponentType = Pixel_F; public typealias PlanarPixelFormat = PlanarF
+        public static let planeCount = 2, channelCount = 2, bitCountPerPlanarPixel = 32, bitCountPerPixel = 64
+    }
+    public struct PlanarFx3: MultiplePlanePixelFormat {
+        public typealias ComponentType = Pixel_F; public typealias PlanarPixelFormat = PlanarF
+        public static let planeCount = 3, channelCount = 3, bitCountPerPlanarPixel = 32, bitCountPerPixel = 96
+    }
+    public struct PlanarFx4: MultiplePlanePixelFormat {
+        public typealias ComponentType = Pixel_F; public typealias PlanarPixelFormat = PlanarF
+        public static let planeCount = 4, channelCount = 4, bitCountPerPlanarPixel = 32, bitCountPerPixel = 128
+    }
+
+    /// A pixel format known only at run time: the buffers a vImageConverter reads or writes for a Core Video pixel
+    /// buffer (vImageConverter.makeCVToCGPixelBuffers, PixelBuffer(referencing:converter:destinationPixelFormat:)).
+    public struct DynamicPixelFormat: PixelFormat {
+        public typealias ComponentType = UInt8
+    }
+}
+
+func _halfToFloat(_ h: [Pixel_16F]) -> [Pixel_F] {
+    var h = h, f = [Pixel_F](repeating: 0, count: h.count)
+    h.withUnsafeMutableBytes { hp in f.withUnsafeMutableBytes { fp in
+        var s = vImage_Buffer(data: hp.baseAddress!, height: 1, width: vImagePixelCount(hp.count / 2), rowBytes: hp.count)
+        var d = vImage_Buffer(data: fp.baseAddress!, height: 1, width: vImagePixelCount(fp.count / 4), rowBytes: fp.count)
+        _ = vImageConvert_Planar16FtoPlanarF(&s, &d, vImage_Flags(kvImageNoFlags))
+    } }
+    return f
+}
+func _floatToHalf(_ f: [Pixel_F]) -> [Pixel_16F] {
+    var f = f, h = [Pixel_16F](repeating: 0, count: f.count)
+    f.withUnsafeMutableBytes { fp in h.withUnsafeMutableBytes { hp in
+        var s = vImage_Buffer(data: fp.baseAddress!, height: 1, width: vImagePixelCount(fp.count / 4), rowBytes: fp.count)
+        var d = vImage_Buffer(data: hp.baseAddress!, height: 1, width: vImagePixelCount(hp.count / 2), rowBytes: hp.count)
+        _ = vImageConvert_PlanarFtoPlanar16F(&s, &d, vImage_Flags(kvImageNoFlags))
+    } }
+    return h
 }
 
 // MARK: - PixelBuffer
 
 extension vImage {
-    /// An image buffer of a pixel format, which frees the pixels it allocated.
-    public struct PixelBuffer<Format> {
+    /// An image buffer of a pixel format (one vImage_Buffer per plane), which frees the pixels it allocated.
+    public struct PixelBuffer<Format: PixelFormat> {
         final class _Storage {
-            var buffer: vImage_Buffer
+            var buffers: [vImage_Buffer]
             let owned: Bool
-            var keep: AnyObject?                  // what the pixels belong to (a CVPixelBuffer), kept alive
-            init(buffer: vImage_Buffer, owned: Bool) { self.buffer = buffer; self.owned = owned }
-            deinit { if owned { Darwin.free(buffer.data) } }
+            var keep: Any?                  // what the pixels belong to (a CVPixelBuffer, the source buffers), kept alive
+            init(buffers: [vImage_Buffer], owned: Bool) { self.buffers = buffers; self.owned = owned }
+            convenience init(buffer: vImage_Buffer, owned: Bool) { self.init(buffers: [buffer], owned: owned) }
+            deinit { if owned { for b in buffers { Darwin.free(b.data) } } }
         }
         let _storage: _Storage
-        var _buffer: vImage_Buffer { _storage.buffer }
+        var _buffer: vImage_Buffer { _storage.buffers[0] }
+        var _buffers: [vImage_Buffer] { _storage.buffers }
+        init(_storage: _Storage) { self._storage = _storage }
     }
+}
+
+func _vImageAllocate(width: Int, height: Int, bitsPerPixel: Int) -> vImage_Buffer {
+    var b = vImage_Buffer()
+    precondition(vImageBuffer_Init(&b, vImagePixelCount(height), vImagePixelCount(width), UInt32(bitsPerPixel),
+                                   vImage_Flags(kvImageNoFlags)) == 0, "vImage.PixelBuffer: could not allocate \(width) x \(height)")
+    return b
+}
+
+extension vImage.PixelBuffer {
+    public var width: Int { Int(_buffer.width) }
+    public var height: Int { Int(_buffer.height) }
+    public var size: vImage.Size { vImage.Size(width: width, height: height) }
+    public func withUnsafeVImageBuffers<R>(_ body: ([vImage_Buffer]) throws -> R) rethrows -> R { try body(_buffers) }
 }
 
 extension vImage.PixelBuffer where Format: SinglePlanePixelFormat {
     public init(width: Int, height: Int, pixelFormat: Format.Type = Format.self) {
-        var b = vImage_Buffer()
-        precondition(vImageBuffer_Init(&b, vImagePixelCount(height), vImagePixelCount(width), UInt32(Format.bitCountPerPixel),
-                                       vImage_Flags(kvImageNoFlags)) == 0, "vImage.PixelBuffer: could not allocate \(width) x \(height)")
-        _storage = _Storage(buffer: b, owned: true)
+        self.init(_storage: _Storage(buffer: _vImageAllocate(width: width, height: height, bitsPerPixel: Format.bitCountPerPixel), owned: true))
     }
     public init(size: vImage.Size, pixelFormat: Format.Type = Format.self) {
         self.init(width: size.width, height: size.height, pixelFormat: pixelFormat)
     }
     /// A buffer over memory the caller owns.
     public init(data: UnsafeMutableRawPointer, width: Int, height: Int, byteCountPerRow: Int, pixelFormat: Format.Type = Format.self) {
-        _storage = _Storage(buffer: vImage_Buffer(data: data, height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: byteCountPerRow),
-                            owned: false)
+        self.init(_storage: _Storage(buffer: vImage_Buffer(data: data, height: vImagePixelCount(height), width: vImagePixelCount(width),
+                                                           rowBytes: byteCountPerRow), owned: false))
     }
     public init(data: UnsafeMutableRawPointer, width: Int, height: Int, byteCountPerRow: Int?, pixelFormat: Format.Type = Format.self) {
         self.init(data: data, width: width, height: height,
@@ -347,7 +467,7 @@ extension vImage.PixelBuffer where Format: SinglePlanePixelFormat {
     /// A buffer of the pixel values, row by row.
     public init<U: AccelerateBuffer>(pixelValues: U, size: vImage.Size, pixelFormat: Format.Type = Format.self) where U.Element == Format.ComponentType {
         self.init(size: size, pixelFormat: pixelFormat)
-        let n = size.width * Format.componentCount
+        let n = size.width * Format.channelCount
         precondition(pixelValues.count >= n * size.height, "vImage.PixelBuffer: too few pixel values")
         let b = _buffer
         pixelValues.withUnsafeBufferPointer { src in
@@ -357,21 +477,12 @@ extension vImage.PixelBuffer where Format: SinglePlanePixelFormat {
             }
         }
     }
-    /// A buffer in the given Core Graphics format of an image (an empty format takes the image's own).
-    public init(cgImage: CGImage, cgImageFormat: inout vImage_CGImageFormat, pixelFormat: Format.Type = Format.self) throws {
-        var b = vImage_Buffer()
-        try _vImageCheck(vImageBuffer_InitWithCGImage(&b, &cgImageFormat, nil, cgImage, vImage_Flags(kvImageNoFlags)))
-        _storage = _Storage(buffer: b, owned: true)
-    }
 
-    public var width: Int { Int(_buffer.width) }
-    public var height: Int { Int(_buffer.height) }
-    public var size: vImage.Size { vImage.Size(width: width, height: height) }
-    public var channelCount: Int { Format.componentCount }
+    public var channelCount: Int { Format.channelCount }
     public var byteCountPerPixel: Int { Format.bitCountPerPixel / 8 }
     public var bytesPerRow: Int { _buffer.rowBytes }
     /// The elements per row, padding included.
-    public var rowStride: Int { _buffer.rowBytes / (Format.bitCountPerComponent / 8) }
+    public var rowStride: Int { _buffer.rowBytes / (Format._componentBits / 8) }
     /// The number of elements, padding included.
     public var count: Int { rowStride * height }
     /// The pixel values row by row, without the padding.
@@ -385,10 +496,21 @@ extension vImage.PixelBuffer where Format: SinglePlanePixelFormat {
         }
         return out
     }
+    /// The pixel values row by row as another element type (the bytes reinterpreted), channelCount values per pixel.
+    public func makeArray<U>(of type: U.Type, channelCount: Int) -> [U] {
+        let n = width * channelCount, b = _buffer
+        precondition(n * MemoryLayout<U>.stride <= b.rowBytes, "vImage.PixelBuffer.makeArray: more values than a row holds")
+        var out: [U] = []
+        out.reserveCapacity(n * height)
+        for y in 0..<height {
+            let row = b.data.advanced(by: y * b.rowBytes).assumingMemoryBound(to: U.self)
+            out.append(contentsOf: UnsafeBufferPointer(start: row, count: n))
+        }
+        return out
+    }
     public func withUnsafeVImageBuffer<R>(_ body: (vImage_Buffer) throws -> R) rethrows -> R { try body(_buffer) }
-    public func withUnsafeVImageBuffers<R>(_ body: ([vImage_Buffer]) throws -> R) rethrows -> R { try body([_buffer]) }
     public func withUnsafePointerToVImageBuffer<R>(_ body: (UnsafePointer<vImage_Buffer>) throws -> R) rethrows -> R {
-        try withUnsafePointer(to: &_storage.buffer, body)
+        try withUnsafePointer(to: &_storage.buffers[0], body)
     }
     public func withUnsafeBufferPointer<R>(_ body: (UnsafeBufferPointer<Format.ComponentType>) throws -> R) rethrows -> R {
         try body(UnsafeBufferPointer(start: _buffer.data.assumingMemoryBound(to: Format.ComponentType.self), count: count))
@@ -399,10 +521,25 @@ extension vImage.PixelBuffer where Format: SinglePlanePixelFormat {
     }
     /// A sub-rectangle sharing these pixels.
     public func withUnsafeRegionOfInterest<R>(_ regionOfInterest: CGRect, _ body: (vImage.PixelBuffer<Format>) throws -> R) rethrows -> R {
-        let r = regionOfInterest.integral.intersection(CGRect(x: 0, y: 0, width: width, height: height))
+        try body(_region(regionOfInterest))
+    }
+    func _region(_ rect: CGRect) -> vImage.PixelBuffer<Format> {
+        let r = rect.integral.intersection(CGRect(x: 0, y: 0, width: width, height: height))
         let b = _buffer
         let p = b.data.advanced(by: Int(r.minY) * b.rowBytes + Int(r.minX) * byteCountPerPixel)
-        return try body(vImage.PixelBuffer(data: p, width: Int(r.width), height: Int(r.height), byteCountPerRow: b.rowBytes, pixelFormat: Format.self))
+        let sub = vImage.PixelBuffer(data: p, width: Int(r.width), height: Int(r.height), byteCountPerRow: b.rowBytes, pixelFormat: Format.self)
+        sub._storage.keep = _storage
+        return sub
+    }
+    /// A new buffer with a copy of a sub-rectangle.
+    public func cropped(to rect: CGRect) -> vImage.PixelBuffer<Format> {
+        let r = _region(rect), out = vImage.PixelBuffer<Format>(size: r.size)
+        r.copy(to: out)
+        return out
+    }
+    /// Copies the destination-sized rectangle at a point into the destination.
+    public func crop(at point: CGPoint, destination: vImage.PixelBuffer<Format>) {
+        _region(CGRect(origin: point, size: CGSize(width: destination.width, height: destination.height))).copy(to: destination)
     }
     public func makeCGImage(cgImageFormat: vImage_CGImageFormat) -> CGImage? {
         var b = _buffer, f = cgImageFormat, e = vImage_Error(kvImageNoError)
@@ -416,6 +553,77 @@ extension vImage.PixelBuffer where Format: SinglePlanePixelFormat {
         var s = _buffer, d = destination._buffer
         let e = fn(&s, &d)
         precondition(e >= 0, "vImage: error \(e)")
+    }
+}
+
+extension vImage.PixelBuffer where Format: InitializableFromCGImage {
+    /// A buffer in the given Core Graphics format of an image (an empty format takes the image's own).
+    public init(cgImage: CGImage, cgImageFormat: inout vImage_CGImageFormat, pixelFormat: Format.Type = Format.self) throws {
+        var b = vImage_Buffer()
+        try _vImageCheck(vImageBuffer_InitWithCGImage(&b, &cgImageFormat, nil, cgImage, vImage_Flags(kvImageNoFlags)))
+        self.init(_storage: _Storage(buffer: b, owned: true))
+    }
+    /// A buffer of an image in the pixel format, and the Core Graphics format it was read in (the image's colour space,
+    /// or sRGB / gray when the image's doesn't fit).
+    public static func makePixelBufferAndCGImageFormat(cgImage: CGImage, pixelFormat: Format.Type = Format.self) throws
+        -> (pixelBuffer: vImage.PixelBuffer<Format>, cgImageFormat: vImage_CGImageFormat) {
+        let isFloat = Format.ComponentType.self == Pixel_F.self || Format.ComponentType.self == Pixel_16F.self
+        let gray = Format.channelCount <= 2
+        let cs: CGColorSpace = (cgImage.colorSpace.flatMap { ($0.numberOfComponents == 1) == gray ? $0 : nil })
+            ?? (gray ? CGColorSpaceCreateDeviceGray() : CGColorSpaceCreateDeviceRGB())
+        var info = CGBitmapInfo(rawValue: 0)
+        switch Format.channelCount {
+        case 2, 4: info.insert(CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue))
+        default: info.insert(CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue))
+        }
+        if isFloat { info.insert(.floatComponents) }
+        if Format.bitCountPerComponent == 16 { info.insert(.byteOrder16Little) } else if Format.bitCountPerComponent == 32 { info.insert(.byteOrder32Little) }
+        guard var f = vImage_CGImageFormat(bitsPerComponent: Format.bitCountPerComponent, bitsPerPixel: Format.bitCountPerPixel,
+                                           colorSpace: cs, bitmapInfo: info) else { throw vImage.Error.invalidImageFormat }
+        let b = try vImage.PixelBuffer<Format>(cgImage: cgImage, cgImageFormat: &f, pixelFormat: pixelFormat)
+        return (b, f)
+    }
+}
+
+extension vImage.PixelBuffer where Format == vImage.DynamicPixelFormat {
+    /// A buffer of an image in its own Core Graphics format.
+    public static func makeDynamicPixelBufferAndCGImageFormat(cgImage: CGImage) throws
+        -> (pixelBuffer: vImage.PixelBuffer<vImage.DynamicPixelFormat>, cgImageFormat: vImage_CGImageFormat) {
+        guard var f = vImage_CGImageFormat(cgImage: cgImage) else { throw vImage.Error.invalidImageFormat }
+        var b = vImage_Buffer()
+        try _vImageCheck(vImageBuffer_InitWithCGImage(&b, &f, nil, cgImage, vImage_Flags(kvImageNoFlags)))
+        return (vImage.PixelBuffer(_storage: _Storage(buffer: b, owned: true)), f)
+    }
+}
+
+// MARK: - multiple-plane buffers
+
+extension vImage.PixelBuffer where Format: MultiplePlanePixelFormat {
+    public init(width: Int, height: Int, pixelFormat: Format.Type = Format.self) {
+        self.init(_storage: _Storage(buffers: (0..<Format.planeCount).map { _ in
+            _vImageAllocate(width: width, height: height, bitsPerPixel: Format.bitCountPerPlanarPixel) }, owned: true))
+    }
+    public init(size: vImage.Size, pixelFormat: Format.Type = Format.self) {
+        self.init(width: size.width, height: size.height, pixelFormat: pixelFormat)
+    }
+    /// A buffer over the planar buffers (sharing their pixels).
+    public init(planarBuffers: [vImage.PixelBuffer<Format.PlanarPixelFormat>], pixelFormat: Format.Type = Format.self) {
+        precondition(planarBuffers.count == Format.planeCount, "vImage.PixelBuffer: \(Format.planeCount) planar buffers needed")
+        precondition(Set(planarBuffers.map(\.size)).count == 1, "vImage.PixelBuffer: the planar buffers differ in size")
+        self.init(_storage: _Storage(buffers: planarBuffers.map(\._buffer), owned: false))
+        _storage.keep = planarBuffers.map(\._storage)
+    }
+    public var channelCount: Int { Format.channelCount }
+    public func withUnsafePixelBuffer<R>(at index: Int, _ body: (vImage.PixelBuffer<Format.PlanarPixelFormat>) throws -> R) rethrows -> R {
+        try body(_plane(index))
+    }
+    public func withUnsafePixelBuffers<R>(_ body: ([vImage.PixelBuffer<Format.PlanarPixelFormat>]) throws -> R) rethrows -> R {
+        try body((0..<Format.planeCount).map(_plane))
+    }
+    func _plane(_ i: Int) -> vImage.PixelBuffer<Format.PlanarPixelFormat> {
+        let p = vImage.PixelBuffer<Format.PlanarPixelFormat>(_storage: .init(buffer: _buffers[i], owned: false))
+        p._storage.keep = _storage
+        return p
     }
 }
 
@@ -528,13 +736,6 @@ extension vImage.PixelBuffer where Format == vImage.Interleaved8x4 {
         var bg = [UInt8](repeating: 0, count: 4)
         if let c = edgeMode._background { bg = [c.0, c.1, c.2, c.3] }
         _call2(destination) { vImageTentConvolve_ARGB8888($0, $1, nil, 0, 0, UInt32(kernelSize.height), UInt32(kernelSize.width), bg, edgeMode._flags) }
-    }
-    /// Premultiplies the colour channels by alpha, the first channel.
-    public func premultiply(destination: vImage.PixelBuffer<Format>) {
-        _call2(destination) { vImagePremultiplyData_ARGB8888($0, $1, vImage_Flags(kvImageNoFlags)) }
-    }
-    public func unpremultiply(destination: vImage.PixelBuffer<Format>) {
-        _call2(destination) { vImageUnpremultiplyData_ARGB8888($0, $1, vImage_Flags(kvImageNoFlags)) }
     }
 }
 extension vImage.PixelBuffer where Format == vImage.InterleavedFx4 {
