@@ -2,6 +2,7 @@
 // The element-wise overloads are generated (vDSP+Generated.swift, from tools/gen-accelerate-swift.py). Adapted: the
 // work is done by isim's own C vDSP and vForce (frameworks/Accelerate).
 @_exported import Accelerate
+import Foundation
 
 /// A contiguous buffer that Accelerate's Swift functions read.
 public protocol AccelerateBuffer<Element> {
@@ -49,7 +50,7 @@ public enum vDSP {
         case forward
         case inverse
         public var fftDirection: FFTDirection { self == .forward ? FFTDirection(kFFTDirection_Forward) : FFTDirection(kFFTDirection_Inverse) }
-        public var dftDirection: vDSP_DFT_Direction { self == .forward ? vDSP_DFT_FORWARD : vDSP_DFT_INVERSE }
+        public var dftDirection: vDSP_DFT_Direction { self == .forward ? .FORWARD : .INVERSE }
     }
     public enum Radix {
         case radix2
@@ -153,88 +154,246 @@ extension vDSP {
 
 // MARK: DFT (any length f * 2^n, f in 1, 3, 5, 15; complex-complex or complex-real)
 
-public protocol vDSP_FloatingPointDiscreteFourierTransformable: BinaryFloatingPoint {}
-extension Float: vDSP_FloatingPointDiscreteFourierTransformable {}
-extension Double: vDSP_FloatingPointDiscreteFourierTransformable {}
+/// The DFT functions vDSP.DFT calls for its element type (vDSP.VectorizableFloat, vDSP.VectorizableDouble).
+public protocol vDSP_DFTFunctions {
+    associatedtype Scalar
+    static func makeDFTSetup<T>(previous: vDSP.DFT<T>?, count: Int, direction: vDSP.FourierTransformDirection,
+                                transformType: vDSP.DFTTransformType) -> OpaquePointer?
+        where T: vDSP_FloatingPointDiscreteFourierTransformable
+    static func transform<U, V>(dftSetup: OpaquePointer, inputReal: U, inputImaginary: U, outputReal: inout V, outputImaginary: inout V)
+        where U: AccelerateBuffer, V: AccelerateMutableBuffer, U.Element == Scalar, V.Element == Scalar
+    static func destroySetup(_ setup: OpaquePointer)
+}
 
-final class _DFTSetup<T: vDSP_FloatingPointDiscreteFourierTransformable> {
-    let pointer: OpaquePointer
-    let count: Int
-    init?(count: Int, direction: vDSP.FourierTransformDirection, transformType: vDSP.DFTTransformType) {
-        let d = direction.dftDirection
-        let p: OpaquePointer?
-        if T.self == Double.self {
-            p = transformType == .complexComplex ? vDSP_DFT_zop_CreateSetupD(nil, vDSP_Length(count), d) : vDSP_DFT_zrop_CreateSetupD(nil, vDSP_Length(count), d)
-        } else {
-            p = transformType == .complexComplex ? vDSP_DFT_zop_CreateSetup(nil, vDSP_Length(count), d) : vDSP_DFT_zrop_CreateSetup(nil, vDSP_Length(count), d)
-        }
-        guard let p else { return nil }
-        pointer = p
-        self.count = transformType == .complexComplex ? count : count / 2
+public protocol vDSP_FloatingPointDiscreteFourierTransformable: BinaryFloatingPoint {
+    associatedtype DFTFunctions: vDSP_DFTFunctions where DFTFunctions.Scalar == Self
+}
+extension Float: vDSP_FloatingPointDiscreteFourierTransformable { public typealias DFTFunctions = vDSP.VectorizableFloat }
+extension Double: vDSP_FloatingPointDiscreteFourierTransformable { public typealias DFTFunctions = vDSP.VectorizableDouble }
+
+/// Creating and destroying the setup of a vDSP.DiscreteFourierTransform (the four vDSP.DFT…Functions types).
+public protocol vDSP_DiscreteTransformLifecycleFunctions {
+    static func makeDiscreteFourierTransform(previous: OpaquePointer?, count: Int, direction: vDSP.FourierTransformDirection,
+                                             transformType: vDSP.DFTTransformType) throws -> OpaquePointer
+    static func destroySetup(_ setup: OpaquePointer)
+}
+
+/// An element type of vDSP.DiscreteFourierTransform: Float and Double (split complex), DSPComplex and DSPDoubleComplex
+/// (interleaved).
+public protocol vDSP_DiscreteFourierTransformable {
+    associatedtype DiscreteFourierTransformFunctions: vDSP_DiscreteTransformLifecycleFunctions
+}
+extension Float: vDSP_DiscreteFourierTransformable {
+    public typealias DiscreteFourierTransformFunctions = vDSP.DFTSinglePrecisionSplitComplexFunctions
+}
+extension Double: vDSP_DiscreteFourierTransformable {
+    public typealias DiscreteFourierTransformFunctions = vDSP.DFTDoublePrecisionSplitComplexFunctions
+}
+extension DSPComplex: vDSP_DiscreteFourierTransformable {
+    public typealias DiscreteFourierTransformFunctions = vDSP.DFTSinglePrecisionInterleavedFunctions
+}
+extension DSPDoubleComplex: vDSP_DiscreteFourierTransformable {
+    public typealias DiscreteFourierTransformFunctions = vDSP.DFTDoublePrecisionInterleavedFunctions
+}
+
+@inline(__always)
+func _dftExecute<E, U: AccelerateBuffer, V: AccelerateMutableBuffer>(
+    _ ir: U, _ ii: U, _ or: inout V, _ oi: inout V,
+    _ f: (UnsafePointer<E>, UnsafePointer<E>, UnsafeMutablePointer<E>, UnsafeMutablePointer<E>) -> Void) where U.Element == E, V.Element == E {
+    ir.withUnsafeBufferPointer { ir in ii.withUnsafeBufferPointer { ii in or.withUnsafeMutableBufferPointer { or in oi.withUnsafeMutableBufferPointer { oi in
+        f(ir.baseAddress!, ii.baseAddress!, or.baseAddress!, oi.baseAddress!)
+    } } } }
+}
+
+extension vDSP.VectorizableFloat: vDSP_DFTFunctions {
+    public static func makeDFTSetup<T>(previous: vDSP.DFT<T>?, count: Int, direction: vDSP.FourierTransformDirection,
+                                       transformType: vDSP.DFTTransformType) -> OpaquePointer?
+        where T: vDSP_FloatingPointDiscreteFourierTransformable {
+        transformType == .complexComplex ? vDSP_DFT_zop_CreateSetup(previous?.dftSetup, vDSP_Length(count), direction.dftDirection)
+                                         : vDSP_DFT_zrop_CreateSetup(previous?.dftSetup, vDSP_Length(count), direction.dftDirection)
     }
-    deinit { if T.self == Double.self { vDSP_DFT_DestroySetupD(pointer) } else { vDSP_DFT_DestroySetup(pointer) } }
-    func execute<A: AccelerateBuffer, B: AccelerateBuffer, C: AccelerateMutableBuffer, D: AccelerateMutableBuffer>(
-        _ ir: A, _ ii: B, _ or: inout C, _ oi: inout D) where A.Element == T, B.Element == T, C.Element == T, D.Element == T {
-        precondition(ir.count >= count && ii.count >= count && or.count >= count && oi.count >= count, "vDSP DFT: buffers shorter than the transform")
-        ir.withUnsafeBufferPointer { ir in ii.withUnsafeBufferPointer { ii in or.withUnsafeMutableBufferPointer { or in oi.withUnsafeMutableBufferPointer { oi in
-            if T.self == Double.self {
-                vDSP_DFT_ExecuteD(pointer, UnsafeRawPointer(ir.baseAddress!).assumingMemoryBound(to: Double.self),
-                                  UnsafeRawPointer(ii.baseAddress!).assumingMemoryBound(to: Double.self),
-                                  UnsafeMutableRawPointer(or.baseAddress!).assumingMemoryBound(to: Double.self),
-                                  UnsafeMutableRawPointer(oi.baseAddress!).assumingMemoryBound(to: Double.self))
-            } else {
-                vDSP_DFT_Execute(pointer, UnsafeRawPointer(ir.baseAddress!).assumingMemoryBound(to: Float.self),
-                                 UnsafeRawPointer(ii.baseAddress!).assumingMemoryBound(to: Float.self),
-                                 UnsafeMutableRawPointer(or.baseAddress!).assumingMemoryBound(to: Float.self),
-                                 UnsafeMutableRawPointer(oi.baseAddress!).assumingMemoryBound(to: Float.self))
-            }
-        } } } }
+    public static func transform<U, V>(dftSetup: OpaquePointer, inputReal: U, inputImaginary: U, outputReal: inout V, outputImaginary: inout V)
+        where U: AccelerateBuffer, V: AccelerateMutableBuffer, U.Element == Float, V.Element == Float {
+        _dftExecute(inputReal, inputImaginary, &outputReal, &outputImaginary) { vDSP_DFT_Execute(dftSetup, $0, $1, $2, $3) }
     }
+    public static func destroySetup(_ setup: OpaquePointer) { vDSP_DFT_DestroySetup(setup) }
+}
+extension vDSP.VectorizableDouble: vDSP_DFTFunctions {
+    public static func makeDFTSetup<T>(previous: vDSP.DFT<T>?, count: Int, direction: vDSP.FourierTransformDirection,
+                                       transformType: vDSP.DFTTransformType) -> OpaquePointer?
+        where T: vDSP_FloatingPointDiscreteFourierTransformable {
+        transformType == .complexComplex ? vDSP_DFT_zop_CreateSetupD(previous?.dftSetup, vDSP_Length(count), direction.dftDirection)
+                                         : vDSP_DFT_zrop_CreateSetupD(previous?.dftSetup, vDSP_Length(count), direction.dftDirection)
+    }
+    public static func transform<U, V>(dftSetup: OpaquePointer, inputReal: U, inputImaginary: U, outputReal: inout V, outputImaginary: inout V)
+        where U: AccelerateBuffer, V: AccelerateMutableBuffer, U.Element == Double, V.Element == Double {
+        _dftExecute(inputReal, inputImaginary, &outputReal, &outputImaginary) { vDSP_DFT_ExecuteD(dftSetup, $0, $1, $2, $3) }
+    }
+    public static func destroySetup(_ setup: OpaquePointer) { vDSP_DFT_DestroySetupD(setup) }
 }
 
 extension vDSP {
     @available(iOS, introduced: 13.0, deprecated: 17.0, message: "Use vDSP.DiscreteFourierTransform")
     public final class DFT<T: vDSP_FloatingPointDiscreteFourierTransformable> {
-        let setup: _DFTSetup<T>
+        let dftSetup: OpaquePointer
+        let count: Int
         public init?(previous: DFT<T>? = nil, count: Int, direction: FourierTransformDirection, transformType: DFTTransformType, ofType: T.Type) {
-            guard let s = _DFTSetup<T>(count: count, direction: direction, transformType: transformType) else { return nil }
-            setup = s
+            guard let s = T.DFTFunctions.makeDFTSetup(previous: previous, count: count, direction: direction, transformType: transformType)
+            else { return nil }
+            dftSetup = s
+            self.count = transformType == .complexComplex ? count : count / 2
         }
+        deinit { T.DFTFunctions.destroySetup(dftSetup) }
         public func transform<U: AccelerateBuffer, V: AccelerateMutableBuffer>(inputReal: U, inputImaginary: U, outputReal: inout V, outputImaginary: inout V) where U.Element == T, V.Element == T {
-            setup.execute(inputReal, inputImaginary, &outputReal, &outputImaginary)
+            precondition(inputReal.count >= count && inputImaginary.count >= count && outputReal.count >= count && outputImaginary.count >= count,
+                         "vDSP.DFT: buffers shorter than the transform")
+            T.DFTFunctions.transform(dftSetup: dftSetup, inputReal: inputReal, inputImaginary: inputImaginary, outputReal: &outputReal, outputImaginary: &outputImaginary)
         }
         public func transform<U: AccelerateBuffer>(inputReal: U, inputImaginary: U) -> (real: [T], imaginary: [T]) where U.Element == T {
-            var r = [T](repeating: 0, count: setup.count), i = [T](repeating: 0, count: setup.count)
-            setup.execute(inputReal, inputImaginary, &r, &i)
+            var r = [T](repeating: 0, count: count), i = [T](repeating: 0, count: count)
+            transform(inputReal: inputReal, inputImaginary: inputImaginary, outputReal: &r, outputImaginary: &i)
             return (r, i)
         }
     }
 
-    public enum DiscreteFourierTransformError: Error {
-        case invalidCount
+    /// Why a vDSP.DiscreteFourierTransform can't be made: the count isn't one the routines support (f * 2^n, f in 1, 3, 5,
+    /// 15; even for a complex-real transform).
+    public enum DFTError: Error, LocalizedError {
+        case invalidInterleavedCount(count: Int)
+        case invalidSplitComplexCount(count: Int, transformType: vDSP.DFTTransformType)
+        public var errorDescription: String? {
+            switch self {
+            case .invalidInterleavedCount(let count):
+                return "\(count) is not a valid count for an interleaved discrete Fourier transform."
+            case .invalidSplitComplexCount(let count, let transformType):
+                return "\(count) is not a valid count for a split-complex \(transformType == .complexComplex ? "complex-complex" : "complex-real") discrete Fourier transform."
+            }
+        }
     }
 
+    public struct DFTSinglePrecisionSplitComplexFunctions: vDSP_DiscreteTransformLifecycleFunctions {
+        public static func makeDiscreteFourierTransform(previous: OpaquePointer?, count: Int, direction: vDSP.FourierTransformDirection,
+                                                        transformType: vDSP.DFTTransformType) throws -> OpaquePointer {
+            let s = transformType == .complexComplex ? vDSP_DFT_zop_CreateSetup(previous, vDSP_Length(count), direction.dftDirection)
+                                                     : vDSP_DFT_zrop_CreateSetup(previous, vDSP_Length(count), direction.dftDirection)
+            guard let s else { throw DFTError.invalidSplitComplexCount(count: count, transformType: transformType) }
+            return s
+        }
+        public static func destroySetup(_ setup: OpaquePointer) { vDSP_DFT_DestroySetup(setup) }
+    }
+    public struct DFTDoublePrecisionSplitComplexFunctions: vDSP_DiscreteTransformLifecycleFunctions {
+        public static func makeDiscreteFourierTransform(previous: OpaquePointer?, count: Int, direction: vDSP.FourierTransformDirection,
+                                                        transformType: vDSP.DFTTransformType) throws -> OpaquePointer {
+            let s = transformType == .complexComplex ? vDSP_DFT_zop_CreateSetupD(previous, vDSP_Length(count), direction.dftDirection)
+                                                     : vDSP_DFT_zrop_CreateSetupD(previous, vDSP_Length(count), direction.dftDirection)
+            guard let s else { throw DFTError.invalidSplitComplexCount(count: count, transformType: transformType) }
+            return s
+        }
+        public static func destroySetup(_ setup: OpaquePointer) { vDSP_DFT_DestroySetupD(setup) }
+    }
+    public struct DFTSinglePrecisionInterleavedFunctions: vDSP_DiscreteTransformLifecycleFunctions {
+        public static func makeDiscreteFourierTransform(previous: OpaquePointer?, count: Int, direction: vDSP.FourierTransformDirection,
+                                                        transformType: vDSP.DFTTransformType) throws -> OpaquePointer {
+            guard let s = vDSP_DFT_Interleaved_CreateSetup(previous, vDSP_Length(count), direction.dftDirection,
+                                                           transformType == .complexComplex ? .interleaved_ComplextoComplex : .interleaved_RealtoComplex)
+            else { throw DFTError.invalidInterleavedCount(count: count) }
+            return s
+        }
+        public static func destroySetup(_ setup: OpaquePointer) { vDSP_DFT_Interleaved_DestroySetup(setup) }
+    }
+    public struct DFTDoublePrecisionInterleavedFunctions: vDSP_DiscreteTransformLifecycleFunctions {
+        public static func makeDiscreteFourierTransform(previous: OpaquePointer?, count: Int, direction: vDSP.FourierTransformDirection,
+                                                        transformType: vDSP.DFTTransformType) throws -> OpaquePointer {
+            guard let s = vDSP_DFT_Interleaved_CreateSetupD(previous, vDSP_Length(count), direction.dftDirection,
+                                                            transformType == .complexComplex ? .interleaved_ComplextoComplex : .interleaved_RealtoComplex)
+            else { throw DFTError.invalidInterleavedCount(count: count) }
+            return s
+        }
+        public static func destroySetup(_ setup: OpaquePointer) { vDSP_DFT_Interleaved_DestroySetupD(setup) }
+    }
+
+    /// A discrete Fourier transform of split complex (Float, Double) or interleaved (DSPComplex, DSPDoubleComplex)
+    /// values. A complex-real transform of count values works on count / 2 complex values (vDSP's real packing).
     @available(iOS 17.0, *)
-    public final class DiscreteFourierTransform<Element: vDSP_FloatingPointDiscreteFourierTransformable> {
-        public enum TransformType {
-            case complexComplex
-            case complexReal
+    public final class DiscreteFourierTransform<T: vDSP_DiscreteFourierTransformable> {
+        let dftSetup: OpaquePointer
+        let count: Int
+        @available(*, deprecated, renamed: "init(previousDFT:count:direction:transformType:ofType:)")
+        public convenience init(previous: DiscreteFourierTransform<Float>?, count: Int, direction: FourierTransformDirection,
+                                transformType: DFTTransformType, ofType: T.Type) throws {
+            // Only a Float transform's setup can be shared with another Float transform.
+            try self.init(previousDFT: T.self == Float.self ? unsafeBitCast(previous, to: DiscreteFourierTransform<T>?.self) : nil,
+                          count: count, direction: direction, transformType: transformType, ofType: ofType)
         }
-        let setup: _DFTSetup<Element>
-        public init(previous: DiscreteFourierTransform<Element>? = nil, count: Int, direction: FourierTransformDirection,
-                    transformType: TransformType, ofType: Element.Type) throws {
-            guard let s = _DFTSetup<Element>(count: count, direction: direction, transformType: transformType == .complexComplex ? .complexComplex : .complexReal)
-            else { throw DiscreteFourierTransformError.invalidCount }
-            setup = s
+        public init(previousDFT: DiscreteFourierTransform<T>? = nil, count: Int, direction: FourierTransformDirection,
+                    transformType: DFTTransformType, ofType: T.Type) throws {
+            dftSetup = try T.DiscreteFourierTransformFunctions.makeDiscreteFourierTransform(
+                previous: previousDFT?.dftSetup, count: count, direction: direction, transformType: transformType)
+            self.count = transformType == .complexComplex ? count : count / 2
         }
-        public func transform<U: AccelerateBuffer, V: AccelerateMutableBuffer>(inputReal: U, inputImaginary: U, outputReal: inout V, outputImaginary: inout V) where U.Element == Element, V.Element == Element {
-            setup.execute(inputReal, inputImaginary, &outputReal, &outputImaginary)
+        deinit { T.DiscreteFourierTransformFunctions.destroySetup(dftSetup) }
+
+        func _check(_ counts: Int...) {
+            precondition(counts.allSatisfy { $0 >= count }, "vDSP.DiscreteFourierTransform: buffers shorter than the transform")
         }
-        public func transform<U: AccelerateBuffer>(inputReal: U, inputImaginary: U) -> (real: [Element], imaginary: [Element]) where U.Element == Element {
-            var r = [Element](repeating: 0, count: setup.count), i = [Element](repeating: 0, count: setup.count)
-            setup.execute(inputReal, inputImaginary, &r, &i)
-            return (r, i)
-        }
+    }
+}
+
+@available(iOS 17.0, *)
+extension vDSP.DiscreteFourierTransform where T == Float {
+    public func transform<U, V>(inputReal: U, inputImaginary: U, outputReal: inout V, outputImaginary: inout V)
+        where U: AccelerateBuffer, V: AccelerateMutableBuffer, U.Element == Float, V.Element == Float {
+        _check(inputReal.count, inputImaginary.count, outputReal.count, outputImaginary.count)
+        _dftExecute(inputReal, inputImaginary, &outputReal, &outputImaginary) { vDSP_DFT_Execute(dftSetup, $0, $1, $2, $3) }
+    }
+    public func transform<U>(real: U, imaginary: U) -> (real: [Float], imaginary: [Float]) where U: AccelerateBuffer, U.Element == Float {
+        var r = [Float](repeating: 0, count: count), i = [Float](repeating: 0, count: count)
+        transform(inputReal: real, inputImaginary: imaginary, outputReal: &r, outputImaginary: &i)
+        return (r, i)
+    }
+}
+
+@available(iOS 17.0, *)
+extension vDSP.DiscreteFourierTransform where T == Double {
+    public func transform<U, V>(inputReal: U, inputImaginary: U, outputReal: inout V, outputImaginary: inout V)
+        where U: AccelerateBuffer, V: AccelerateMutableBuffer, U.Element == Double, V.Element == Double {
+        _check(inputReal.count, inputImaginary.count, outputReal.count, outputImaginary.count)
+        _dftExecute(inputReal, inputImaginary, &outputReal, &outputImaginary) { vDSP_DFT_ExecuteD(dftSetup, $0, $1, $2, $3) }
+    }
+    public func transform<U>(real: U, imaginary: U) -> (real: [Double], imaginary: [Double]) where U: AccelerateBuffer, U.Element == Double {
+        var r = [Double](repeating: 0, count: count), i = [Double](repeating: 0, count: count)
+        transform(inputReal: real, inputImaginary: imaginary, outputReal: &r, outputImaginary: &i)
+        return (r, i)
+    }
+}
+
+@available(iOS 17.0, *)
+extension vDSP.DiscreteFourierTransform where T == DSPComplex {
+    public func transform<U, V>(input: U, output: inout V)
+        where U: AccelerateBuffer, V: AccelerateMutableBuffer, U.Element == DSPComplex, V.Element == DSPComplex {
+        _check(input.count, output.count)
+        input.withUnsafeBufferPointer { i in output.withUnsafeMutableBufferPointer { o in
+            vDSP_DFT_Interleaved_Execute(dftSetup, i.baseAddress!, o.baseAddress!) } }
+    }
+    public func transform<U>(input: U) -> [DSPComplex] where U: AccelerateBuffer, U.Element == DSPComplex {
+        var o = [DSPComplex](repeating: DSPComplex(), count: count)
+        transform(input: input, output: &o)
+        return o
+    }
+}
+
+@available(iOS 17.0, *)
+extension vDSP.DiscreteFourierTransform where T == DSPDoubleComplex {
+    public func transform<U, V>(input: U, output: inout V)
+        where U: AccelerateBuffer, V: AccelerateMutableBuffer, U.Element == DSPDoubleComplex, V.Element == DSPDoubleComplex {
+        _check(input.count, output.count)
+        input.withUnsafeBufferPointer { i in output.withUnsafeMutableBufferPointer { o in
+            vDSP_DFT_Interleaved_ExecuteD(dftSetup, i.baseAddress!, o.baseAddress!) } }
+    }
+    public func transform<U>(input: U) -> [DSPDoubleComplex] where U: AccelerateBuffer, U.Element == DSPDoubleComplex {
+        var o = [DSPDoubleComplex](repeating: DSPDoubleComplex(), count: count)
+        transform(input: input, output: &o)
+        return o
     }
 }
 

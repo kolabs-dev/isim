@@ -16,7 +16,7 @@ enum { kFFTRadix2 = 0, kFFTRadix3 = 1, kFFTRadix5 = 2 };
 enum { vDSP_HALF_WINDOW = 1, vDSP_HANN_DENORM = 0, vDSP_HANN_NORM = 2 };
 typedef struct OpaqueFFTSetup *FFTSetup;
 typedef struct OpaqueFFTSetupD *FFTSetupD;
-typedef enum { vDSP_DFT_FORWARD = +1, vDSP_DFT_INVERSE = -1 } vDSP_DFT_Direction;
+typedef enum __attribute__((enum_extensibility(closed))) : int { vDSP_DFT_FORWARD = +1, vDSP_DFT_INVERSE = -1 } vDSP_DFT_Direction;
 typedef struct vDSP_DFT_SetupStruct *vDSP_DFT_Setup;
 typedef struct vDSP_DFT_SetupStructD *vDSP_DFT_SetupD;
 typedef struct vDSP_DFT_Interleaved_SetupStruct *vDSP_DFT_Interleaved_Setup;

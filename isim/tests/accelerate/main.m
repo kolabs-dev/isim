@@ -700,6 +700,7 @@ static void quadrature(void) {
 }
 
 void newlapack(int *checks, int *failures);   /* newlapack.c, compiled with ACCELERATE_NEW_LAPACK */
+void ilp64(int *checks, int *failures);       /* ilp64.c, with ACCELERATE_LAPACK_ILP64 too */
 
 static void vforce(void) {
     double x[] = {0.5, 1, 2, 4}, y[] = {2, 3, 0.5, -1}, z[4]; int n = 4;
@@ -732,6 +733,7 @@ int main(void) {
     complex_blas();
     lapack_more();
     newlapack(&checks, &failures);
+    ilp64(&checks, &failures);
     vdsp_more();
     quadrature();
     vforce();
