@@ -173,6 +173,26 @@ func close<T: BinaryFloatingPoint>(_ a: [T], _ b: [Double], _ tol: Double = 1e-9
             SparseCleanup(sub); SparseCleanup(F); SparseCleanup(A)
         }
 
+        // issue #819: Sparse BLAS from Swift, and SparseConvertFromOpaque into the solvers
+        do {
+            let A = sparse_matrix_create_double(2, 2)!
+            _ = sparse_insert_entry_double(A, 4, 0, 0); _ = sparse_insert_entry_double(A, 1, 1, 0); _ = sparse_insert_entry_double(A, 3, 1, 1)
+            check(sparse_commit(UnsafeMutableRawPointer(A)) == SPARSE_SUCCESS && sparse_get_matrix_nonzero_count(UnsafeMutableRawPointer(A)) == 3,
+                  "sparse_matrix_create_double, sparse_insert_entry_double, sparse_commit from Swift")
+            var y: [Double] = [0, 0]
+            _ = sparse_matrix_vector_product_dense_double(CblasNoTrans, 1, A, [1, 1], 1, &y, 1)
+            check(y == [4, 4], "sparse_matrix_vector_product_dense_double from Swift")
+            let S: SparseMatrix_Double = SparseConvertFromOpaque(A)   // the handle types are all OpaquePointer: the result picks the overload
+            let F = SparseFactor(SparseFactorizationQR, S)
+            var b: [Double] = [4, 4], x: [Double] = [0, 0]
+            b.withUnsafeMutableBufferPointer { bp in x.withUnsafeMutableBufferPointer { xp in
+                SparseSolve(F, DenseVector_Double(count: 2, data: bp.baseAddress!), DenseVector_Double(count: 2, data: xp.baseAddress!))
+            } }
+            check(F.status == SparseStatusOK && close(x, [1, 1], 1e-12), "SparseConvertFromOpaque then SparseFactor from Swift")
+            SparseCleanup(F); SparseCleanup(S)
+            _ = sparse_matrix_destroy(UnsafeMutableRawPointer(A))
+        }
+
         // issue #543: more of vDSP from Swift
         let p: [Double] = [3, -4, 1.5, -0.25], q: [Double] = [4, 3, 2, 1]
         var sum = [Double](repeating: 0, count: 4), diff = [Double](repeating: 0, count: 4)

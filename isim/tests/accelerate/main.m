@@ -702,6 +702,7 @@ static void quadrature(void) {
 void newlapack(int *checks, int *failures);   /* newlapack.c, compiled with ACCELERATE_NEW_LAPACK */
 void ilp64(int *checks, int *failures);       /* ilp64.c, with ACCELERATE_LAPACK_ILP64 too */
 void sparse_solvers(int *checks, int *failures);   /* sparse.c: Sparse Solvers (issue #807) */
+void sparse_blas(int *checks, int *failures);      /* sparse_blas.c: Sparse BLAS (issue #819) */
 
 static void vforce(void) {
     double x[] = {0.5, 1, 2, 4}, y[] = {2, 3, 0.5, -1}, z[4]; int n = 4;
@@ -736,6 +737,7 @@ int main(void) {
     newlapack(&checks, &failures);
     ilp64(&checks, &failures);
     sparse_solvers(&checks, &failures);
+    sparse_blas(&checks, &failures);
     vdsp_more();
     quadrature();
     vforce();

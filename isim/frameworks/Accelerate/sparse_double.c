@@ -16,3 +16,7 @@
 #define EPS DBL_EPSILON
 #include "sparse_t.h"
 #include "sparse_iter_t.h"
+#define BP double
+#define BM sparse_matrix_double
+#define BTYPE 1
+#include "sparse_blas_t.h"

@@ -38,3 +38,22 @@ int sp_pattern_ata(const sp_pattern *a, sp_pattern *out);
 int sp_pattern_transpose(const sp_pattern *a, sp_pattern *out);
 sp_symbolic *sp_symbolic_of(SparseOpaqueSymbolicFactorization f);
 void sp_symbolic_release(sp_symbolic *s);
+
+/* ---- Sparse BLAS (issue #819): an opaque matrix, entries staged as coordinates, compressed by columns on commit ---- */
+typedef struct sp_bmat {
+    int magic, type;            /* type: 0 float, 1 double, 2 float complex, 3 double complex */
+    size_t tsize;
+    long M, N;                  /* in scalars */
+    int blockmode;              /* 0 point, 1 fixed blocks, 2 variable blocks */
+    long Mb, Nb, *roff, *coff;  /* block counts and scalar offsets (Mb + 1, Nb + 1) */
+    unsigned props;
+    int inserted;
+    long nnz, cap; long *ri, *ci; unsigned char *v;          /* staged coordinates */
+    int committed; long cnnz; long *cp, *crow; unsigned char *cval;   /* compressed columns */
+    void (*commit)(struct sp_bmat *);
+} sp_bmat;
+#define SP_BMAT_MAGIC 0x53424c41
+sp_bmat *sp_bmat_new(int type, size_t tsize, long M, long N, void (*commit)(sp_bmat *));
+sp_bmat *sp_bmat_of(void *A);
+int sp_bmat_reserve(sp_bmat *m, long more);
+void sp_bmat_uncommit(sp_bmat *m);   /* back to coordinates before more insertions */

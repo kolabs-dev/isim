@@ -272,3 +272,88 @@ fail:
     r.status = SparseInternalError;
     return r;
 }
+
+/* ---- Sparse BLAS: the type-independent part (issue #819) ---- */
+sp_bmat *sp_bmat_new(int type, size_t tsize, long M, long N, void (*commit)(sp_bmat *)) {
+    sp_bmat *m = calloc(1, sizeof *m);
+    if (!m) return NULL;
+    m->magic = SP_BMAT_MAGIC; m->type = type; m->tsize = tsize; m->M = M; m->N = N; m->commit = commit;
+    return m;
+}
+sp_bmat *sp_bmat_of(void *A) { sp_bmat *m = A; return m && m->magic == SP_BMAT_MAGIC ? m : NULL; }
+int sp_bmat_reserve(sp_bmat *m, long more) {
+    if (m->nnz + more <= m->cap) return 1;
+    long nc = m->cap ? m->cap : 64;
+    while (nc < m->nnz + more) nc *= 2;
+    long *ri = realloc(m->ri, sizeof(long) * (size_t)nc); if (ri) m->ri = ri;
+    long *ci = ri ? realloc(m->ci, sizeof(long) * (size_t)nc) : NULL; if (ci) m->ci = ci;
+    unsigned char *v = ci ? realloc(m->v, m->tsize * (size_t)nc) : NULL;
+    if (!v) return 0;
+    m->v = v; m->cap = nc;
+    return 1;
+}
+void sp_bmat_uncommit(sp_bmat *m) {
+    if (!m->committed) return;
+    m->nnz = 0;
+    if (sp_bmat_reserve(m, m->cnnz))
+        for (long j = 0; j < m->N; j++) for (long p = m->cp[j]; p < m->cp[j + 1]; p++) {
+            m->ri[m->nnz] = m->crow[p]; m->ci[m->nnz] = j; memcpy(m->v + m->tsize * (size_t)m->nnz, m->cval + m->tsize * (size_t)p, m->tsize); m->nnz++;
+        }
+    free(m->cp); free(m->crow); free(m->cval); m->cp = NULL; m->crow = NULL; m->cval = NULL; m->cnnz = 0; m->committed = 0;
+}
+sparse_status sparse_commit(void *A) {
+    sp_bmat *m = sp_bmat_of(A);
+    if (!m) return SPARSE_ILLEGAL_PARAMETER;
+    if (!m->committed) m->commit(m);
+    return m->committed ? SPARSE_SUCCESS : SPARSE_SYSTEM_ERROR;
+}
+sparse_status sparse_matrix_destroy(void *A) {
+    sp_bmat *m = sp_bmat_of(A);
+    if (!m) return SPARSE_ILLEGAL_PARAMETER;
+    m->magic = 0;
+    free(m->ri); free(m->ci); free(m->v); free(m->cp); free(m->crow); free(m->cval); free(m->roff); free(m->coff); free(m);
+    return SPARSE_SUCCESS;
+}
+sparse_status sparse_set_matrix_property(void *A, sparse_matrix_property p) {
+    sp_bmat *m = sp_bmat_of(A);
+    if (!m) return SPARSE_ILLEGAL_PARAMETER;
+    if (m->inserted) return SPARSE_CANNOT_SET_PROPERTY;
+    unsigned tri = SPARSE_UPPER_TRIANGULAR | SPARSE_LOWER_TRIANGULAR, sym = SPARSE_UPPER_SYMMETRIC | SPARSE_LOWER_SYMMETRIC;
+    if (p != SPARSE_UPPER_TRIANGULAR && p != SPARSE_LOWER_TRIANGULAR && p != SPARSE_UPPER_SYMMETRIC && p != SPARSE_LOWER_SYMMETRIC) return SPARSE_ILLEGAL_PARAMETER;
+    if (m->M != m->N) return SPARSE_CANNOT_SET_PROPERTY;
+    if (((p & tri) && (m->props & (tri | sym))) || ((p & sym) && (m->props & (tri | sym)))) return SPARSE_CANNOT_SET_PROPERTY;
+    m->props |= p;
+    return SPARSE_SUCCESS;
+}
+long sparse_get_matrix_property(void *A, sparse_matrix_property p) { sp_bmat *m = sp_bmat_of(A); return m && (m->props & p) ? 1 : 0; }
+sparse_dimension sparse_get_matrix_number_of_rows(void *A) { sp_bmat *m = sp_bmat_of(A); return m ? (sparse_dimension)m->M : 0; }
+sparse_dimension sparse_get_matrix_number_of_columns(void *A) { sp_bmat *m = sp_bmat_of(A); return m ? (sparse_dimension)m->N : 0; }
+long sparse_get_matrix_nonzero_count(void *A) {
+    sp_bmat *m = sp_bmat_of(A);
+    if (!m || sparse_commit(A) != SPARSE_SUCCESS) return 0;
+    return m->cnnz;
+}
+long sparse_get_matrix_nonzero_count_for_row(void *A, sparse_index i) {
+    sp_bmat *m = sp_bmat_of(A);
+    if (!m || i < 0 || i >= m->M || sparse_commit(A) != SPARSE_SUCCESS) return 0;
+    long c = 0;
+    for (long p = 0; p < m->cnnz; p++) if (m->crow[p] == i) c++;
+    return c;
+}
+long sparse_get_matrix_nonzero_count_for_column(void *A, sparse_index j) {
+    sp_bmat *m = sp_bmat_of(A);
+    if (!m || j < 0 || j >= m->N || sparse_commit(A) != SPARSE_SUCCESS) return 0;
+    return m->cp[j + 1] - m->cp[j];
+}
+long sparse_get_block_dimension_for_row(void *A, sparse_index i) {
+    sp_bmat *m = sp_bmat_of(A);
+    if (!m) return 0;
+    if (!m->blockmode) return i >= 0 && i < m->M ? 1 : 0;
+    return i >= 0 && i < m->Mb ? m->roff[i + 1] - m->roff[i] : 0;
+}
+long sparse_get_block_dimension_for_col(void *A, sparse_index j) {
+    sp_bmat *m = sp_bmat_of(A);
+    if (!m) return 0;
+    if (!m->blockmode) return j >= 0 && j < m->N ? 1 : 0;
+    return j >= 0 && j < m->Nb ? m->coff[j + 1] - m->coff[j] : 0;
+}
