@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <Accelerate/vecLibTypes.h>
 #include <Accelerate/cblas.h>
+#include <Accelerate/Sparse/BLAS.h>
 
 #ifndef SPARSE_INLINE
 #define SPARSE_INLINE static inline __attribute__((overloadable, always_inline, unused))
@@ -499,6 +500,17 @@ _SPARSE_ALL(Double, double, SparseAttributes_t, SparseMatrixStructure)
 _SPARSE_ALL(Float, float, SparseAttributes_t, SparseMatrixStructure)
 _SPARSE_ALL(Complex_Double, _Complex double, SparseAttributesComplex_t, SparseMatrixStructureComplex)
 _SPARSE_ALL(Complex_Float, _Complex float, SparseAttributesComplex_t, SparseMatrixStructureComplex)
+
+
+/* a committed Sparse BLAS matrix as a SparseMatrix (issue #819); SparseCleanup frees the copy */
+VECLIB_EXTERN SparseMatrix_Double _SparseConvertFromOpaque_Double(sparse_matrix_double A);
+VECLIB_EXTERN SparseMatrix_Float _SparseConvertFromOpaque_Float(sparse_matrix_float A);
+VECLIB_EXTERN SparseMatrix_Complex_Double _SparseConvertFromOpaque_Complex_Double(sparse_matrix_double_complex A);
+VECLIB_EXTERN SparseMatrix_Complex_Float _SparseConvertFromOpaque_Complex_Float(sparse_matrix_float_complex A);
+SPARSE_INLINE SparseMatrix_Double SparseConvertFromOpaque(sparse_matrix_double A) { return _SparseConvertFromOpaque_Double(A); }
+SPARSE_INLINE SparseMatrix_Float SparseConvertFromOpaque(sparse_matrix_float A) { return _SparseConvertFromOpaque_Float(A); }
+SPARSE_INLINE SparseMatrix_Complex_Double SparseConvertFromOpaque(sparse_matrix_double_complex A) { return _SparseConvertFromOpaque_Complex_Double(A); }
+SPARSE_INLINE SparseMatrix_Complex_Float SparseConvertFromOpaque(sparse_matrix_float_complex A) { return _SparseConvertFromOpaque_Complex_Float(A); }
 
 /* complex only: conjugate transposes */
 #define _SPARSE_CONJ(X)                                                                                                         \

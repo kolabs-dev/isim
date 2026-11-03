@@ -18,3 +18,7 @@
 #define EPS FLT_EPSILON
 #include "sparse_t.h"
 #include "sparse_iter_t.h"
+#define BP float_complex
+#define BM sparse_matrix_float_complex
+#define BTYPE 2
+#include "sparse_blas_t.h"
