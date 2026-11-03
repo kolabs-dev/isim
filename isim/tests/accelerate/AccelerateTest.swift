@@ -134,6 +134,45 @@ func close<T: BinaryFloatingPoint>(_ a: [T], _ b: [Double], _ tol: Double = 1e-9
         cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, 2, 2, 2, 1, [1, 2, 3, 4], 2, [5, 6, 7, 8], 2, 0, &C, 2)
         check(C == [19, 22, 43, 50], "cblas_sgemm from Swift")
 
+        // issue #807: Sparse Solvers from Swift: the overloads, a direct factorization, an iterative method with a closure
+        do {
+            var rows: [Int32] = [0, 1, 2, 1, 2], cols: [Int32] = [0, 0, 0, 1, 2]
+            var vals: [Double] = [4, 1, 1, 3, 2]   // the lower triangle of [[4,1,1],[1,3,0],[1,0,2]]
+            var attrs = SparseAttributes_t()
+            attrs.kind = SparseSymmetric; attrs.triangle = SparseLowerTriangle
+            let A = SparseConvertFromCoordinate(3, 3, 5, 1, attrs, &rows, &cols, &vals)
+            var b: [Double] = [9, 7, 7], x = [Double](repeating: 0, count: 3)   // x = (1, 2, 3)
+            let F = SparseFactor(SparseFactorizationCholesky, A)
+            b.withUnsafeMutableBufferPointer { bp in x.withUnsafeMutableBufferPointer { xp in
+                SparseSolve(F, DenseVector_Double(count: 3, data: bp.baseAddress!), DenseVector_Double(count: 3, data: xp.baseAddress!))
+            } }
+            check(F.status == SparseStatusOK && close(x, [1, 2, 3], 1e-12), "SparseFactor / SparseSolve from Swift")
+            var y = [Double](repeating: 0, count: 3)
+            x.withUnsafeMutableBufferPointer { xp in y.withUnsafeMutableBufferPointer { yp in
+                SparseMultiply(A, DenseVector_Double(count: 3, data: xp.baseAddress!), DenseVector_Double(count: 3, data: yp.baseAddress!))
+            } }
+            check(close(y, [9, 7, 7], 1e-12), "SparseMultiply from Swift")
+            var calls = 0
+            x = [0, 0, 0]
+            let status = b.withUnsafeMutableBufferPointer { bp in x.withUnsafeMutableBufferPointer { xp in
+                SparseSolve(SparseConjugateGradient(), { accumulate, trans, u, v in
+                    calls += 1
+                    if accumulate { SparseMultiplyAdd(A, u, v) } else { SparseMultiply(A, u, v) }
+                }, DenseVector_Double(count: 3, data: bp.baseAddress!), DenseVector_Double(count: 3, data: xp.baseAddress!))
+            } }
+            check(status == SparseIterativeConverged && calls > 0 && close(x, [1, 2, 3], 1e-6), "SparseSolve(SparseConjugateGradient(), operator closure) from Swift")
+            var o = SparseLSMROptions(); o.maxIterations = 50
+            x = [0, 0, 0]
+            let st2 = b.withUnsafeMutableBufferPointer { bp in x.withUnsafeMutableBufferPointer { xp in
+                SparseSolve(SparseLSMR(o), A, DenseVector_Double(count: 3, data: bp.baseAddress!), DenseVector_Double(count: 3, data: xp.baseAddress!),
+                            SparsePreconditionerDiagScaling)
+            } }
+            check(st2 == SparseIterativeConverged && close(x, [1, 2, 3], 1e-5), "SparseSolve(SparseLSMR(options), A, b, x, preconditioner) from Swift")
+            let sub = SparseCreateSubfactor(SparseSubfactorL, F)
+            check(sub.contents == SparseSubfactorL, "SparseCreateSubfactor from Swift")
+            SparseCleanup(sub); SparseCleanup(F); SparseCleanup(A)
+        }
+
         // issue #543: more of vDSP from Swift
         let p: [Double] = [3, -4, 1.5, -0.25], q: [Double] = [4, 3, 2, 1]
         var sum = [Double](repeating: 0, count: 4), diff = [Double](repeating: 0, count: 4)

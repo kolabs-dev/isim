@@ -9,3 +9,4 @@
 #include <Accelerate/vForce.h>
 #include <Accelerate/vImage.h>
 #include <Accelerate/Quadrature.h>
+#include <Accelerate/Sparse/Solve.h>
