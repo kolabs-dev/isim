@@ -49,6 +49,23 @@ func formattedRows() -> [(String, [Row])] {
     ]
 }
 
+/// Decimal parsing and classification, CocoaError codes, byte-count measurements (issue #860): fixed to en_US
+func foundationExtras() {
+    let us = Locale(identifier: "en_US")
+    let d = (try? Decimal("1,234.5678", strategy: Decimal.FormatStyle(locale: us).parseStrategy)) ?? -1
+    let pct = (try? Decimal.FormatStyle.Percent(locale: us).parseStrategy.parse("12.5%")) ?? -1
+    let cur = (try? Decimal.FormatStyle.Currency(code: "USD", locale: us).parseStrategy.parse("$19.99")) ?? -1
+    print("x860 decimal \(d) percent \(pct) currency \(cur)")
+    print("x860 class \(Decimal(-3).floatingPointClass == .negativeNormal) \(Decimal.nan.floatingPointClass == .quietNaN) " +
+          "signOf \(Decimal(signOf: -1, magnitudeOf: 7)) ordered \(Decimal(2).isTotallyOrdered(belowOrEqualTo: .nan))")
+    let e = CocoaError(.managedObjectValidation, userInfo: ["NSValidationErrorKey": "title"])
+    print("x860 cocoa \(CocoaError.Code.managedObjectValidation.rawValue) \(e.validationKey ?? "-") xpc \(CocoaError(.xpcConnectionInvalid).isXPCConnectionError) " +
+          "alias \(CocoaError.fileNoSuchFileError == CocoaError.fileNoSuchFile)")
+    let size = Measurement(value: 3_500_000, unit: UnitInformationStorage.bytes)
+    print("x860 bytes \(size.formatted(.byteCount(style: .file).locale(us))) " +
+          "parsed \(Decimal.FormatStyle(locale: us).decimalSeparator(strategy: .always).format(Decimal(5)))")
+}
+
 let sampleText = "Order 66 shipped 2026-10-05 to 12 Main St; order 7 on 1999-01-02."
 
 @main
@@ -58,6 +75,7 @@ struct HelloFormattingApp: App {
         setvbuf(__stdoutp, nil, _IOLBF, 0)   // (isim's Darwin module has no Swift `stdout` yet)
         print("region \(Locale.current.identifier)")
         for (_, rows) in formattedRows() { for r in rows { print("fmt \(r.id)=\(r.value)") } }
+        foundationExtras()
     }
     var body: some Scene { WindowGroup { FormattingView() } }
 }
