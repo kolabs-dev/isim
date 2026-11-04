@@ -2406,6 +2406,10 @@ ISIM_GUEST_ABI int isim_tts_synthesize(const char *text, const char *voice, doub
 ISIM_GUEST_ABI int isim_braille_available(void);
 ISIM_GUEST_ABI char *isim_braille_tables(void);
 ISIM_GUEST_ABI char *isim_braille_translate(const char *table, const char *text, int back, int **positions, int *count);
+ISIM_GUEST_ABI char *isim_pcsc_readers(void);
+ISIM_GUEST_ABI int64_t isim_pcsc_begin(const char *reader, int protocols, int *protocol);
+ISIM_GUEST_ABI int isim_pcsc_transmit(int64_t handle, int protocol, const uint8_t *apdu, int len, uint8_t *out, int cap);
+ISIM_GUEST_ABI void isim_pcsc_end(int64_t handle, int reset);
 struct isim_tts_event; int isim_tts_available(void);
 ISIM_GUEST_ABI int isim_tts_render(const char *text, int ssml, const char *voice, double wpm, double pitch, double volume, float **out, long *frames, double *rate,
                     struct isim_tts_event **events, int *nevents);
@@ -2596,7 +2600,7 @@ static const struct shim isim_table[] = {
     H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_text_ink_markup), H(isim_tl_create), H(isim_tl_free), H(isim_tl_size), H(isim_tl_line_count), H(isim_tl_line), H(isim_tl_index_rect), H(isim_tl_index_at), H(isim_tl_draw), H(isim_tl_set_tabs), H(isim_text_draw_markup),
     H(isim_regex_compile), H(isim_regex_free), H(isim_regex_capture_count), H(isim_regex_group_number), H(isim_regex_error_message), H(isim_regex_match),
     H(isim_html_flatten), H(isim_office_to_pdf), H(isim_xml_sax), H(isim_media_probe), H(isim_media_open), H(isim_media_open_rate), H(isim_media_open_tracks), H(isim_media_frame_pixels), H(isim_media_streams), H(isim_media_subtitles), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
-    H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize), H(isim_tts_available), H(isim_tts_render), H(isim_braille_available), H(isim_braille_tables), H(isim_braille_translate),
+    H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize), H(isim_tts_available), H(isim_tts_render), H(isim_braille_available), H(isim_braille_tables), H(isim_braille_translate), H(isim_pcsc_readers), H(isim_pcsc_begin), H(isim_pcsc_transmit), H(isim_pcsc_end),
     H(isim_audio_input_start), H(isim_audio_input_read), H(isim_audio_input_stop), H(isim_remote_command_poll),
     H(isim_audio_set_pan), H(isim_image_read_bgra),
     H(isim_camera_source), H(isim_camera_open), H(isim_camera_frame), H(isim_camera_preview), H(isim_camera_close), H(isim_camera_source_at), H(isim_camera_open_at), H(isim_camera_set_effects), H(isim_vision_barcodes_ex), H(isim_heif_can_encode), H(isim_heif_encode_bgra), H(isim_heif_decode),

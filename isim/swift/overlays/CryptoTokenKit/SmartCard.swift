@@ -200,7 +200,7 @@ public struct TKSmartCardProtocol: OptionSet, Hashable, Sendable {
 
 @objc(TKSmartCard) open class TKSmartCard: NSObject, @unchecked Sendable {
     @objc public let slot: TKSmartCardSlot
-    let card: _TKVirtualCard
+    let card: any _TKCardBackend
     private var valid = true
     private var inSession = false
     /// nested sessions (withSession inside a session isim began for a token): only the outermost ends it
@@ -217,7 +217,7 @@ public struct TKSmartCardProtocol: OptionSet, Hashable, Sendable {
     @objc open var useCommandChaining = true
     let queue = DispatchQueue(label: "isim.CryptoTokenKit.card")
 
-    init(slot: TKSmartCardSlot, card: _TKVirtualCard) { self.slot = slot; self.card = card; super.init() }
+    init(slot: TKSmartCardSlot, card: any _TKCardBackend) { self.slot = slot; self.card = card; super.init() }
 
     open override class func automaticallyNotifiesObservers(forKey key: String) -> Bool { key == "valid" ? false : super.automaticallyNotifiesObservers(forKey: key) }
     func invalidate() {
@@ -229,6 +229,7 @@ public struct TKSmartCardProtocol: OptionSet, Hashable, Sendable {
     /// T=1 when the card offers it and it is allowed, else T=0; nothing outside a session
     open var currentProtocol: TKSmartCardProtocol {
         guard inSession else { return [] }
+        if let p = card.activeProtocol { return p == 1 ? .t1 : .t0 }
         let offered = slot.atr?.protocols.map(\.intValue) ?? [0]
         if offered.contains(1), allowedProtocols.contains(.t1) { return .t1 }
         return allowedProtocols.contains(.t0) ? .t0 : []
@@ -256,6 +257,10 @@ public struct TKSmartCardProtocol: OptionSet, Hashable, Sendable {
             if self.inSession { self.depth += 1; reply(true, nil); return }
             guard self.acquireSession(timeout: 10) else { reply(false, _tkError(.communicationError, "another session holds the card")); return }
             guard self.valid else { self.releaseSession(); reply(false, _tkError(.communicationError, "the card was removed")); return }
+            let allowed = (self.allowedProtocols.contains(.t0) ? 1 : 0) | (self.allowedProtocols.contains(.t1) ? 2 : 0)
+            guard self.card.beginSession(protocols: allowed) else {
+                self.releaseSession(); reply(false, _tkError(.communicationError, "the reader could not connect to the card")); return
+            }
             self.inSession = true
             reply(true, nil)
         }
@@ -272,7 +277,8 @@ public struct TKSmartCardProtocol: OptionSet, Hashable, Sendable {
         guard inSession else { throw _tkError(.communicationError, "no session with the card: call beginSession first") }
         guard apdu.count <= slot.maxInputLength else { throw _tkError(.badParameter, "the APDU is longer than the reader accepts") }
         if isSensitive { NSLog("isim CryptoTokenKit: %@: sensitive APDU (not logged)", slot.name) }
-        return card.respond(apdu)
+        guard let r = card.exchange(apdu) else { throw _tkError(.communicationError, "the card does not answer (removed?)") }
+        return r
     }
     @objc(transmitRequest:reply:) open func transmit(_ request: Data, reply: @escaping @Sendable (Data?, (any Error)?) -> Void) {
         queue.async {

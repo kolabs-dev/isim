@@ -7,7 +7,8 @@ import UIKit
 import CryptoTokenKit
 
 func log(_ s: String) { print("sc \(s)"); fflush(stdout) }
-let reader = "isim Virtual Reader"
+// SMARTCARD_READER: another slot, e.g. a host PC/SC reader with ISIM_PCSC=1 (issue #745)
+let reader = ProcessInfo.processInfo.environment["SMARTCARD_READER"] ?? "isim Virtual Reader"
 let pivAID = Data([0xA0, 0x00, 0x00, 0x03, 0x08, 0x00, 0x00, 0x10, 0x00, 0x01, 0x00])
 func hex(_ d: Data) -> String { d.map { String(format: "%02X", $0) }.joined() }
 

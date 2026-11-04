@@ -68,10 +68,14 @@ final class _TKTokenHost: @unchecked Sendable {
         return out
     }
     /// the extension for a card, and the AID it matched
-    private func driverExtension(_ card: _TKVirtualCard) -> (_TKTokenExtension, [UInt8]?)? {
+    private func driverExtension(_ card: any _TKCardBackend) -> (_TKTokenExtension, [UInt8]?)? {
         let xs = extensions(ownOnly: false)
         func matched(_ x: _TKTokenExtension) -> [UInt8]? {
-            for aid in x.aids where card.applets.contains(where: { $0.aid.starts(with: aid) }) { return aid }
+            if let v = card as? _TKVirtualCard {
+                for aid in x.aids where v.applets.contains(where: { $0.aid.starts(with: aid) }) { return aid }
+                return nil
+            }
+            for aid in x.aids where card.selects(aid) { return aid }       // a PC/SC card: ask it
             return nil
         }
         if let t = card.token { return xs.first { $0.classID == t }.map { ($0, matched($0)) } }
