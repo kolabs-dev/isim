@@ -141,12 +141,17 @@ final class CaptureViewController: UIViewController, AVCaptureVideoDataOutputSam
         if #available(iOS 27.1, *) {
             let map = AVCaptureDeviceDirectionCoordinator(view: view, deviceTypes: [.builtInWideAngleCamera, .builtInTrueDepthCamera], changeHandler: nil).deviceDirections
             log("directions forward=\(map.forwardFacingDeviceDescriptors.map(\.localizedName).joined(separator: ",")) backward=\(map.backwardFacingDeviceDescriptors.map(\.localizedName).joined(separator: ","))")
+            // iPhone Duo: the cameras by its displays change direction as it folds and unfolds
+            directions = AVCaptureDeviceDirectionCoordinator(view: view, deviceTypes: [.builtInWideAngleCamera, .builtInInnerUltraWideCamera, .builtInOuterUltraWideCamera]) { map in
+                log("directions changed forward=\(map.forwardFacingDeviceDescriptors.map(\.localizedName).joined(separator: ",")) backward=\(map.backwardFacingDeviceDescriptors.map(\.localizedName).joined(separator: ","))")
+            }
         }
         pressureObservation = camera?.observe(\.systemPressureState, options: [.new]) { d, _ in
             log("pressure \(d.systemPressureState.level.rawValue) factors=\(d.systemPressureState.factors.rawValue)")
         }
     }
     var configured = false
+    var directions: AnyObject?                                  // the AVCaptureDeviceDirectionCoordinator (iOS 27.1)
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         guard !configured else { return }

@@ -236,10 +236,11 @@ def test_capture_without_camera_control(launch, media):
 
 def test_capture_events_swiftui_and_directions(launch, media):
     """iOS 26 / 27.1 additions (under iOS 27.1): a capture event plays the shutter sound, SwiftUI's onCameraCaptureEvent
-    takes the events once enabled, and AVCaptureDeviceDirectionCoordinator maps the back cameras forward and the front
-    ones backward."""
+    takes the events once enabled, and AVCaptureDeviceDirectionCoordinator maps the front cameras forward (toward the
+    person looking at the view) and the back ones backward; its change handler runs once soon after it is made."""
     app = launch("HelloCapture", env=media, device="iphone16pro", os_version="27.1")
-    app.wait_log(r"directions forward=Back Camera backward=Front Camera,Front TrueDepth Camera")
+    app.wait_log(r"directions forward=Front Camera,Front TrueDepth Camera backward=Back Camera$")
+    app.wait_log(r"directions changed forward=Front Camera backward=Back Camera$")
     app.wait_log(r"running=true")
     app.send("cameracontrol press")
     app.wait_log(r"capture sound played=true")
@@ -249,3 +250,15 @@ def test_capture_events_swiftui_and_directions(launch, media):
     app.send("volume down")
     app.wait_log(r"swiftui capture event began")
     app.wait_log(r"swiftui capture event ended")
+
+
+def test_capture_directions_duo(launch, media):
+    """iPhone Duo (iOS 27.1): the inner and outer ultra wide cameras, by its two displays. Folded, the outer camera
+    faces the person and the inner one, folded in, neither way; unfolded, the inner one faces the person and the
+    outer one the scene, with the back cameras. The coordinator's change handler hears each fold."""
+    app = launch("HelloCapture", env={**media, "ISIM_FOLD": "closed"}, device="iphoneduo", os_version="27.1")
+    app.wait_log(r"directions changed forward=Front Camera,Outer Ultra Wide Camera backward=Back Camera$")
+    app.send("fold open")
+    app.wait_log(r"directions changed forward=Front Camera,Inner Ultra Wide Camera backward=Back Camera,Outer Ultra Wide Camera$")
+    app.send("fold closed")
+    app.wait_log(r"directions changed forward=Front Camera,Outer Ultra Wide Camera backward=Back Camera$", count=2)
