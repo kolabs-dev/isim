@@ -339,6 +339,8 @@ const MusicDeviceInstrumentID AVExtendedNoteOnEventDefaultInstrument = 0;
    ObjCComposition.swift. */
 AVCaptureDeviceType const AVCaptureDeviceTypeBuiltInWideAngleCamera = @"AVCaptureDeviceTypeBuiltInWideAngleCamera";
 AVCaptureDeviceType const AVCaptureDeviceTypeBuiltInUltraWideCamera = @"AVCaptureDeviceTypeBuiltInUltraWideCamera";
+AVCaptureDeviceType const AVCaptureDeviceTypeBuiltInInnerUltraWideCamera = @"AVCaptureDeviceTypeBuiltInInnerUltraWideCamera";
+AVCaptureDeviceType const AVCaptureDeviceTypeBuiltInOuterUltraWideCamera = @"AVCaptureDeviceTypeBuiltInOuterUltraWideCamera";
 AVCaptureDeviceType const AVCaptureDeviceTypeBuiltInTelephotoCamera = @"AVCaptureDeviceTypeBuiltInTelephotoCamera";
 AVCaptureDeviceType const AVCaptureDeviceTypeBuiltInDualCamera = @"AVCaptureDeviceTypeBuiltInDualCamera";
 AVCaptureDeviceType const AVCaptureDeviceTypeBuiltInDualWideCamera = @"AVCaptureDeviceTypeBuiltInDualWideCamera";

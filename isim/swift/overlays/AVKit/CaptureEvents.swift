@@ -199,7 +199,8 @@ public final class AVCaptureDeviceDescriptor: NSObject, @unchecked Sendable {
         mediaTypes = Set([AVMediaType.video, .depthData].filter { d.hasMediaType($0) })
     }
 }
-/// The cameras that face forward (away from the person holding the device) and backward (toward them).
+/// The cameras that face forward (the same way as the view: toward the person looking at it) and backward (the scene
+/// beyond it).
 @available(iOS 27.1, *)
 public final class AVCaptureDeviceDirectionMap: NSObject, @unchecked Sendable {
     public let forwardFacingDeviceDescriptors: [AVCaptureDeviceDescriptor]
@@ -208,20 +209,48 @@ public final class AVCaptureDeviceDirectionMap: NSObject, @unchecked Sendable {
         forwardFacingDeviceDescriptors = forward; backwardFacingDeviceDescriptors = backward
     }
 }
-/// The direction each camera faces for a view (isim: a phone or iPad on its own: the back cameras face forward,
-/// the front cameras backward, whatever the orientation; the map does not change, so changeHandler is not called).
+@_silgen_name("isim_device_hinge_angle") private func _isim_avkit_hinge_angle() -> Double
+
+/// The direction each camera faces for a view (adapted). The view is on the device's one display: the front cameras
+/// face forward (toward the person) and the back cameras backward. On iPhone Duo the display in use decides
+/// (proposed geometry): unfolded, the inner camera faces forward and the outer one, on the cover display's side,
+/// backward with the back cameras; folded, the outer camera faces forward and the inner one, folded in, neither way.
+/// The change handler runs on the main queue soon after the coordinator is made and again each time the device folds
+/// or unfolds.
 @available(iOS 27.1, *)
 public final class AVCaptureDeviceDirectionCoordinator: NSObject, @unchecked Sendable {
     weak var _view: UIView?
     let _types: [AVCaptureDevice.DeviceType]
     let _handler: ((AVCaptureDeviceDirectionMap) -> Void)?
+    private var _observer: NSObjectProtocol?
+    private var _last: [String] = []
     public init(view: UIView, deviceTypes: [AVCaptureDevice.DeviceType], changeHandler: ((AVCaptureDeviceDirectionMap) -> Void)?) {
         _view = view; _types = deviceTypes; _handler = changeHandler
         super.init()
+        guard changeHandler != nil else { return }
+        _observer = NotificationCenter.default.addObserver(forName: Notification.Name("_UIIsimHingeDidChangeNotification"), object: nil,
+                                                           queue: .main) { [weak self] _ in self?._report(force: false) }
+        DispatchQueue.main.async { [weak self] in self?._report(force: true) }
+    }
+    deinit { if let o = _observer { NotificationCenter.default.removeObserver(o) } }
+    private func _report(force: Bool) {
+        let map = deviceDirections
+        let key = map.forwardFacingDeviceDescriptors.map(\.uniqueID) + ["|"] + map.backwardFacingDeviceDescriptors.map(\.uniqueID)
+        guard force || key != _last else { return }
+        _last = key
+        _handler?(map)
     }
     public var deviceDirections: AVCaptureDeviceDirectionMap {
         let ds = AVCaptureDevice.DiscoverySession(deviceTypes: _types, mediaType: .video, position: .unspecified).devices
-        return AVCaptureDeviceDirectionMap(forward: ds.filter { $0.position == .back }.map(AVCaptureDeviceDescriptor.init),
-                                           backward: ds.filter { $0.position == .front }.map(AVCaptureDeviceDescriptor.init))
+        let unfolded = _isim_avkit_hinge_angle() >= 30      // the inner display is in use (also for a letterboxed app)
+        func facing(_ d: AVCaptureDevice) -> Int {           // 1 forward, -1 backward, 0 neither
+            switch d.deviceType {
+            case .builtInInnerUltraWideCamera: return unfolded ? 1 : 0
+            case .builtInOuterUltraWideCamera: return unfolded ? -1 : 1
+            default: return d.position == .front ? 1 : d.position == .back ? -1 : 0
+            }
+        }
+        return AVCaptureDeviceDirectionMap(forward: ds.filter { facing($0) == 1 }.map(AVCaptureDeviceDescriptor.init),
+                                           backward: ds.filter { facing($0) == -1 }.map(AVCaptureDeviceDescriptor.init))
     }
 }

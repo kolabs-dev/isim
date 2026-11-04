@@ -82,6 +82,9 @@ func _captureHostTime() -> Double { ProcessInfo.processInfo.systemUptime }
 func _captureTime(_ seconds: Double) -> CMTime { CMTime(value: Int64((seconds * 1e9).rounded()), timescale: 1_000_000_000) }
 
 /// The simulated camera sources (ISIM_CAMERA, ISIM_CAMERA_FRONT).
+/// 0 not a foldable device, 1 folded, 2 unfolded (iPhone Duo)
+@_silgen_name("isim_device_fold_state") func _isim_fold_state() -> Int32
+
 enum _CameraSource {
     static var kind: Int32 { isim_camera_source(nil, 0) }
     static var available: Bool { kind != 0 }
@@ -169,6 +172,12 @@ func _transformBGRA(_ px: [UInt8], _ w: Int, _ h: Int, angle: CGFloat, mirror: B
         public static let builtInTripleCamera = DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInTripleCamera")
         public static let builtInTrueDepthCamera = DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInTrueDepthCamera")
         public static let builtInLiDARDepthCamera = DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInLiDARDepthCamera")
+        /// iPhone Duo's cameras by its two displays (iOS 27.1): the inner one above the inner display, the outer one
+        /// above the cover display
+        @available(iOS 27.1, *)
+        public static let builtInInnerUltraWideCamera = DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInInnerUltraWideCamera")
+        @available(iOS 27.1, *)
+        public static let builtInOuterUltraWideCamera = DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInOuterUltraWideCamera")
         public static let microphone = DeviceType(rawValue: "AVCaptureDeviceTypeMicrophone")
         @available(*, deprecated, renamed: "microphone")
         public static let builtInMicrophone = DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInMicrophone")
@@ -344,6 +353,12 @@ func _transformBGRA(_ px: [UInt8], _ w: Int, _ h: Int, angle: CGFloat, mirror: B
             c += [AVCaptureDevice(position: .front),
                   AVCaptureDevice(.builtInTrueDepthCamera, .front, id: "isim.camera.front.truedepth", name: "Front TrueDepth Camera", depth: true,
                                   constituents: ["isim.camera.front"])]
+            if _isim_fold_state() != 0 {                     // iPhone Duo (adapted): a camera by each display, from the front source
+                c += [AVCaptureDevice(DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInInnerUltraWideCamera"), .front, id: "isim.camera.inner",
+                                      name: "Inner Ultra Wide Camera", depth: false),
+                      AVCaptureDevice(DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInOuterUltraWideCamera"), .front, id: "isim.camera.outer",
+                                      name: "Outer Ultra Wide Camera", depth: false)]
+            }
         }
         let pad = UIDevice.current.userInterfaceIdiom == .pad
         c.append(AVCaptureDevice(.microphone, .unspecified, id: "isim.microphone", name: pad ? "iPad Microphone" : "iPhone Microphone", depth: false))
