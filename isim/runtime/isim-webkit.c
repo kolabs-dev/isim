@@ -111,6 +111,7 @@ struct view {
     int alt_reloading;               /* re-showing it: the guest already saw "started" */
     int skip_finish;                 /* the replaced load's "finished" is not reported */
     const char *next_download;       /* the policy that turns the next load into a download: "action" or "response" */
+    GPtrArray *reply_worlds;         /* the reply handlers' worlds ("" = page) and names: their wrap scripts survive clearscripts */
 };
 static GHashTable *views;            /* id -> struct view */
 static WebKitNetworkSession *persistent, *ephemeral;
@@ -656,6 +657,34 @@ static void on_scheme(WebKitURISchemeRequest *rq, gpointer data) {
     g_string_free(j, TRUE);
 }
 
+/* Replies to script messages (#828): WebKitGTK delivers a JSCValue object or array made in the UI process as an empty
+ * object, so objects and arrays go as JSON text behind a marker, and a script in the handler's world parses them before
+ * the page's promise resolves. */
+#define REPLY_MARK "\001isim-json\001"
+static char *reply_wrap_script(const char *name) {
+    char *n = g_strescape(name, NULL);
+    char *js = g_strdup_printf(
+        /* on the handlers' shared prototype: some WebKitGTK versions return a new handler object at each access */
+        /* and again when the document loads: in some versions the handler is not there yet at document start */
+        "(function(n){function wrap(){var w=window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers[n];"
+        "var P=w&&Object.getPrototypeOf(w);if(!P||P.__isimReplies)return;var p=P.postMessage,M='\\u0001isim-json\\u0001';"
+        "Object.defineProperty(P,'postMessage',{configurable:true,writable:true,value:function(m){var r=p.call(this,m);"
+        "return r&&typeof r.then==='function'?r.then(function(v){return typeof v==='string'&&v.indexOf(M)===0?JSON.parse(v.slice(M.length)):v}):r}});"
+        "Object.defineProperty(P,'__isimReplies',{value:true})}"
+        "wrap();document.addEventListener('DOMContentLoaded',wrap);window.addEventListener('load',wrap)})(\"%s\")", n);
+    g_free(n);
+    return js;
+}
+static void add_reply_wrap(struct view *v, const char *world, const char *name, int now) {
+    char *js = reply_wrap_script(name);
+    WebKitUserScript *us = world ? webkit_user_script_new_for_world(js, WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES, WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START, world, NULL, NULL)
+                                 : webkit_user_script_new(js, WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES, WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START, NULL, NULL);
+    webkit_user_content_manager_add_script(v->ucm, us);
+    webkit_user_script_unref(us);
+    if (now) webkit_web_view_evaluate_javascript(v->wv, js, -1, world, NULL, NULL, NULL, NULL);   /* the page already loaded */
+    g_free(js);
+}
+
 /* ---------------- view lifecycle ---------------- */
 static const char *isim_world_script =
     "(function(){if(window.__isimInstalled)return;window.__isimInstalled=true;"
@@ -836,6 +865,7 @@ static void view_close(struct view *v) {
     }
     g_hash_table_destroy(v->pending);
     g_hash_table_destroy(v->alt_html); g_free(v->bf_alt);
+    if (v->reply_worlds) g_ptr_array_unref(v->reply_worlds);
     gtk_window_destroy(GTK_WINDOW(v->win));
     if (v->mem) { munmap(v->mem, v->memsize); close(v->memfd); }
     g_free(v->last);
@@ -1202,6 +1232,10 @@ static void cmd(char **f, int n) {
                                                                 WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START, "isim", NULL, NULL);
         webkit_user_content_manager_add_script(v->ucm, us);
         webkit_user_script_unref(us);
+        for (guint i = 0; v->reply_worlds && i + 1 < v->reply_worlds->len; i += 2) {
+            const char *w = g_ptr_array_index(v->reply_worlds, i);
+            add_reply_wrap(v, *w ? w : NULL, g_ptr_array_index(v->reply_worlds, i + 1), 0);
+        }
     }
     else if (!strcmp(c, "handler")) {        /* world name withReply */
         const char *world = *ARG(2) ? ARG(2) : NULL;
@@ -1210,6 +1244,10 @@ static void cmd(char **f, int n) {
             webkit_user_content_manager_register_script_message_handler_with_reply(v->ucm, name, world);
             sig = g_strdup_printf("script-message-with-reply-received::%s", name);
             g_signal_connect_data(v->ucm, sig, G_CALLBACK(on_message_reply), name, (GClosureNotify)g_free, 0);
+            if (!v->reply_worlds) v->reply_worlds = g_ptr_array_new_with_free_func(g_free);
+            g_ptr_array_add(v->reply_worlds, g_strdup(world ? world : ""));
+            g_ptr_array_add(v->reply_worlds, g_strdup(name));
+            add_reply_wrap(v, world, name, 1);
         } else {
             webkit_user_content_manager_register_script_message_handler(v->ucm, name, world);
             sig = g_strdup_printf("script-message-received::%s", name);
@@ -1300,7 +1338,11 @@ static void cmd(char **f, int n) {
         if (!p) return;
         if (atoi(ARG(3))) {
             JSCContext *ctx = jsc_context_new();
-            JSCValue *val = *ARG(4) ? jsc_value_new_from_json(ctx, ARG(4)) : jsc_value_new_undefined(ctx);
+            const char *json = ARG(4);
+            while (*json == ' ' || *json == '\n') json++;
+            char *marked = (*json == '{' || *json == '[') ? g_strconcat(REPLY_MARK, json, NULL) : NULL;   /* #828 */
+            JSCValue *val = marked ? jsc_value_new_string(ctx, marked) : *ARG(4) ? jsc_value_new_from_json(ctx, ARG(4)) : jsc_value_new_undefined(ctx);
+            g_free(marked);
             webkit_script_message_reply_return_value(p->obj, val);
             g_object_unref(val); g_object_unref(ctx);
         } else webkit_script_message_reply_return_error_message(p->obj, ARG(4));

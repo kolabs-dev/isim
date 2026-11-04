@@ -1187,7 +1187,7 @@ const H = window.webkit && window.webkit.messageHandlers && window.webkit.messag
 if (!H) return;
 const ID = @ID@, BASE = @BASE@, CONTENT = @CONTENT@, MSG = @MESSAGES@, MANIFEST = @MANIFEST@;
 const clean = v => { const s = JSON.stringify(v); return s === undefined ? null : JSON.parse(s); };
-const call = (api, ...args) => H.postMessage({api: api, args: args.map(clean)}).then(r => { const v = typeof r === 'string' ? JSON.parse(r) : r; return v === null ? undefined : v; },
+const call = (api, ...args) => H.postMessage({api: api, args: args.map(clean)}).then(r => r === null ? undefined : r,
     e => { throw new Error(e && e.message ? e.message : String(e)); });
 const P = (p, cb) => {
   if (typeof cb !== 'function') return p;
