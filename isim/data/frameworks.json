@@ -327,10 +327,7 @@
     "WiFiAware",
     "WiFiInfrastructure",
     "WirelessInsights",
-    "ExposureNotification",
-    "IOKit",
-    "DriverKit",
-    "Hypervisor"
+    "ExposureNotification"
    ]
   },
   {
@@ -372,7 +369,11 @@
   "ClockKit": "watchOS complications, deprecated",
   "NewsstandKit": "removed"
  },
- "impossible": {},
+ "impossible": {
+  "DriverKit": "driver extensions loaded by the iPadOS kernel for real USB / PCI devices: no such kernel or devices on Linux (#841)",
+  "Hypervisor": "Apple silicon virtualization, entitlement-gated, through the Darwin kernel's hypervisor: impossible on Linux (#841)",
+  "IOKit": "the Darwin kernel's driver registry, which only exists on Apple hardware (#841)"
+ },
  "aliases": {
   "photokit": "Photos",
   "sirikit": "Intents",

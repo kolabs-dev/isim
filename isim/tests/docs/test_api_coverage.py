@@ -41,3 +41,40 @@ def test_disambiguation_suffixes():
     assert cov.norm_component("init(_:)-1a2b3") == "init(_:)"
     assert cov.norm_component("index-swift.typealias") == "index"
     assert cov.norm_component("stage") == "stage"
+
+
+def test_each_documentation_path_counts_once():
+    # issue #840: Apple's navigator index lists a page under each topic group it is in (Date's == 72 times)
+    tree = [{"children": [
+        {"path": "/documentation/foundation/date", "type": "struct", "title": "Date", "children": [
+            {"path": "/documentation/foundation/date/==(_:_:)", "type": "op", "title": "=="},
+            {"type": "groupMarker", "title": "Comparing", "children": [
+                {"path": "/documentation/foundation/date/==(_:_:)", "type": "op", "title": "=="}]}]},
+        {"path": "/documentation/foundation/date", "type": "struct", "title": "Date"}]}]
+    paths = [s[0] for s in cov.walk_index(tree, "Foundation")]
+    assert paths == ["/documentation/foundation/date", "/documentation/foundation/date/==(_:_:)"]
+    assert [s[0] for s in cov.dedup([["/a", "", "func", None, 0], ["/a", "", "func", "/b", 0], ["/c", "", "var", None, 0]])] == ["/a", "/c"]
+
+
+def test_snapshot_holds_each_path_once():
+    snap = cov.load_snapshot()
+    for m, syms in snap["symbols"].items():
+        paths = [s[0] for s in syms]
+        assert len(paths) == len(set(paths)), m
+
+
+def test_xcuiautomation_and_darwin_notify_are_measured_exactly():
+    # issue #842: XCUIAutomation is isim's XCTest (Apple's SDK before Xcode 26); Darwin Notify is the notify C module
+    assert cov.IMPLEMENTED_IN["XCUIAutomation"] == "XCTest"
+    assert cov.IMPLEMENTED_IN["DarwinNotify"] == "notify"
+    assert "notify" in cov.c_modules(str(TOOL.parents[1] / "sdk-src" / "usr" / "include" / "module.modulemap"))
+    assert cov.doc_key("/documentation/darwinnotify/notify_post(_:)", "DarwinNotify") == "notify_post(_:)"
+
+
+def test_impossible_frameworks_are_out_of_scope():
+    # issue #841: Hypervisor, DriverKit and IOKit need the Darwin kernel or Apple hardware
+    import json
+    cat = json.load(open(cov.CATALOG))
+    assert {"Hypervisor", "DriverKit", "IOKit"} <= set(cat["impossible"])
+    in_areas = {f for a in cat["areas"] for f in a["frameworks"]}
+    assert not in_areas & (set(cat["impossible"]) | set(cat["deprecated"]))
