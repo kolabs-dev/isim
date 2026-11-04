@@ -664,11 +664,14 @@ static void on_scheme(WebKitURISchemeRequest *rq, gpointer data) {
 static char *reply_wrap_script(const char *name) {
     char *n = g_strescape(name, NULL);
     char *js = g_strdup_printf(
-        "(function(n){var w=window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers[n];"
-        "if(!w||w.__isimReplies)return;var p=w.postMessage,M='\\u0001isim-json\\u0001';"
-        "Object.defineProperty(w,'postMessage',{configurable:true,writable:true,value:function(m){"
-        "return p.call(w,m).then(function(r){return typeof r==='string'&&r.indexOf(M)===0?JSON.parse(r.slice(M.length)):r})}});"
-        "Object.defineProperty(w,'__isimReplies',{value:true})})(\"%s\")", n);
+        /* on the handlers' shared prototype: some WebKitGTK versions return a new handler object at each access */
+        /* and again when the document loads: in some versions the handler is not there yet at document start */
+        "(function(n){function wrap(){var w=window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers[n];"
+        "var P=w&&Object.getPrototypeOf(w);if(!P||P.__isimReplies)return;var p=P.postMessage,M='\\u0001isim-json\\u0001';"
+        "Object.defineProperty(P,'postMessage',{configurable:true,writable:true,value:function(m){var r=p.call(this,m);"
+        "return r&&typeof r.then==='function'?r.then(function(v){return typeof v==='string'&&v.indexOf(M)===0?JSON.parse(v.slice(M.length)):v}):r}});"
+        "Object.defineProperty(P,'__isimReplies',{value:true})}"
+        "wrap();document.addEventListener('DOMContentLoaded',wrap);window.addEventListener('load',wrap)})(\"%s\")", n);
     g_free(n);
     return js;
 }
