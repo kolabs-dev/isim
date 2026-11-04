@@ -24,6 +24,16 @@ def test_locales(launch):
     assert r["available"] == "many=true en_US=true", r["available"]
     assert r["iso"] == "US=true XX=false EUR=true regions=true currencies=true", r["iso"]
     assert r["collations"] == "standard=true", r["collations"]
+    # issue #846
+    assert r["named"] == "AX US sq Cyrl und", r["named"]
+    assert r["region-tree"] == ("category=territory containing=155 continent=150 "
+                                "europe-subs=039,151,154,155 continents=002,009,019,142,150"), r["region-tree"]
+    assert r["identifiers"] == ("en-US-u-ca-japanese de_DE@collation=phonebook en_US zh-Hans lcid=1033 de_DE "
+                                "fr_CA@calendar=gregorian"), r["identifiers"]
+    assert r["delimiters"] == "\u201e\u201c \u201a\u2018 exemplar-\u00df=true exemplar-\u00f1=false", r["delimiters"]
+    assert r["languages"] == ("alpha3=deu alpha2=fr iso=true false parent=en equivalent=true common=true "
+                              "numbering=true"), r["languages"]
+    assert r["names"] == "Phonebook Sort Order|Computer", r["names"]
 
     assert r["zones"] == "many=true newyork=true tokyo=true", r["zones"]
     assert r["dst"] == "july=true january=false offset=3600 winter-offset=0", r["dst"]

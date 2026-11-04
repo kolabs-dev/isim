@@ -31,6 +31,28 @@ func runChecks() {
     log("available", "many=\(Locale.availableIdentifiers.count > 100) en_US=\(Locale.availableIdentifiers.contains("en_US"))")
     log("iso", "US=\(Locale.Region("US").isISORegion) XX=\(Locale.Region("XX").isISORegion) EUR=\(Locale.Currency("EUR").isISOCurrency) "
         + "regions=\(Locale.Region.isoRegions.count > 200) currencies=\(Locale.Currency.isoCurrencies.count > 100)")
+    // issue #846: named regions / languages / scripts, the region hierarchy, identifier conversions, delimiters
+    log("named", "\(Locale.Region.ålandIslands.identifier) \(Locale.Region.unitedStates.identifier) \(Locale.LanguageCode.albanian.identifier) "
+        + "\(Locale.Script.cyrillic.identifier) \(Locale.LanguageCode.unidentified.identifier)")
+    let fr = Locale.Region.france
+    log("region-tree", "category=\(fr.category.map { "\($0)" } ?? "-") containing=\(fr.containingRegion?.identifier ?? "-") "
+        + "continent=\(fr.continent?.identifier ?? "-") europe-subs=\(Locale.Region("150").subRegions.map(\.identifier).sorted().joined(separator: ",")) "
+        + "continents=\(Locale.Region.isoRegions(ofCategory: .continent).map(\.identifier).sorted().joined(separator: ","))")
+    log("identifiers", "\(Locale(identifier: "en_US@calendar=japanese").identifier(.bcp47)) \(Locale.identifier(.icu, from: "de-DE-u-co-phonebk")) "
+        + "\(Locale.identifier(.cldr, from: "en-US")) \(Locale.canonicalLanguageIdentifier(from: "zh_Hans")) "
+        + "lcid=\(Locale.windowsLocaleCode(fromIdentifier: "en_US").map(String.init) ?? "-") \(Locale.identifier(fromWindowsLocaleCode: 1031) ?? "-") "
+        + "\(Locale.identifier(fromComponents: ["kCFLocaleLanguageCodeKey": "fr", "kCFLocaleCountryCodeKey": "CA", "calendar": "gregorian"]))")
+    let de = Locale(identifier: "de_DE")
+    log("delimiters", "\(de.quotationBeginDelimiter ?? "-")\(de.quotationEndDelimiter ?? "-") \(de.alternateQuotationBeginDelimiter ?? "-")\(de.alternateQuotationEndDelimiter ?? "-") "
+        + "exemplar-ß=\(de.exemplarCharacterSet?.contains("ß") == true) exemplar-ñ=\(de.exemplarCharacterSet?.contains("ñ") == true)")
+    log("languages", "alpha3=\(Locale.LanguageCode("de").identifier(.alpha3) ?? "-") alpha2=\(Locale.LanguageCode("fra").identifier(.alpha2) ?? "-") "
+        + "iso=\(Locale.LanguageCode("en").isISOLanguage) \(Locale.LanguageCode("xx").isISOLanguage) "
+        + "parent=\(Locale.Language(identifier: "en-GB").parent?.minimalIdentifier ?? "-") "
+        + "equivalent=\(Locale.Language(identifier: "zh-TW").isEquivalent(to: Locale.Language(identifier: "zh-Hant-TW"))) "
+        + "common=\(Locale.Language(identifier: "en-US").hasCommonParent(with: Locale.Language(identifier: "en-GB"))) "
+        + "numbering=\(Locale.NumberingSystem.availableNumberingSystems.contains(Locale.NumberingSystem("arab")))")
+    log("names", "\(Locale(identifier: "en").localizedString(forCollationIdentifier: "phonebook") ?? "-")|"
+        + "\(Locale(identifier: "en").localizedString(forVariantCode: "POSIX") ?? "-")")
     log("collations", "standard=\(Locale.Collation.availableCollations(for: Locale.Language(identifier: "de")).contains(.standard))")
 
     let zones = TimeZone.knownTimeZoneIdentifiers
