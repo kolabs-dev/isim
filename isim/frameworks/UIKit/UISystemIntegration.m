@@ -1089,6 +1089,7 @@ void isim_sys_event(const char *text) {
         NSArray *parts = [args componentsSeparatedByString:@" "];
         isim_ui_hinge_changed(parts.count > 1 ? [parts[1] doubleValue] : -1);
     }
+    else if ([verb isEqualToString:@"keyboard"]) { extern void isim_ui_keyboard_float(const char *); isim_ui_keyboard_float(args.UTF8String); }   /* iPad */
     else if ([verb isEqualToString:@"remote-notification"]) deliver_remote(read_push(args), 0);
     else if ([verb isEqualToString:@"nc-action"]) notification_action(args);
     else if ([verb isEqualToString:@"glasstint"]) {

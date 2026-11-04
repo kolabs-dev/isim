@@ -266,3 +266,44 @@ def test_ipad_emoji_keyboard(launch, ios):
     app.tap_id("isim-kb-emoji-😀")
     typed(app, "websearch", "😀")
     assert app.quit() == 0, "exits cleanly"
+
+
+@pytest.mark.os_matrix
+def test_ipad_floating_keyboard(launch, ios):
+    """iPadOS's floating keyboard: pinching the keyboard in (or script `keyboard floating`) shrinks it to the iPhone's
+    layout in a small window with a drag handle, near the bottom of the screen; apps hear the docked keyboard hide.
+    It can be dragged by its handle, and typed on; pinching it out (or `keyboard docked`) docks it again and apps hear
+    it show."""
+    W, H = SIZES["ipadpro11"]
+    app = launch("HelloKeyboardTypes", device="ipadpro11", os_version=ipad_os(ios), env={"ISIM_LANGUAGES": "en", "ISIM_REGION": "US"})
+    dump, f = keyboard(app, "websearch")
+    app.wait_log(r"^keyboard will show 0,\d+ 834x\d+$")
+    x, y = center(f["isim-kb-g"])
+    app.send(f"pinch {x} {y} 0.4 0.3")                        # fingers together over the keys
+    m = app.wait_log(r"isim: keyboard floating \((\d+),(\d+) 320x(\d+)\)$")
+    fx, fy, fh = (int(v) for v in m.groups())
+    assert fx == (W - 320) // 2 and fy + fh < H, "bottom centre"
+    app.wait_log(r"^keyboard will hide ")
+    dump = app.wait_view(r"^(?!.* hidden id=).* id=isim-kb-float-handle\b")
+    f = screen_frames(dump)
+    assert "id=isim-kb-dismiss" not in dump, "the iPhone layout: no hide-keyboard key"
+    assert fx <= f["isim-kb-q"][0] and f["isim-kb-p"][0] + f["isim-kb-p"][2] <= fx + 320, "the keys in the floating window"
+    app.tap_id("isim-kb-o")
+    app.tap_id("isim-kb-k")
+    typed(app, "websearch", "ok")
+    hx, hy = center(f["isim-kb-float-handle"])
+    app.drag(hx, hy, hx - 200, hy - 300, 0.4)                # by the handle
+    m = app.wait_log(r"isim: keyboard moved \((\d+),(\d+)\)$")
+    assert int(m.group(1)) < fx - 50 and int(m.group(2)) < fy - 100, m.groups()   # it followed the finger up and left
+    app.wait_still()
+    app.screenshot("ipad-floating-keyboard")
+    app.send("keyboard docked")
+    app.wait_log(r"isim: keyboard docked \(0,\d+ 834x\d+\)$")
+    app.wait_log(r"^keyboard will show 0,\d+ 834x\d+$", count=2)
+    app.wait_view(r"^(?!.* hidden id=).* id=isim-kb-dismiss\b")
+    app.send("keyboard floating")                            # the script command, and pinching out docks it
+    app.wait_log(r"isim: keyboard floating \(", count=2)
+    dump = app.wait_view(r"^(?!.* hidden id=).* id=isim-kb-float-handle\b")
+    x, y = center(screen_frames(dump)["isim-kb-g"])
+    app.send(f"pinch {x} {y} 2.5 0.3")
+    app.wait_log(r"isim: keyboard docked ", count=2)
