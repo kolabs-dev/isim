@@ -15,7 +15,10 @@
  *  - Face ID iPhones get the bottom bar with the globe key (tap: next keyboard, hold: list);
  *    custom keyboards then report needsInputModeSwitchKey = NO, as on iOS;
  *  - iPads get the iPadOS layout (ipad_rows below): delete and return at the row ends, shift on both sides, the
- *    globe / emoji, mic and hide-keyboard keys in the bottom row, flick characters on the letter keys, no bar.
+ *    globe / emoji, mic and hide-keyboard keys in the bottom row, flick characters on the letter keys; the shortcuts
+ *    bar (the responder's input assistant groups at the ends of the predictive bar: by default undo, redo and paste,
+ *    and bold / italic / underline in a text view that allows editing text attributes); the emoji keyboard's grid
+ *    spans the iPad keyboard (about 58 pt cells, four rows, running on into the next categories; estimated).
  * Key views carry accessibility identifiers (isim-kb-q, isim-kb-space, isim-kb-globe, ...).
  * ISIM_SOFTWARE_KEYBOARD=0 disables the on-screen keyboard (hardware typing still works). */
 #import "UIKitInputPrivate.h"
@@ -198,6 +201,7 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
 @property (nonatomic, copy) void (^onGlobe)(void);
 @property (nonatomic, copy) void (^onLeaveEmoji)(void);
 @property (nonatomic, readonly) BOOL showsPredictions;
+@property (nonatomic, readonly) BOOL showsBar;            /* predictions, or (iPad) the shortcuts bar's groups */
 - (void)_updateSuggestions;
 - (void)_clearInline;
 - (void)_layoutBar;
@@ -234,7 +238,17 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     if ([t respondsToSelector:@selector(isSecureTextEntry)] && [(id<UITextInputTraits>)t isSecureTextEntry]) return NO;
     return [t conformsToProtocol:@protocol(UITextInput)];
 }
-- (CGFloat)_top { return self.showsPredictions ? 44 : 0; }
+/* iPad: the responder's shortcuts (its input assistant item's groups; by default undo / redo / paste and, in rich text,
+   bold / italic / underline: UIResponderExtras.m) keep the bar up even without predictions, as on iPadOS */
+- (BOOL)_shortcuts {
+    id t = _target;
+    if (!kb_ipad() || [self _emoji] || ![t isKindOfClass:[UIResponder class]]) return NO;
+    UITextInputAssistantItem *ai = [(UIResponder *)t inputAssistantItem];
+    for (UIBarButtonItemGroup *g in [ai.leadingBarButtonGroups arrayByAddingObjectsFromArray:ai.trailingBarButtonGroups]) if (!g.hidden && g.barButtonItems.count) return YES;
+    return NO;
+}
+- (BOOL)showsBar { return self.showsPredictions || [self _shortcuts]; }
+- (CGFloat)_top { return self.showsBar ? 44 : 0; }
 - (UIButton *)_key:(NSString *)title ident:(NSString *)ident special:(BOOL)special action:(SEL)sel {
     return [self _key:title ident:ident special:special action:sel class:[UIButton class]];
 }
@@ -268,7 +282,7 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
         _bar.accessibilityIdentifier = @"isim-kb-predictions";
         [self addSubview:_bar];
     }
-    _bar.hidden = !self.showsPredictions;
+    _bar.hidden = !self.showsBar;
     if ([self _emoji]) { [self _rebuildEmoji]; return; }
     if (kb_ipad()) { [self _rebuildIPad]; return; }
     if ([self _pad]) { [self _rebuildPad]; return; }
@@ -574,11 +588,13 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
 }
 - (void)_rebuildEmoji {
     NSArray *pages = emoji_pages();
-    NSArray *page = pages[_emojiPage % pages.count];
-    for (NSString *e in page) {
+    /* iPad (issue #179): the wider grid runs on from the category into the next ones, like iPadOS's continuous strip */
+    NSMutableArray *list = [pages[_emojiPage % pages.count] mutableCopy];
+    if (kb_ipad()) for (NSUInteger p = _emojiPage + 1; p < pages.count; p++) [list addObjectsFromArray:pages[p]];
+    for (NSString *e in list) {
         UIButton *b = [self _key:e ident:[@"isim-kb-emoji-" stringByAppendingString:e] special:NO action:@selector(_char:)];
         b.backgroundColor = UIColor.clearColor; b.layer.shadowOpacity = 0;
-        b.titleLabel.font = [UIFont systemFontOfSize:30];
+        b.titleLabel.font = [UIFont systemFontOfSize:kb_ipad() ? 38 : 30];
         b.tag = 200;
     }
     UIButton *abc = [self _key:@"ABC" ident:@"isim-kb-abc" special:YES action:@selector(_leaveEmoji)];
@@ -621,10 +637,17 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     if (kb_ipad() && ![self _emoji]) { [self _layoutIPad]; return; }
     if ([self _pad]) { [self _layoutPad]; return; }
     if ([self _emoji]) {
-        CGFloat cw = (W - 2 * side) / 8, ch = 40;
+        /* iPhone: 8 columns of 40 pt rows. iPad (adapted, sizes estimated): about 58 pt cells across the width, four
+           rows filling the iPad keyboard's height; the cells past the grid are hidden */
+        BOOL pad = kb_ipad();
+        NSUInteger cols = pad ? MAX((NSUInteger)8, (NSUInteger)floor((W - 2 * side) / 58)) : 8;
+        CGFloat cw = (W - 2 * side) / cols, ch = pad ? floor((ipad_metrics(_language).height - 36 - 18) / 4) : 40;
         NSUInteger i = 0;
-        for (UIButton *b in _keys) if (b.tag == 200) { b.frame = CGRectMake(side + (i % 8) * cw, 6 + (i / 8) * ch, cw, ch); i++; }
-        CGFloat y = 6 + 4 * ch + 6, x = side;
+        for (UIButton *b in _keys) if (b.tag == 200) {
+            b.hidden = i >= cols * 4;
+            b.frame = CGRectMake(side + (i % cols) * cw, 6 + [self _top] + (i / cols) * ch, cw, ch); i++;
+        }
+        CGFloat y = 6 + [self _top] + 4 * ch + 6, x = side;
         for (UIButton *b in _keys) if (b.tag == 102) { b.frame = CGRectMake(x, y, 56, 36); x += 62; }
         for (UIButton *b in _keys) if (b.tag >= 300) { b.frame = CGRectMake(x, y, 36, 36); x += 40; }
         for (UIButton *b in _keys) if (b.tag == 101) b.frame = CGRectMake(W - side - 50, y, 50, 36);
@@ -721,9 +744,9 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
 - (void)_updateSuggestions {
     [self _clearInline];
     _autofill = [self _autofillSuggestions];
-    BOOL show = self.showsPredictions;
-    _bar.hidden = !show;
-    if (!show) { _suggestions = @[]; return; }
+    BOOL show = self.showsPredictions, bar = show || [self _shortcuts];
+    _bar.hidden = !bar;
+    if (!show) { _suggestions = @[]; if (bar) [self _layoutBar]; return; }
     if (_autofill.count) { _suggestions = @[]; [self _layoutBar]; return; }
     NSString *math = [self _mathResult];
     if (math) { _suggestions = @[ math ]; [self _layoutBar]; NSLog(@"isim: math completion %@", math); return; }
@@ -863,6 +886,7 @@ static double math_expr(const char **p, BOOL *ok) {
         CGFloat lead = [self _placeGroups:ai.leadingBarButtonGroups from:8 leading:YES], trail = [self _placeGroups:ai.trailingBarButtonGroups from:W - 8 leading:NO];
         x0 = lead; W -= lead + trail; w = W / 3;
     }
+    if (!self.showsPredictions) return;                 /* the shortcuts alone */
     for (NSUInteger i = 0; i < 3; i++) {
         NSString *t = i < _suggestions.count ? _suggestions[i] : @"";
         UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];
@@ -1292,8 +1316,8 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
         return (h > 0 ? h : 216) + isim_ui_device()->safe_bottom;
     }
     if (kb_ipad() && (is_system([self _ident]) || !_hostedView))      /* the keys, over the home indicator's band */
-        return ipad_metrics([self _language]).height + ([_keys showsPredictions] ? 44 : 0) + isim_ui_device()->safe_bottom;
-    if (is_system([self _ident]) || !_hostedView) return 216 + ([_keys showsPredictions] ? 44 : 0);
+        return ipad_metrics([self _language]).height + ([_keys showsBar] ? 44 : 0) + isim_ui_device()->safe_bottom;
+    if (is_system([self _ident]) || !_hostedView) return 216 + ([_keys showsBar] ? 44 : 0);
     UIView *v = _hostedView;
     CGFloat W = isim_ui_device()->width;
     CGSize s = [v systemLayoutSizeFittingSize:CGSizeMake(W, 216) withHorizontalFittingPriority:UILayoutPriorityRequired verticalFittingPriority:UILayoutPriorityFittingSizeLevel];

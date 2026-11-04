@@ -223,3 +223,46 @@ def test_ipad_keyboard_landscape(launch, ios):
     app.tap_id("isim-kb-dismiss")
     app.wait_for(type="keyboard", gone=True)
     assert app.quit() == 0, "exits cleanly"
+
+
+@pytest.mark.os_matrix
+def test_ipad_shortcuts_bar(launch, ios):
+    """iPadOS's shortcuts bar (issue #179): undo, redo and paste at the start of the bar above the keys, acting on the
+    field; undo takes back the typing, redo puts it back."""
+    app = launch("HelloKeyboardTypes", device="ipadpro11", os_version=ipad_os(ios), env={"ISIM_LANGUAGES": "en", "ISIM_REGION": "US"})
+    dump, f = keyboard(app, "websearch", "isim-kb-assistant-paste")
+    for item in ("undo", "redo"):
+        assert f"id=isim-kb-assistant-{item}" in dump, f"{item} in the shortcuts bar"
+    assert f["isim-kb-assistant-undo"][0] < f["isim-kb-assistant-redo"][0] < f["isim-kb-assistant-paste"][0], "undo, redo, paste"
+    assert f["isim-kb-assistant-paste"][1] < f["isim-kb-q"][1], "the bar is above the keys"
+    app.wait_still()
+    app.screenshot("ipad-shortcuts-bar")
+    for key in ("a", "b"):
+        app.tap_id(f"isim-kb-{key}")
+    typed(app, "websearch", "ab")
+    app.wait_tap_id("isim-kb-assistant-undo")
+    app.wait_log(r"isim: shortcuts bar undo")
+    typed(app, "websearch", "")
+    app.wait_tap_id("isim-kb-assistant-redo")
+    app.wait_log(r"isim: shortcuts bar redo")
+    typed(app, "websearch", "ab")
+    assert app.quit() == 0, "exits cleanly"
+
+
+@pytest.mark.os_matrix
+def test_ipad_emoji_keyboard(launch, ios):
+    """The iPad emoji keyboard (issue #179): a grid wider than the iPhone's 8 columns across the iPad keyboard, running on
+    into the next categories; tapping an emoji types it."""
+    app = launch("HelloKeyboardTypes", device="ipadpro11", os_version=ipad_os(ios), env={"ISIM_LANGUAGES": "en", "ISIM_REGION": "US"})
+    keyboard(app, "websearch")
+    app.tap_id("isim-kb-emoji")
+    dump = app.wait_view(r"^(?!.* hidden id=).* id=isim-kb-emoji-😀")
+    f = screen_frames(dump)
+    first_row = [k for k, v in f.items() if k.startswith("isim-kb-emoji-") and "cat" not in k and v[1] == f["isim-kb-emoji-😀"][1]]
+    assert len(first_row) > 8, f"wider than the iPhone's grid: {len(first_row)} columns"
+    assert "id=isim-kb-emoji-🐶" in dump, "the grid runs on into the next category"
+    app.wait_still()
+    app.screenshot("ipad-emoji-keyboard")
+    app.tap_id("isim-kb-emoji-😀")
+    typed(app, "websearch", "😀")
+    assert app.quit() == 0, "exits cleanly"
