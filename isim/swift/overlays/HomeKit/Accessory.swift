@@ -89,7 +89,6 @@ open class HMAccessory: NSObject {
         }
         if let e = _hmNameError(name, taken: home.accessories.filter { $0.id != _id }.map(\.name)) { _hmReply { completion(e) }; return }
         _HMStore.shared.modifyAccessory(_id) { $0.name = name }
-        _HMStore.shared.save()
         _hmReply { completion(nil) }
     }
 
@@ -167,7 +166,6 @@ open class HMService: NSObject {
             _hmReply { completion(_hmErr(.objectNotAssociatedToAnyHome)) }; return
         }
         _HMStore.shared.modifyAccessory(a) { body(&$0.services[s]) }
-        _HMStore.shared.save()
         _hmReply { completion(nil) }
     }
     @objc(updateName:completionHandler:)
