@@ -1,7 +1,7 @@
 # NaturalLanguage
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 95.2% of Apple's iOS API (278 of 292, exact) · **Rows:** 6: 1 ✅ 4 🟡 1 ❌ · **iOS:** 12.0+
+**Symbols:** 96.2% of Apple's iOS API (281 of 292, exact) · **Rows:** 8: 1 ✅ 6 🟡 1 ❌ · **iOS:** 12.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [NaturalLanguage](https://developer.apple.com/documentation/naturallanguage) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)
@@ -32,7 +32,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-14 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+11 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -45,11 +45,8 @@
 - [`case error`](https://developer.apple.com/documentation/naturallanguage/nltagger/assetsresult/error)
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/naturallanguage/nltagger/assetsresult/init(rawvalue:))
 - [`case notAvailable`](https://developer.apple.com/documentation/naturallanguage/nltagger/assetsresult/notavailable)
-- [`func models(forTagScheme: NLTagScheme) -> [NLModel]`](https://developer.apple.com/documentation/naturallanguage/nltagger/models(fortagscheme:))
 - [`class func requestAssets(for: NLLanguage, tagScheme: NLTagScheme, completionHandler: (NLTagger.AssetsResult, (any Error)?) -> Void)`](https://developer.apple.com/documentation/naturallanguage/nltagger/requestassets(for:tagscheme:completionhandler:))
-- [`func setModels([NLModel], forTagScheme: NLTagScheme)`](https://developer.apple.com/documentation/naturallanguage/nltagger/setmodels(_:fortagscheme:))
 - [`func setOrthography(NSOrthography, range: Range<String.Index>)`](https://developer.apple.com/documentation/naturallanguage/nltagger/setorthography(_:range:))
-- [`func tokenRange(for: Range<String.Index>, unit: NLTokenUnit) -> Range<String.Index>`](https://developer.apple.com/documentation/naturallanguage/nltagger/tokenrange(for:unit:))
 
 </details>
 <!-- /generated:missing -->

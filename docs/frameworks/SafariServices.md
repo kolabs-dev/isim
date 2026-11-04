@@ -1,7 +1,7 @@
 # SafariServices
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 62.5% of Apple's iOS API (70 of 112, exact) · **Rows:** 5: 3 ✅ 2 ❌ · **iOS:** 7.0+
+**Symbols:** 74.6% of Apple's iOS API (88 of 118, exact) · **Rows:** 9: 6 ✅ 3 ❌ · **iOS:** 7.0+
 <!-- /generated:header -->
 
 **Area:** [Web, network & communication](../COVERAGE.md#web) · **Apple:** [SafariServices](https://developer.apple.com/documentation/safariservices) · **Issues:** [`area:web`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aweb)
@@ -27,16 +27,12 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-42 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+30 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
-- [`SFAddToHomeScreenActivityItem`](https://developer.apple.com/documentation/safariservices/sfaddtohomescreenactivityitem)
 - [`func getHomeScreenWebAppInfo(completionHandler: (SFAddToHomeScreenInfo?) -> Void)`](https://developer.apple.com/documentation/safariservices/sfaddtohomescreenactivityitem/gethomescreenwebappinfo(completionhandler:))
 - [`func getWebAppManifest(completionHandler: (BEWebAppManifest?) -> Void)`](https://developer.apple.com/documentation/safariservices/sfaddtohomescreenactivityitem/getwebappmanifest(completionhandler:))
-- [`var iconItemProvider: NSItemProvider?`](https://developer.apple.com/documentation/safariservices/sfaddtohomescreenactivityitem/iconitemprovider)
-- [`var title: String`](https://developer.apple.com/documentation/safariservices/sfaddtohomescreenactivityitem/title)
-- [`var url: URL`](https://developer.apple.com/documentation/safariservices/sfaddtohomescreenactivityitem/url)
 - [`SFAddToHomeScreenInfo`](https://developer.apple.com/documentation/safariservices/sfaddtohomescreeninfo)
 - [`init(manifest: BEWebAppManifest)`](https://developer.apple.com/documentation/safariservices/sfaddtohomescreeninfo/init(manifest:))
 - [`var manifest: BEWebAppManifest`](https://developer.apple.com/documentation/safariservices/sfaddtohomescreeninfo/manifest)
@@ -54,14 +50,6 @@
 - [`SFSafariExtensionState`](https://developer.apple.com/documentation/safariservices/sfsafariextensionstate)
 - [`var isEnabled: Bool`](https://developer.apple.com/documentation/safariservices/sfsafariextensionstate/isenabled)
 - [`var isEnabled: Bool`](https://developer.apple.com/documentation/safariservices/sfsafariextensionstate/isenabled)
-- [`SFSafariSettings`](https://developer.apple.com/documentation/safariservices/sfsafarisettings)
-- [`class func openExportBrowsingDataSettings(completionHandler: (((any Error)?) -> Void)?)`](https://developer.apple.com/documentation/safariservices/sfsafarisettings/openexportbrowsingdatasettings(completionhandler:))
-- [`class func openExtensionsSettings(forIdentifiers: [String], completionHandler: (((any Error)?) -> Void)?)`](https://developer.apple.com/documentation/safariservices/sfsafarisettings/openextensionssettings(foridentifiers:completionhandler:))
-- [`SFSafariViewController.ActivityButton`](https://developer.apple.com/documentation/safariservices/sfsafariviewcontroller/activitybutton)
-- [`var extensionIdentifier: String?`](https://developer.apple.com/documentation/safariservices/sfsafariviewcontroller/activitybutton/extensionidentifier)
-- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/safariservices/sfsafariviewcontroller/activitybutton/init(coder:))
-- [`init(templateImage: UIImage, extensionIdentifier: String)`](https://developer.apple.com/documentation/safariservices/sfsafariviewcontroller/activitybutton/init(templateimage:extensionidentifier:))
-- [`var templateImage: UIImage?`](https://developer.apple.com/documentation/safariservices/sfsafariviewcontroller/activitybutton/templateimage)
 - [`SSReadingListError`](https://developer.apple.com/documentation/safariservices/ssreadinglisterror)
 - [`SSReadingListError.Code`](https://developer.apple.com/documentation/safariservices/ssreadinglisterror/code)
 - [`SSReadingListError.Code`](https://developer.apple.com/documentation/safariservices/ssreadinglisterror/code)

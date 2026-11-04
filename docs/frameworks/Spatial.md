@@ -1,7 +1,7 @@
 # Spatial
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 55.6% of Apple's iOS API (817 of 1469, exact) · **Rows:** 11: 7 ✅ 4 ❌ · **iOS:** 16.0+
+**Symbols:** 55.6% of Apple's iOS API (817 of 1469, exact) · **Rows:** 11: 8 ✅ 3 ❌ · **iOS:** 16.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [Spatial](https://developer.apple.com/documentation/spatial) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)
