@@ -1084,6 +1084,11 @@ void isim_sys_event(const char *text) {
     if (sp.location != NSNotFound) { verb = [t substringToIndex:sp.location]; args = [t substringFromIndex:sp.location + 1]; }
     if ([verb isEqualToString:@"bgtask"]) run_background_task(args);
     else if ([verb isEqualToString:@"fold"]) { extern void isim_ui_screen_changed(void); isim_ui_screen_changed(); }   /* iPhone Duo */
+    else if ([verb isEqualToString:@"hinge"]) {         /* iPhone Duo's hinge moved: "hinge NEW OLD" (degrees) */
+        extern void isim_ui_hinge_changed(double old);
+        NSArray *parts = [args componentsSeparatedByString:@" "];
+        isim_ui_hinge_changed(parts.count > 1 ? [parts[1] doubleValue] : -1);
+    }
     else if ([verb isEqualToString:@"remote-notification"]) deliver_remote(read_push(args), 0);
     else if ([verb isEqualToString:@"nc-action"]) notification_action(args);
     else if ([verb isEqualToString:@"glasstint"]) {

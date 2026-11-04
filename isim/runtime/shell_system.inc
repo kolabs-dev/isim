@@ -2358,15 +2358,29 @@ static void sys_local_deliver(const char *path, const char *exe, const char *sid
     sys_alert(-1, n, flags);
 }
 
-/* the device folds or unfolds (script `fold open|closed|toggle`, iPhone Duo): the shell and every app take the other
+/* the device folds or unfolds (script `fold open|closed|toggle|angle N`, iPhone Duo): the shell and every app take the other
    display, in the same orientation. Apps resize (UIKit's size transition), or keep the cover's size letterboxed when
    they are linked against an Apple SDK older than iOS 27.1 (host.c client_fold). Apps launched later start on the
    current display (ISIM_FOLD). */
+static void shell_hinge(double angle) {
+    if (angle == fold_angle) return;
+    double old = fold_angle;
+    fold_angle = angle;
+    char env[32]; snprintf(env, sizeof env, "%g", angle);
+    setenv("ISIM_FOLD", env, 1);                         /* apps launched later start at this angle */
+    for (int k = 0; k < nclients; k++) if (clients[k].alive) sys_send_text(k, "hinge %g %g", angle, old);   /* new, old */
+    fprintf(stderr, "isim shell: hinge %g degrees\n", angle);
+}
 static void shell_fold(const char *arg) {
     if (fold_inner < 0) { fprintf(stderr, "isim shell: fold: %s does not fold\n", portrait_dev.name); return; }
-    int open = !strncmp(arg, "open", 4) ? 1 : !strncmp(arg, "closed", 6) ? 0 : !strncmp(arg, "toggle", 6) ? !fold_open : -1;
-    if (open < 0) { fprintf(stderr, "isim shell: fold: open, closed or toggle, not '%s'\n", arg); return; }
-    if (open == fold_open) { fprintf(stderr, "isim shell: already %s\n", open ? "unfolded" : "folded"); return; }
+    double angle = fold_parse(arg);
+    if (angle < 0) { fprintf(stderr, "isim shell: fold: open, closed, toggle or angle N, not '%s'\n", arg); return; }
+    int open = angle >= FOLD_INNER_MIN;
+    if (open == fold_open) {                             /* the same display: only the hinge moves (`fold angle N`) */
+        if (angle == fold_angle) fprintf(stderr, "isim shell: already %s\n", open ? "unfolded" : "folded");
+        shell_hinge(angle);
+        return;
+    }
     setenv("ISIM_FOLD", open ? "open" : "closed", 1);
     dev.orientation = win_orient;
     fold_set(open);
@@ -2375,6 +2389,7 @@ static void shell_fold(const char *arg) {
     window_resize();
     for (int k = 0; k < nclients; k++) if (clients[k].alive) { clients[k].has_frame = 0; sys_send_text(k, "fold %s", open ? "open" : "closed"); }
     fprintf(stderr, "isim shell: %s, %s display (%gx%g)\n", open ? "unfolded" : "folded", open ? "inner" : "cover", dev.width, dev.height);
+    shell_hinge(angle);
     if (active >= 0) shell_send(active, EV_REDRAW);
 }
 /* script commands for the system (EV_SHELL_CMD); returns 1 when handled */

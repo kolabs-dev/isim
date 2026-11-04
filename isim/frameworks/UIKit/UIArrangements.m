@@ -10,10 +10,14 @@
  *     overlay: the primary layered over the secondary, both filling the container; it turns side by side only
  *       when a foldable device folds, which never happens on isim.
  *   The layout is logged ("isim: arrangement ...") and updateArrangement(_:animated: true) animates it.
- * - UIHingeInteraction: no hinge provides updates, so the handler is called with a nil hinge when the interaction
- *   joins or leaves a window.
- * - Reserved regions: occlusion is the Dynamic Island or the notch (on its side in landscape), active, no margins;
- *   no division regions (no hinge).
+ * - UIHingeInteraction: on iPhone Duo (`--device iphoneduo`, issue #115) the handler gets the hinge when the interaction
+ *   joins a window and whenever it moves (script `fold open|closed|angle N`): its angle in radians and its status
+ *   (closed at 0, fully open at 180 degrees, partially open between). On a device that does not fold, and when the
+ *   interaction leaves its window, the hinge is nil.
+ * - Reserved regions: occlusion is the Dynamic Island or the notch (on its side in landscape), active, no margins.
+ *   Division (proposed: Apple does not document its geometry): on iPhone Duo's inner display, the fold, a line across
+ *   the middle (vertical as the device is held open, horizontal when turned), active while the hinge is partially
+ *   open and inactive (reported with includeInactive) when it is flat.
  * - Vertical bar: no device has one: verticalBarEdge is unspecified, the preferences are resolved and kept.
  * - Layout regions (iOS 26): safe area, margins and readable content (no window controls, so corner adaptation
  *   changes nothing) and (27.1) a bar strip of a given extent along an edge of the safe area.
@@ -235,10 +239,28 @@ static CGFloat resolve(UISplitArrangementDimension *d, CGFloat length, UIViewCon
 
 /* ================= hinge ================= */
 @implementation UIHinge { @public CGFloat _angle; UIHingeStatus _status; }
+- (instancetype)initIsimWithDegrees:(double)deg {
+    if ((self = [super init])) {
+        _angle = deg * M_PI / 180;
+        _status = deg <= 0 ? UIHingeStatusClosed : deg >= 180 ? UIHingeStatusFullyOpen : UIHingeStatusPartiallyOpen;
+    }
+    return self;
+}
 - (CGFloat)angle { return _angle; }
 - (UIHingeStatus)status { return _status; }
 - (id)copyWithZone:(NSZone *)z { return self; }
+- (NSString *)description { return [NSString stringWithFormat:@"<UIHinge %g degrees, status %ld>", _angle * 180 / M_PI, (long)_status]; }
 @end
+/* the device's hinge now, or nil on a device that does not fold */
+static UIHinge *current_hinge(void) {
+    double deg = isim_device_hinge_angle();
+    return deg < 0 ? nil : [[UIHinge alloc] initIsimWithDegrees:deg];
+}
+static NSHashTable *hinge_interactions(void) {
+    static NSHashTable *t;
+    if (!t) t = [NSHashTable weakObjectsHashTable];
+    return t;
+}
 @implementation UIHingeInteractionUpdate { UIHinge *_hinge; }
 - (instancetype)initForIsimWithHinge:(UIHinge *)h { if ((self = [super init])) _hinge = h; return self; }
 - (UIHinge *)hinge { return _hinge; }
@@ -249,16 +271,33 @@ static CGFloat resolve(UISplitArrangementDimension *d, CGFloat length, UIViewCon
 - (void)willMoveToView:(UIView *)view {}
 - (void)didMoveToView:(UIView *)view {
     _view = view;
+    if (view) [hinge_interactions() addObject:self]; else [hinge_interactions() removeObject:self];
     if (!_enabled) return;
     __weak UIHingeInteraction *ws = self;                /* after the caller finished adding it */
     dispatch_async(dispatch_get_main_queue(), ^{
         UIHingeInteraction *s = ws;
         if (!s || !s->_enabled || !s->_handler) return;
-        NSLog(@"isim: hinge interaction: no hinge (the device does not fold)");
-        s->_handler(s, [[UIHingeInteractionUpdate alloc] initForIsimWithHinge:nil]);
+        UIHinge *h = s->_view ? current_hinge() : nil;
+        if (h) NSLog(@"isim: hinge interaction: %@", h);
+        else NSLog(@"isim: hinge interaction: no hinge (%s)", s->_view ? "the device does not fold" : "left its view");
+        s->_handler(s, [[UIHingeInteractionUpdate alloc] initForIsimWithHinge:h]);
     });
 }
+- (void)_isimHingeMoved:(UIHinge *)h {
+    if (!_enabled || !_handler || !_view.window) return;
+    _handler(self, [[UIHingeInteractionUpdate alloc] initForIsimWithHinge:h]);
+}
 @end
+
+/* the hinge moved (script `fold ...`, event "hinge N"): the interactions' handlers, then SwiftUI's onHingeChange */
+void isim_ui_hinge_changed(double old) {
+    double deg = isim_device_hinge_angle();
+    UIHinge *h = current_hinge();
+    NSLog(@"isim: hinge %@", h);
+    for (UIHingeInteraction *i in hinge_interactions().allObjects) [i _isimHingeMoved:h];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"_UIIsimHingeDidChangeNotification" object:nil
+                                                      userInfo:@{ @"old": @(old), @"new": @(deg) }];
+}
 
 /* ================= vertical bar ================= */
 static char kCompression, kAxis;
@@ -431,10 +470,28 @@ static CGRect housing_rect(NSString **name) {
 @implementation UIView (UIViewReservedRegion)
 - (NSArray<UIViewReservedRegion *> *)reservedRegionsOfKind:(UIViewReservedRegionKind *)kind { return [self reservedRegionsOfKind:kind options:UIViewReservedRegionQueryOptionsNone]; }
 - (NSArray<UIViewReservedRegion *> *)reservedRegionsOfKind:(UIViewReservedRegionKind *)kind options:(UIViewReservedRegionQueryOptions)options {
-    if (![kind isEqual:[UIViewReservedRegionKind occlusionRegionKind]]) return @[];      /* no hinge: no division */
     UIWindow *w = self.window;
     if (!w) return @[];
     if (w.screen && w.screen != UIScreen.mainScreen) return @[];                       /* another display */
+    if ([kind isEqual:[UIViewReservedRegionKind divisionRegionKind]]) {
+        /* iPhone Duo's inner display: the fold across the middle, active while partially open (proposed) */
+        double deg = isim_device_hinge_angle();
+        if (isim_device_fold_state() != 2 || deg < 0) return @[];
+        BOOL active = deg < 180;
+        if (!active && !(options & UIViewReservedRegionQueryOptionsIncludeInactive)) return @[];
+        const struct isim_device *d = isim_ui_device();
+        BOOL turned = d->orientation == UIInterfaceOrientationLandscapeLeft || d->orientation == UIInterfaceOrientationLandscapeRight;
+        CGRect screen = turned ? CGRectMake(0, d->height / 2, d->width, 0) : CGRectMake(d->width / 2, 0, 0, d->height);
+        CGRect r = [self convertRect:CGRectOffset(screen, -w.frame.origin.x, -w.frame.origin.y) fromView:w];
+        CGRect b = self.bounds;                          /* a zero-width line: inside the bounds, edges included */
+        if (r.origin.x > CGRectGetMaxX(b) || CGRectGetMaxX(r) < b.origin.x || r.origin.y > CGRectGetMaxY(b) || CGRectGetMaxY(r) < b.origin.y) return @[];
+        UIViewReservedRegion *reg = [UIViewReservedRegion new];
+        reg.frame = r; reg.active = active; reg.kind = kind; reg.margins = UIEdgeInsetsZero;
+        UIViewReservedRegionIdentifier *ident = [UIViewReservedRegionIdentifier new]; ident->_name = @"hinge";
+        reg.identifier = ident;
+        return @[reg];
+    }
+    if (![kind isEqual:[UIViewReservedRegionKind occlusionRegionKind]]) return @[];
     NSString *name = nil;
     CGRect screen = housing_rect(&name);
     if (CGRectIsNull(screen)) return @[];

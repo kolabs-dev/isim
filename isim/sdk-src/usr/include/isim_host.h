@@ -29,6 +29,7 @@ void isim_gfx_glass_shapes(int n, const double *shapes, const double *tints, con
 int isim_set_orientation(int interfaceOrientation);   /* the screen takes this UIInterfaceOrientation; 1 if it changed */
 int isim_device_orientation(void);                    /* current UIDeviceOrientation */
 int isim_device_fold_state(void);                     /* 0 not foldable, 1 folded (or letterboxed on the inner display), 2 unfolded */
+double isim_device_hinge_angle(void);                /* the hinge in degrees (0 closed, 180 flat), -1 on a device that does not fold */
 int isim_display_open(const char *title);
 void isim_frame_begin(void);
 void isim_frame_end(void);

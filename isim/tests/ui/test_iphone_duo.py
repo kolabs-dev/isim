@@ -96,3 +96,50 @@ def test_duo_fold_system(launch, tmp_path):
     dev.wait_shot(lambda s: s.size == INNER and borders(s), "letterboxed again")
     assert not dev.has(r"^will transition to"), "the old-SDK app never resized"
     assert dev.quit() == 0, "exits cleanly"
+
+
+def test_duo_hinge_uikit(launch):
+    """The hinge (issue #115): UIHingeInteraction gets iPhone Duo's hinge when it joins the window (closed on the cover
+    display) and each time it moves (script `fold open|angle N|closed`); on the inner display the fold is a division
+    region down the middle, active while the hinge is partially open."""
+    app = launch("HelloArrangements", device="iphoneduo", os_version=OS)
+    app.wait_log(r"^harr hinge status 1 degrees 0$")                     # closed
+    app.send("fold open")
+    app.wait_log(r"^harr hinge status 3 degrees 180$")                   # fully open, on the inner display
+    app.wait_log(r"^harr division hinge x 475 width 0 height \d+ active false$")
+    app.send("fold angle 100")
+    app.wait_log(r"^harr hinge status 2 degrees 100$")                   # partially open: the same display
+    app.wait_log(r"^harr division hinge x 475 width 0 height \d+ active true$")
+    app.send("fold closed")
+    app.wait_log(r"^harr hinge status 1 degrees 0$", count=2)
+    assert app.quit() == 0, "exits cleanly"
+
+
+def test_duo_hinge_swiftui(launch):
+    """onHingeChange on iPhone Duo: the old and new hinge each time it moves."""
+    app = launch("HelloSwiftUIFoldable", device="iphoneduo", os_version=OS)
+    app.wait_view(r"text=hinge changes 0")
+    app.send("fold angle 90")
+    app.wait_log(r"^fold hinge changed 0 closed -> 90 partiallyOpen$")
+    app.send("fold open")
+    app.wait_log(r"^fold hinge changed 90 partiallyOpen -> 180 fullyOpen$")
+    app.wait_view(r"text=hinge changes 2")
+    assert app.quit() == 0, "exits cleanly"
+
+
+def test_duo_fold_window(launch):
+    """The device window's More menu has Fold / unfold on iPhone Duo (issue #115): it runs `fold toggle`, and the shell
+    moves the hinge for its apps."""
+    dev = launch(None, device="iphoneduo", os_version=OS)
+    dev.wait_log(r"SpringBoard: page 1 of")
+    dev.send("window tap more")
+    path = dev.tmp / "window-more.png"
+    dev.send(f"windowshot {path}")
+    dev.wait_log(re.escape(f"windowshot {path}"))
+    dev.send("window tap more.fold")
+    dev.wait_log(r"^isim window: fold toggle$")
+    dev.wait_log(r"isim shell: unfolded, inner display \(951x669\)")
+    dev.wait_log(r"isim shell: hinge 180 degrees")
+    dev.send("fold angle 120")
+    dev.wait_log(r"isim shell: hinge 120 degrees")
+    assert dev.quit() == 0, "exits cleanly"

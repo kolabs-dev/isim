@@ -741,6 +741,7 @@ static double ch_pop_device(cairo_t *c, double x, double y, double w) {
 static const struct { const char *id, *label, *cmd; } ch_more[] = {
     { "more.shake", "Shake", "shake" }, { "more.location", "Location…", "location" }, { "more.openurl", "Open URL…", "openurl" },
     { "more.push", "Send push notification…", "push" }, { "more.memorywarning", "Memory warning", "memorywarning" },
+    { "more.fold", "Fold / unfold", "fold toggle" },          /* iPhone Duo only (issue #115) */
 };
 static double ch_pop_more(cairo_t *c, double x, double y, double w) {
     double y0 = y; y += 16;
@@ -756,6 +757,7 @@ static double ch_pop_more(cairo_t *c, double x, double y, double w) {
     }
     ch_header(c, "SIMULATE", x + 16, y); y += 20;
     for (size_t i = 0; i < sizeof ch_more / sizeof *ch_more; i++) {
+        if (!strcmp(ch_more[i].id, "more.fold") && fold_inner < 0) continue;   /* the device does not fold */
         ch_el(ch_more[i].id, x + 6, y, w - 12, 32);
         if (ch_hot(ch_more[i].id)) ch_fill_round(c, x + 6, y, w - 12, 32, 7, C_ROW);
         ch_text_at(c, ch_more[i].label, x + 16, y + 16, CH_FONT, 400, 0, C_TEXT, 1, 0, 0);
@@ -1399,6 +1401,7 @@ static void ch_click(const char *id, int mods) {
     }
     /* the More menu and its forms */
     else if (!strcmp(id, "more.shake")) { ch_close_pop(); chrome_run("shake"); }
+    else if (!strcmp(id, "more.fold")) { ch_close_pop(); chrome_run("fold toggle"); }
     else if (!strcmp(id, "more.appearance")) { ch_close_pop(); chrome_run(ch_dark() ? "appearance light" : "appearance dark"); }
     else if (!strcmp(id, "more.memorywarning")) { ch_close_pop(); chrome_run("memorywarning"); }
     else if (!strcmp(id, "more.location")) ch_open(CH_POP_LOCATION);
