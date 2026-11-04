@@ -12,13 +12,58 @@
 static id get(id o, const void *k) { return objc_getAssociatedObject(o, k); }
 static void put(id o, const void *k, id v) { objc_setAssociatedObject(o, k, v, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
 
-@implementation UITextInputAssistantItem
+/* iPadOS's shortcuts (adapted, issue #179): until the app sets them, an editable text responder's groups are the
+   system's, undo / redo / paste on the leading side and, in a text view that allows editing text attributes, bold /
+   italic / underline on the trailing side. Each item acts on the responder; undo / redo / paste are disabled when there
+   is nothing to undo, redo or paste. Setting the groups (an empty array removes them) replaces the system's. */
+static UIBarButtonItem *shortcut(NSString *ident, NSString *symbol, BOOL enabled, void (^act)(void)) {
+    UIBarButtonItem *it = [[UIBarButtonItem alloc] initWithPrimaryAction:[UIAction actionWithTitle:@"" image:[UIImage systemImageNamed:symbol]
+                                                                                       identifier:nil handler:^(UIAction *a) { act(); }]];
+    it.accessibilityIdentifier = ident;
+    it.enabled = enabled;
+    return it;
+}
+static BOOL editable_text(UIResponder *r) {
+    if (![r conformsToProtocol:@protocol(UITextInput)]) return NO;
+    if ([r isKindOfClass:[UITextView class]] && !((UITextView *)r).editable) return NO;
+    return YES;
+}
+@implementation UITextInputAssistantItem {
+    BOOL _setLeading, _setTrailing;
+    @public __weak UIResponder *_owner;
+}
+@synthesize leadingBarButtonGroups = _leadingBarButtonGroups, trailingBarButtonGroups = _trailingBarButtonGroups;
 - (instancetype)init {
     if ((self = [super init])) { _leadingBarButtonGroups = @[]; _trailingBarButtonGroups = @[]; _allowsHidingShortcuts = YES; }
     return self;
 }
-- (void)setLeadingBarButtonGroups:(NSArray *)g { _leadingBarButtonGroups = [g copy] ?: @[]; isim_ui_keyboard_assistant_changed(); }
-- (void)setTrailingBarButtonGroups:(NSArray *)g { _trailingBarButtonGroups = [g copy] ?: @[]; isim_ui_keyboard_assistant_changed(); }
+- (NSArray<UIBarButtonItemGroup *> *)leadingBarButtonGroups {
+    if (_setLeading) return _leadingBarButtonGroups;
+    __weak UIResponder *r = _owner;
+    if (!r || !editable_text(r) || UIDevice.currentDevice.userInterfaceIdiom != UIUserInterfaceIdiomPad) return @[];
+    NSUndoManager *um = r.undoManager;
+    BOOL paste = UIPasteboard.generalPasteboard.hasStrings && [r canPerformAction:@selector(paste:) withSender:nil];
+    NSArray *items = @[
+        shortcut(@"undo", @"arrow.uturn.backward", um.canUndo, ^{ NSLog(@"isim: shortcuts bar undo"); [r.undoManager undo]; }),
+        shortcut(@"redo", @"arrow.uturn.forward", um.canRedo, ^{ NSLog(@"isim: shortcuts bar redo"); [r.undoManager redo]; }),
+        shortcut(@"paste", @"doc.on.clipboard", paste, ^{ NSLog(@"isim: shortcuts bar paste"); [r paste:nil]; }),
+    ];
+    return @[[[UIBarButtonItemGroup alloc] initWithBarButtonItems:items representativeItem:nil]];
+}
+- (NSArray<UIBarButtonItemGroup *> *)trailingBarButtonGroups {
+    if (_setTrailing) return _trailingBarButtonGroups;
+    __weak UIResponder *r = _owner;
+    if (![r isKindOfClass:[UITextView class]] || !((UITextView *)r).allowsEditingTextAttributes || !editable_text(r)
+        || UIDevice.currentDevice.userInterfaceIdiom != UIUserInterfaceIdiomPad) return @[];
+    NSArray *items = @[
+        shortcut(@"bold", @"bold", YES, ^{ NSLog(@"isim: shortcuts bar bold"); [r toggleBoldface:nil]; }),
+        shortcut(@"italic", @"italic", YES, ^{ NSLog(@"isim: shortcuts bar italic"); [r toggleItalics:nil]; }),
+        shortcut(@"underline", @"underline", YES, ^{ NSLog(@"isim: shortcuts bar underline"); [r toggleUnderline:nil]; }),
+    ];
+    return @[[[UIBarButtonItemGroup alloc] initWithBarButtonItems:items representativeItem:nil]];
+}
+- (void)setLeadingBarButtonGroups:(NSArray *)g { _setLeading = YES; _leadingBarButtonGroups = [g copy] ?: @[]; isim_ui_keyboard_assistant_changed(); }
+- (void)setTrailingBarButtonGroups:(NSArray *)g { _setTrailing = YES; _trailingBarButtonGroups = [g copy] ?: @[]; isim_ui_keyboard_assistant_changed(); }
 - (void)setAllowsHidingShortcuts:(BOOL)a { _allowsHidingShortcuts = a; isim_ui_keyboard_assistant_changed(); }
 @end
 
@@ -45,7 +90,7 @@ static NSString *const kContexts = @"_IsimTextInputContextIdentifiers";
 }
 - (UITextInputAssistantItem *)inputAssistantItem {
     UITextInputAssistantItem *i = get(self, &kAssistant);
-    if (!i) { i = [UITextInputAssistantItem new]; put(self, &kAssistant, i); }
+    if (!i) { i = [UITextInputAssistantItem new]; i->_owner = self; put(self, &kAssistant, i); }
     return i;
 }
 - (UIEditingInteractionConfiguration)editingInteractionConfiguration { return UIEditingInteractionConfigurationDefault; }
