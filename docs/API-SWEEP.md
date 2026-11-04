@@ -14,7 +14,8 @@ it. The tool is [`isim/tools/api-coverage.py`](../isim/tools/api-coverage.py); t
   [`isim/data/frameworks.json`](../isim/data/frameworks.json)): OpenGL ES, GLKit, AddressBook(UI), AssetsLibrary, iAd,
   Accounts, NotificationCenter (Today widgets), ClockKit.
 - **Every other framework Apple documents for iOS is tracked,** unless it is Apple-platform-only and completely
-  impossible to replicate on Linux (`impossible` in the same file, with the reason; empty so far).
+  impossible to replicate on Linux (`impossible` in the same file, with the reason): Hypervisor, DriverKit and IOKit,
+  which need the Darwin kernel or Apple hardware (#841).
 - **Capabilities that need Apple's own secrets** are ⛔ rows on their framework's page:
   - Apple-signed receipts, attestations and tokens;
   - FairPlay keys;
@@ -50,6 +51,11 @@ All public JSON, no account needed. Behind a proxy, set `SSL_CERT_FILE` to its C
   (all of MultipeerConnectivity, for example). Never filter on it: read each symbol's iOS `deprecatedAt`.
 - **Xcode's test frameworks** list Xcode, not iOS, as their platform, so all of their symbols count.
 - **AVFAudio** is its own archive, but isim implements it inside AVFoundation (`IMPLEMENTED_IN` in the tool).
+  XCUIAutomation is measured in isim's XCTest (where Apple's SDK had it before Xcode 26), and Darwin Notify in the
+  `notify` C module of `notify.h` (#842).
+- **The index lists a page once for each topic group it is in** (Foundation's `Date.==` 72 times, Vision's
+  `perform(on:orientation:)` overloads about 200 times each). Every count is of distinct documentation paths: the
+  snapshot keeps the first entry of each path (#840), and `measure` drops repeats in older snapshots.
 - **Objective-C and Swift names differ** (`UIViewAutoresizing` / `UIView.AutoresizingMask`, `NS_SWIFT_NAME`,
   import-as-member).
   - Matching by name misses renamed APIs. The exact mode reads the Swift view of every module, so a type that exists

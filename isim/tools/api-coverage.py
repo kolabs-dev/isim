@@ -12,8 +12,9 @@ components). Without one (--names) it falls back to names: an Apple symbol count
 that framework's isim sources (a lower bound on what is missing).
 
 In scope: symbols Apple documents for iOS that are usable in at least one of the iOS versions isim emulates (17, 18, 26,
-27): not unavailable, and not deprecated at iOS 17 or earlier. Frameworks deprecated before iOS 17 are out of scope
-(isim/data/frameworks.json).
+27): not unavailable, and not deprecated at iOS 17 or earlier. Frameworks deprecated before iOS 17, and those impossible
+on Linux, are out of scope (isim/data/frameworks.json: deprecated, impossible). Each documentation path counts once,
+however many topic groups Apple's index lists it under (#840).
 
 Per framework it records the symbols isim has and Apple's total, overall and per emulated iOS version (by_version: a
 symbol counts toward iOS N when it came in at or before N). This is isim's API coverage; the rows on the framework pages
@@ -49,7 +50,8 @@ MEMBERS = {'property', 'method', 'case', 'subscript', 'associatedtype', 'init'}
 # modules whose symbols Apple documents in an archive with another name
 ARCHIVE = {'Intents': 'sirikit', 'IntentsUI': 'sirikit', 'Photos': 'photokit', 'PhotosUI': 'photokit'}
 # modules isim implements inside another module
-IMPLEMENTED_IN = {'AVFAudio': 'AVFoundation', 'CoreAudioTypes': 'AudioToolbox'}
+# (issue #842: XCUIAutomation in isim's XCTest, as in Apple's SDK before Xcode 26; Darwin Notify is the `notify` C module)
+IMPLEMENTED_IN = {'AVFAudio': 'AVFoundation', 'CoreAudioTypes': 'AudioToolbox', 'XCUIAutomation': 'XCTest', 'DarwinNotify': 'notify'}
 # modules whose symbols are visible through another module (`import Foundation` gives FoundationEssentials' types)
 ALSO = {'Foundation': ['FoundationEssentials'], 'CoreAudioTypes': ['_AudioToolboxTypes'],
         'Swift': ['_Concurrency', '_StringProcessing',          # implicitly imported with Swift
@@ -127,7 +129,7 @@ def introduced_major(av):
 def walk_index(tree, module):
     """symbols of one module from Apple's navigator index: (path, title, kind, owner path, deprecated-somewhere)"""
     prefix = f'/documentation/{module.lower()}/'
-    out = []
+    out, seen = [], set()
 
     def walk(node, owner):
         for c in node.get('children', []):
@@ -136,7 +138,9 @@ def walk_index(tree, module):
                 continue
             mine = bool(p) and p.startswith(prefix)
             if mine and (t in TYPES or t in MEMBERS):
-                out.append([p, c.get('title', ''), t, owner, 1 if c.get('deprecated') else 0])
+                if p not in seen:      # the index lists a page under each topic group it is in: count it once (#840)
+                    seen.add(p)
+                    out.append([p, c.get('title', ''), t, owner, 1 if c.get('deprecated') else 0])
                 walk(c, p if t in TYPES else owner)
             else:
                 walk(c, owner)      # collections, group markers and other archives' nodes (SiriKit, PhotoKit)
@@ -194,9 +198,22 @@ def snapshot(args):
     print(f'{len(frameworks)} iOS frameworks, {sum(len(v) for v in symbols.values())} symbols -> {os.path.relpath(SNAP, REPO)}')
 
 
+def dedup(symbols):
+    """one entry per documentation path, the first one's kind and owner (snapshots made before #840 hold a page once
+    for each topic group Apple's index lists it under)"""
+    seen, out = set(), []
+    for s in symbols:
+        if s[0] not in seen:
+            seen.add(s[0])
+            out.append(s)
+    return out
+
+
 def load_snapshot():
     with gzip.open(SNAP, 'rt', encoding='utf-8') as f:
-        return json.load(f)
+        snap = json.load(f)
+    snap['symbols'] = {m: dedup(syms) for m, syms in snap.get('symbols', {}).items()}
+    return snap
 
 
 def save_snapshot(snap):
@@ -300,7 +317,15 @@ def sdk_modules(sdk):
         mods.add(os.path.basename(d)[:-len('.swiftmodule')])
     for d in glob.glob(f'{sdk}/System/Library/Frameworks/*.framework'):
         mods.add(os.path.basename(d)[:-len('.framework')])
-    return mods
+    return mods | c_modules(f'{sdk}/usr/include/module.modulemap')
+
+
+def c_modules(modulemap):
+    """the top-level C modules of a module map (`notify`, Darwin Notify's API: issue #842)"""
+    try:
+        return set(re.findall(r'^(?:explicit )?module\s+(\w+)', open(modulemap).read(), re.M))
+    except OSError:
+        return set()
 
 
 def swift_program(tool):
@@ -388,15 +413,17 @@ def measure(args):
     sdk = args.sdk or (os.path.join(ROOT, 'out', 'sdk') if os.path.isdir(os.path.join(ROOT, 'out', 'sdk')) else None)
     mode = 'names' if args.names or not sdk else 'exact'
     shipped = sdk_modules(sdk) if sdk else {os.path.splitext(x)[0] for x in os.listdir(f'{ROOT}/swift/overlays')} | \
-        set(os.listdir(f'{ROOT}/sdk-src/Frameworks')) | set(os.listdir(f'{ROOT}/frameworks'))
-    objc = set(os.listdir(f'{ROOT}/sdk-src/Frameworks'))
-    targets = {m for m in snap['symbols'] if m in shipped and m not in IMPLEMENTED_IN}
-    targets |= {IMPLEMENTED_IN[m] for m in snap['symbols'] if m in IMPLEMENTED_IN}
+        set(os.listdir(f'{ROOT}/sdk-src/Frameworks')) | set(os.listdir(f'{ROOT}/frameworks')) | \
+        c_modules(f'{ROOT}/sdk-src/usr/include/module.modulemap')
+    out_of_scope = {**cat['deprecated'], **cat.get('impossible', {})}
+    objc = set(os.listdir(f'{ROOT}/sdk-src/Frameworks')) | c_modules(f'{ROOT}/sdk-src/usr/include/module.modulemap')
+    targets = {m for m in snap['symbols'] if m in shipped and m not in IMPLEMENTED_IN and m not in out_of_scope}
+    targets |= {IMPLEMENTED_IN[m] for m in snap['symbols'] if m in IMPLEMENTED_IN and IMPLEMENTED_IN[m] in shipped}
     targets |= {x for m in list(targets) for x in reexports(m) if x in shipped or x.startswith('_') or x == 'FoundationEssentials'}
     graphs = extract_symbol_graphs(sdk, sorted(targets), os.path.join(ROOT, 'out', 'symbolgraph')) if mode == 'exact' else {}
     present, candidates = {}, {}
     for m, syms in snap['symbols'].items():
-        if m in cat['deprecated']:
+        if m in out_of_scope:      # deprecated before iOS 17, or impossible on Linux (#841)
             continue
         impl = IMPLEMENTED_IN.get(m, m)
         have = impl in shipped
