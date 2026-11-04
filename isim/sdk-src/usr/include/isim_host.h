@@ -510,7 +510,9 @@ int isim_icu_cal_limit(const char *_Nullable calLocale, const char *_Nullable tz
 int isim_icu_week_data(const char *_Nullable locale, int *firstWeekday, int *minDays);
 int isim_icu_tz_name(const char *tz, const char *_Nullable locale, int type, char *out, int cap);
 int isim_icu_weekend(const char *_Nullable locale, int *types);   /* types[7], Sunday first: 0 weekday, 1 weekend, 2 onset, 3 cease */
-/* one code per line: kind 0 available locales, 1 ISO regions, 2 ISO currencies in use, 3 all ISO currencies, 4 collations */
+/* one code per line: kind 0 available locales, 1 ISO regions, 2 ISO currencies in use, 3 all ISO currencies, 4 collations,
+   5 numbering systems, 6 regions of a URegionType (its number in `locale`), 7 regions in a region ("CODE" or "CODE\tTYPE"),
+   8 ISO 639 languages */
 int isim_icu_codes(int kind, const char *_Nullable locale, char *out, int cap);
 int isim_icu_number_skeleton(const char *_Nullable locale, const char *skeleton, double v, char *out, int cap);
 int isim_icu_number_format(const char *_Nullable locale, int style, const char *_Nullable currency, double v, char *out, int cap);
@@ -526,6 +528,8 @@ int isim_icu_display_name(const char *_Nullable displayLocale, const char *code,
 int isim_icu_case(const char *_Nullable locale, const char *s, int kind, char *out, int cap);
 /* ICU transliteration by transform ID (reverse: the inverse transform); the output's length, or -1 */
 int isim_icu_transliterate(const char *id, int reverse, const char *s, char *out, int cap);
+/* one locale fact (Locale identifiers, regions, delimiters, exemplar characters, LCIDs: issue #846; kinds in host_icu.c) */
+int isim_icu_locale(int kind, const char *arg, char *out, int cap);
 /* diagnostics (unified logging, signposts, MetricKit, crash reports): see runtime/host_os.c and host_diag.c */
 void isim_log_record(int kind, int type, const char *subsystem, const char *category, const char *message,
                      const char *format, int sptype, uint64_t spid, const char *name);

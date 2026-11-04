@@ -102,6 +102,33 @@ static struct {
     UTrans *(*transOpen)(const UChar *, int32_t, int, const UChar *, int32_t, void *, UErr *);
     void (*transClose)(UTrans *);
     void (*transUChars)(const UTrans *, UChar *, int32_t *, int32_t, int32_t, int32_t *, UErr *);
+    /* locale identifiers, regions, locale data, numbering systems (issue #846) */
+    int32_t (*locToTag)(const char *, char *, int32_t, int8_t, UErr *);
+    int32_t (*locForTag)(const char *, char *, int32_t, int32_t *, UErr *);
+    int32_t (*locCanonicalize)(const char *, char *, int32_t, UErr *);
+    int32_t (*locLikely)(const char *, char *, int32_t, UErr *);
+    int32_t (*locMinimize)(const char *, char *, int32_t, UErr *);
+    uint32_t (*locLCID)(const char *);
+    int32_t (*locForLCID)(uint32_t, char *, int32_t, UErr *);
+    void *(*rgnFromCode)(const char *, UErr *);
+    int (*rgnType)(const void *);
+    const char *(*rgnCode)(const void *);
+    const void *(*rgnContaining)(const void *);
+    const void *(*rgnContainingOfType)(const void *, int);
+    UEnum *(*rgnContained)(const void *, UErr *);
+    UEnum *(*rgnContainedOfType)(const void *, int, UErr *);
+    UEnum *(*rgnAvailable)(int, UErr *);
+    void *(*ldOpen)(const char *, UErr *);
+    void (*ldClose)(void *);
+    int32_t (*ldDelimiter)(void *, int, UChar *, int32_t, UErr *);
+    void *(*ldExemplar)(void *, void *, uint32_t, int, UErr *);
+    int32_t (*setItemCount)(const void *);
+    int32_t (*setGetItem)(const void *, int32_t, int32_t *, int32_t *, UChar *, int32_t, UErr *);
+    void (*setClose)(void *);
+    UEnum *(*nsAvailable)(UErr *);
+    const char *const *(*locISOLanguages)(void);
+    const char *(*locISO3Language)(const char *);
+    int32_t (*locDisplayVariant)(const char *, const char *, UChar *, int32_t, UErr *);
 } U;
 
 static int icu_version;            /* major version of the loaded ICU; 0 = unavailable */
@@ -159,6 +186,19 @@ static void load(void) {
     I(listOpen, "ulistfmt_openForType"); I(listClose, "ulistfmt_close"); I(listFormat, "ulistfmt_format");
     I(plOpen, "uplrules_openForType"); I(plClose, "uplrules_close"); I(plSelect, "uplrules_select");
     I(transOpen, "utrans_openU"); I(transClose, "utrans_close"); I(transUChars, "utrans_transUChars");
+    C(locToTag, "uloc_toLanguageTag"); C(locForTag, "uloc_forLanguageTag"); C(locCanonicalize, "uloc_canonicalize");
+    C(locLikely, "uloc_addLikelySubtags"); C(locMinimize, "uloc_minimizeSubtags"); C(locLCID, "uloc_getLCID");
+    C(locForLCID, "uloc_getLocaleForLCID");
+    I(rgnFromCode, "uregion_getRegionFromCode"); I(rgnType, "uregion_getType"); I(rgnCode, "uregion_getRegionCode");
+    I(rgnContaining, "uregion_getContainingRegion"); I(rgnContainingOfType, "uregion_getContainingRegionOfType");
+    I(rgnContained, "uregion_getContainedRegions"); I(rgnContainedOfType, "uregion_getContainedRegionsOfType");
+    I(rgnAvailable, "uregion_getAvailable");
+    I(ldOpen, "ulocdata_open"); I(ldClose, "ulocdata_close"); I(ldDelimiter, "ulocdata_getDelimiter");
+    I(ldExemplar, "ulocdata_getExemplarSet");
+    C(setItemCount, "uset_getItemCount"); C(setGetItem, "uset_getItem"); C(setClose, "uset_close");
+    I(nsAvailable, "unumsys_openAvailableNames");
+    C(locISOLanguages, "uloc_getISOLanguages"); C(locISO3Language, "uloc_getISO3Language");
+    C(locDisplayVariant, "uloc_getDisplayVariant");
 #undef C
 #undef I
     /* the core every caller needs; the newer APIs (unumf 62, ulistfmt_openForType 67) are checked where used */
@@ -485,6 +525,11 @@ ISIM_GUEST_ABI int isim_icu_codes(int kind, const char *locale, char *out, int c
         for (const char *const *p = U.locISOCountries(); p && *p; p++) ADD(*p);
         return n;
     }
+    if (kind == 8) {                                          /* ISO 639 language codes */
+        if (!U.locISOLanguages) return -1;
+        for (const char *const *p = U.locISOLanguages(); p && *p; p++) ADD(*p);
+        return n;
+    }
     UEnum *en = NULL;
     UErr e = 0;
     pthread_mutex_lock(&lock);
@@ -492,6 +537,16 @@ ISIM_GUEST_ABI int isim_icu_codes(int kind, const char *locale, char *out, int c
         en = U.currISOCurrencies(kind == 2 ? 1 | 8 /* UCURR_COMMON | UCURR_NON_DEPRECATED */ : 0x7fffffff, &e);
     else if (kind == 4 && U.colKeywordValues)
         en = U.colKeywordValues("collation", locale ? locale : "", 1, &e);
+    else if (kind == 5 && U.nsAvailable)                       /* the numbering systems */
+        en = U.nsAvailable(&e);
+    else if (kind == 6 && U.rgnAvailable && locale)            /* the regions of a type (URegionType number) */
+        en = U.rgnAvailable(atoi(locale), &e);
+    else if (kind == 7 && U.rgnFromCode && U.rgnContained && U.rgnContainedOfType && locale) {   /* "CODE" or "CODE\tTYPE" */
+        char code[16] = ""; int type = -1;
+        sscanf(locale, "%15[^\t]\t%d", code, &type);
+        const void *r = U.rgnFromCode(code, &e);
+        if (r && !FAIL(e)) en = type < 0 ? U.rgnContained(r, &e) : U.rgnContainedOfType(r, type, &e);
+    }
     pthread_mutex_unlock(&lock);
     if (!en || FAIL(e) || !U.enumNext) { if (en && U.enumClose) U.enumClose(en); return -1; }
     const char *v;
@@ -765,7 +820,7 @@ ISIM_GUEST_ABI int isim_icu_plural(const char *locale, double n, int ordinal, ch
 
 /* ---- display names and case mapping ---- */
 /* kind 0 locale identifier, 1 language code, 2 region code, 3 script code, 4 calendar identifier (ICU name),
- * 5 currency code (long name), named in `displayLocale` */
+ * 5 currency code (long name), 6 collation, 7 variant, named in `displayLocale` */
 ISIM_GUEST_ABI int isim_icu_display_name(const char *displayLocale, const char *code, int kind, char *out, int cap) {
     if (!ready()) return -1;
     if (kind == 5) return isim_icu_currency(displayLocale, code, 1, NULL, out, cap);
@@ -782,6 +837,16 @@ ISIM_GUEST_ABI int isim_icu_display_name(const char *displayLocale, const char *
         if (!U.locDisplayKeywordValue) return -1;
         snprintf(loc, sizeof loc, "und@calendar=%s", code);
         n = U.locDisplayKeywordValue(loc, "calendar", displayLocale, buf, 256, &e);
+        break;
+    case 6:                                                    /* a collation ("phonebook") */
+        if (!U.locDisplayKeywordValue) return -1;
+        snprintf(loc, sizeof loc, "und@collation=%s", code);
+        n = U.locDisplayKeywordValue(loc, "collation", displayLocale, buf, 256, &e);
+        break;
+    case 7:                                                    /* a variant ("POSIX") */
+        if (!U.locDisplayVariant) return -1;
+        snprintf(loc, sizeof loc, "und_US_%s", code);
+        n = U.locDisplayVariant(loc, displayLocale, buf, 256, &e);
         break;
     default: return -1;
     }
@@ -833,4 +898,82 @@ ISIM_GUEST_ABI int isim_icu_transliterate(const char *id, int reverse, const cha
     u_free(&in);
     U.transClose(t);
     return r;
+}
+
+/* one locale fact (issue #846), UTF-8 in `out`:
+ *   0 the BCP 47 tag of an ICU identifier, 1 the ICU identifier of a BCP 47 tag, 2 canonicalized, 3 with likely
+ *   subtags added (maximal), 4 minimized,
+ *   5 a region: "type\tcontaining\tcontinent\tsubcontinent" (URegionType number and region codes, "" when none),
+ *   6 quotation delimiters: "begin\tend\talternate begin\talternate end",
+ *   7 the standard exemplar characters: "start-end" code point ranges (hex), one per line,
+ *   8 the Windows LCID of a locale (decimal, "0" when none), 9 the locale of an LCID (decimal in `arg`),
+ *   10 the ISO 639-2 code of a language */
+ISIM_GUEST_ABI int isim_icu_locale(int kind, const char *arg, char *out, int cap) {
+    if (!ready() || !arg || cap <= 0) return -1;
+    UErr e = 0;
+    int32_t n = -1;
+    out[0] = 0;
+    switch (kind) {
+    case 0: if (U.locToTag) n = U.locToTag(arg, out, cap, 0, &e); break;
+    case 1: { int32_t parsed = 0; if (U.locForTag) n = U.locForTag(arg, out, cap, &parsed, &e); break; }
+    case 2: if (U.locCanonicalize) n = U.locCanonicalize(arg, out, cap, &e); break;
+    case 3: if (U.locLikely) n = U.locLikely(arg, out, cap, &e); break;
+    case 4: if (U.locMinimize) n = U.locMinimize(arg, out, cap, &e); break;
+    case 5: {
+        if (!U.rgnFromCode || !U.rgnType || !U.rgnCode) return -1;
+        const void *r = U.rgnFromCode(arg, &e);
+        if (!r || FAIL(e)) return -1;
+        const void *c = U.rgnContaining ? U.rgnContaining(r) : NULL;
+        const void *ct = U.rgnContainingOfType ? U.rgnContainingOfType(r, 3) : NULL;   /* URGN_CONTINENT */
+        const void *sc = U.rgnContainingOfType ? U.rgnContainingOfType(r, 4) : NULL;   /* URGN_SUBCONTINENT */
+        n = snprintf(out, (size_t)cap, "%d\t%s\t%s\t%s", U.rgnType(r), c ? U.rgnCode(c) : "", ct ? U.rgnCode(ct) : "", sc ? U.rgnCode(sc) : "");
+        return n < cap ? n : -1;
+    }
+    case 6: {
+        if (!U.ldOpen || !U.ldDelimiter || !U.ldClose) return -1;
+        pthread_mutex_lock(&lock);
+        void *ld = U.ldOpen(arg, &e);
+        int len = 0;
+        for (int t = 0; ld && !FAIL(e) && t < 4; t++) {
+            UChar u[16]; int32_t ul = U.ldDelimiter(ld, t, u, 16, &e);
+            if (FAIL(e) || ul < 0) break;
+            if (t) { if (len + 1 >= cap) break; out[len++] = '\t'; out[len] = 0; }
+            int w = from_u(u, ul, out + len, cap - len);
+            if (w < 0) { e = 1; break; }
+            len += w;
+        }
+        if (ld) U.ldClose(ld);
+        pthread_mutex_unlock(&lock);
+        return FAIL(e) ? -1 : len;
+    }
+    case 7: {
+        if (!U.ldOpen || !U.ldExemplar || !U.setItemCount || !U.setGetItem || !U.setClose) return -1;
+        pthread_mutex_lock(&lock);
+        void *ld = U.ldOpen(arg, &e), *set = ld && !FAIL(e) ? U.ldExemplar(ld, NULL, 0, 0 /* ULOCDATA_ES_STANDARD */, &e) : NULL;
+        int len = 0;
+        for (int32_t i = 0, c = set ? U.setItemCount(set) : 0; i < c && !FAIL(e); i++) {
+            int32_t a = 0, b = 0; UChar str[64];
+            if (U.setGetItem(set, i, &a, &b, str, 64, &e) != 0 || FAIL(e)) { e = 0; continue; }   /* strings: skipped */
+            int w = snprintf(out + len, (size_t)(cap - len), "%s%X-%X", len ? "\n" : "", (unsigned)a, (unsigned)b);
+            if (w >= cap - len) break;
+            len += w;
+        }
+        if (set) U.setClose(set);
+        if (ld) U.ldClose(ld);
+        pthread_mutex_unlock(&lock);
+        return FAIL(e) && !len ? -1 : len;
+    }
+    case 8: if (!U.locLCID) return -1; n = snprintf(out, (size_t)cap, "%u", U.locLCID(arg)); return n < cap ? n : -1;
+    case 9: if (U.locForLCID) n = U.locForLCID((uint32_t)strtoul(arg, NULL, 10), out, cap, &e); break;
+    case 10: {                                                 /* the ISO 639-2 (alpha-3) code of a language */
+        const char *c = U.locISO3Language ? U.locISO3Language(arg) : NULL;
+        if (!c || !*c) return -1;
+        n = snprintf(out, (size_t)cap, "%s", c);
+        return n < cap ? n : -1;
+    }
+    default: return -1;
+    }
+    if (FAIL(e) || n < 0 || n >= cap) { out[0] = 0; return -1; }
+    out[n] = 0;
+    return n;
 }
