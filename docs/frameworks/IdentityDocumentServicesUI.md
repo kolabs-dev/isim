@@ -1,6 +1,7 @@
 # IdentityDocumentServicesUI
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 100.0% of Apple's iOS API (29 of 29, exact) · **Rows:** 3: 3 ✅ · **iOS:** 26.0+
 <!-- /generated:header -->
 
 **Area:** [Identity & security](../COVERAGE.md#security) · **Apple:** [IdentityDocumentServicesUI](https://developer.apple.com/documentation/identitydocumentservicesui) · **Issues:** [`area:security`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asecurity)
@@ -35,4 +36,5 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+Nothing (or not measured yet).
 <!-- /generated:missing -->

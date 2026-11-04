@@ -1,7 +1,7 @@
 # Swift (stdlib, runtime, concurrency)
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 92.1% of Apple's iOS API (21888 of 23766, exact) · **Rows:** 27: 25 ✅ 2 ❌ · **iOS:** 8.0+
+**Symbols:** 92.1% of Apple's iOS API (21898 of 23766, exact) · **Rows:** 27: 25 ✅ 2 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [Swift](https://developer.apple.com/documentation/swift) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)
@@ -46,7 +46,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-1878 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+1868 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -90,8 +90,6 @@
 - [`static var defaultResolverSpecification: EmptyResolverSpecification<Array<Element>>`](https://developer.apple.com/documentation/swift/array/defaultresolverspecification)
 - [`var fullDayEntry: MetricReport.IntervalEntry`](https://developer.apple.com/documentation/swift/array/fulldayentry)
 - [`var fullDayEntry: MetricReport.IntervalEntry`](https://developer.apple.com/documentation/swift/array/fulldayentry)
-- [`func graphBuilderTensor(BNNSGraph.Builder) -> BNNSGraph.Builder.Tensor<Element>`](https://developer.apple.com/documentation/swift/array/graphbuildertensor(_:))
-- [`func graphBuilderTensor(BNNSGraph.Builder) -> BNNSGraph.Builder.Tensor<Element>`](https://developer.apple.com/documentation/swift/array/graphbuildertensor(_:))
 - [`init<E>(capacity: Int, initializingWith: (inout OutputSpan<Element>) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/swift/array/init(capacity:initializingwith:))
 - [`init<E>(capacity: Int, initializingWith: (inout OutputSpan<Element>) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/swift/array/init(capacity:initializingwith:))
 - [`init(fromSplitComplex: DSPSplitComplex, scale: Float, count: Int)`](https://developer.apple.com/documentation/swift/array/init(fromsplitcomplex:scale:count:)-5eirc)
@@ -128,8 +126,6 @@
 - [`Array.ValueType`](https://developer.apple.com/documentation/swift/array/valuetype)
 - [`func withUnsafeTaggedBuffers<R>(([CMTaggedBuffer]) throws -> sending R) rethrows -> sending R`](https://developer.apple.com/documentation/swift/array/withunsafetaggedbuffers(_:))
 - [`func withUnsafeTaggedBuffers<R>(([CMTaggedBuffer]) throws -> sending R) rethrows -> sending R`](https://developer.apple.com/documentation/swift/array/withunsafetaggedbuffers(_:))
-- [`func graphBuilderTensor(BNNSGraph.Builder) -> BNNSGraph.Builder.Tensor<Element>`](https://developer.apple.com/documentation/swift/arrayslice/graphbuildertensor(_:))
-- [`func graphBuilderTensor(BNNSGraph.Builder) -> BNNSGraph.Builder.Tensor<Element>`](https://developer.apple.com/documentation/swift/arrayslice/graphbuildertensor(_:))
 - [`func isTriviallyIdentical(to: ArraySlice<Element>) -> Bool`](https://developer.apple.com/documentation/swift/arrayslice/istriviallyidentical(to:))
 - [`func isTriviallyIdentical(to: ArraySlice<Element>) -> Bool`](https://developer.apple.com/documentation/swift/arrayslice/istriviallyidentical(to:))
 - [`var characters: AsyncCharacterSequence<Self>`](https://developer.apple.com/documentation/swift/asyncsequence/characters)
@@ -238,8 +234,6 @@
 - [`static func <= (borrowing Self, borrowing Self) -> Bool`](https://developer.apple.com/documentation/swift/comparable/_=(_:_:)-buc5)
 - [`func append<E>(addingCapacity: Int, initializingWith: (inout OutputSpan<Element>) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/swift/contiguousarray/append(addingcapacity:initializingwith:))
 - [`func append<E>(addingCapacity: Int, initializingWith: (inout OutputSpan<Element>) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/swift/contiguousarray/append(addingcapacity:initializingwith:))
-- [`func graphBuilderTensor(BNNSGraph.Builder) -> BNNSGraph.Builder.Tensor<Element>`](https://developer.apple.com/documentation/swift/contiguousarray/graphbuildertensor(_:))
-- [`func graphBuilderTensor(BNNSGraph.Builder) -> BNNSGraph.Builder.Tensor<Element>`](https://developer.apple.com/documentation/swift/contiguousarray/graphbuildertensor(_:))
 - [`init<E>(capacity: Int, initializingWith: (inout OutputSpan<Element>) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/swift/contiguousarray/init(capacity:initializingwith:))
 - [`init<E>(capacity: Int, initializingWith: (inout OutputSpan<Element>) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/swift/contiguousarray/init(capacity:initializingwith:))
 - [`func isTriviallyIdentical(to: ContiguousArray<Element>) -> Bool`](https://developer.apple.com/documentation/swift/contiguousarray/istriviallyidentical(to:))
@@ -354,7 +348,13 @@
 - [`static func &>> (Self, Self) -> Self`](https://developer.apple.com/documentation/swift/fixedwidthinteger/&__(_:_:)-1sn91)
 - [`static func &<< (Self, Self) -> Self`](https://developer.apple.com/documentation/swift/fixedwidthinteger/&__(_:_:)-4j1s7)
 - [`static func &>> (Self, Self) -> Self`](https://developer.apple.com/documentation/swift/fixedwidthinteger/&__(_:_:)-6o5at)
-- … and 1578 more (`isim/data/api-coverage.json.gz`)
+- [`static func &<< <Other>(Self, Other) -> Self`](https://developer.apple.com/documentation/swift/fixedwidthinteger/&__(_:_:)-6pggx)
+- [`static func &>> <Other>(Self, Other) -> Self`](https://developer.apple.com/documentation/swift/fixedwidthinteger/&__(_:_:)-9b5yu)
+- [`static func &>>= (inout Self, Self)`](https://developer.apple.com/documentation/swift/fixedwidthinteger/&__=(_:_:)-2ffyd)
+- [`static func &<<= <Other>(inout Self, Other)`](https://developer.apple.com/documentation/swift/fixedwidthinteger/&__=(_:_:)-5s3cx)
+- [`static func &>>= <Other>(inout Self, Other)`](https://developer.apple.com/documentation/swift/fixedwidthinteger/&__=(_:_:)-k22q)
+- [`static func &<<= (inout Self, Self)`](https://developer.apple.com/documentation/swift/fixedwidthinteger/&__=(_:_:)-q186)
+- … and 1568 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

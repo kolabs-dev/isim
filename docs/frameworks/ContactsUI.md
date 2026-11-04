@@ -1,7 +1,7 @@
 # ContactsUI
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 77.1% of Apple's iOS API (37 of 48, exact) · **Rows:** 2: 1 ✅ 1 ❌ · **iOS:** 9.0+
+**Symbols:** 95.8% of Apple's iOS API (46 of 48, exact) · **Rows:** 2: 2 ✅ · **iOS:** 9.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [Contacts UI](https://developer.apple.com/documentation/contactsui) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -20,21 +20,12 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-11 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+2 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
 - [`func highlightProperty(withKey: String, identifier: String?)`](https://developer.apple.com/documentation/contactsui/cncontactviewcontroller/highlightproperty(withkey:identifier:))
 - [`convenience init(forContact: CNContact)`](https://developer.apple.com/documentation/contactsui/cncontactviewcontroller/init(forcontact:))
-- [`ContactAccessButton`](https://developer.apple.com/documentation/contactsui/contactaccessbutton)
-- [`ContactAccessButton.Caption`](https://developer.apple.com/documentation/contactsui/contactaccessbutton/caption)
-- [`case defaultText`](https://developer.apple.com/documentation/contactsui/contactaccessbutton/caption/defaulttext)
-- [`case email`](https://developer.apple.com/documentation/contactsui/contactaccessbutton/caption/email)
-- [`case phone`](https://developer.apple.com/documentation/contactsui/contactaccessbutton/caption/phone)
-- [`init(queryString: String, ignoredEmails: Set<String>?, ignoredPhoneNumbers: Set<String>?, approvalCallback: (([String]) -> Void)?)`](https://developer.apple.com/documentation/contactsui/contactaccessbutton/init(querystring:ignoredemails:ignoredphonenumbers:approvalcallback:))
-- [`ContactAccessButton.Style`](https://developer.apple.com/documentation/contactsui/contactaccessbutton/style)
-- [`static let automatic: ContactAccessButton.Style`](https://developer.apple.com/documentation/contactsui/contactaccessbutton/style/automatic)
-- [`init(imageTrailingEdgePadding: CGFloat?, imageWidth: CGFloat?, imageColor: Color?)`](https://developer.apple.com/documentation/contactsui/contactaccessbutton/style/init(imagetrailingedgepadding:imagewidth:imagecolor:))
 
 </details>
 <!-- /generated:missing -->

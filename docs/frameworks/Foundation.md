@@ -1,7 +1,7 @@
 # Foundation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 48.0% of Apple's iOS API (13229 of 27549, exact) · **Rows:** 120: 107 ✅ 10 🟡 3 ❌ · **iOS:** 2.0+
+**Symbols:** 48.0% of Apple's iOS API (13233 of 27549, exact) · **Rows:** 120: 107 ✅ 10 🟡 3 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Foundation & CoreFoundation](../COVERAGE.md#foundation) · **Apple:** [Foundation](https://developer.apple.com/documentation/foundation) · **Issues:** [`area:foundation`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Afoundation)
@@ -179,7 +179,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-14320 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+14316 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -483,7 +483,7 @@
 - [`case givenName`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/personnamecomponentattribute/component/givenname)
 - [`case middleName`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/personnamecomponentattribute/component/middlename)
 - [`case namePrefix`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/personnamecomponentattribute/component/nameprefix)
-- … and 14020 more (`isim/data/api-coverage.json.gz`)
+- … and 14016 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->
