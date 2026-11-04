@@ -23,6 +23,10 @@ def test_assets(launch):
     assert has(r"uneven written status=completed"), "writer finishes"
     assert has(r"uneven times 0\.00,0\.10,0\.30,0\.35,0\.80,1\.00"), "frames keep their uneven times"
     assert has(r"metadata title=Uneven frames location=\+48\.8584\+002\.2945/"), "metadata items written and read back"
+    # issue #844: each format's identifiers and keys, the key percent-encoded (iTunes' ©nam is %A9nam)
+    assert has(r"metadata ids TALB id3/TALB itsk/%A9nam udta/%A9nam uiso/titl icy/StreamTitle "
+               r"mdta/com\.apple\.quicktime\.detected-face icy$"), "metadata identifiers and keys"
+    assert has(r"metadata roundtrip same=true key=\u00a9nam space=org\.id3$"), "identifier(forKey:keySpace:) and back"
     assert has(r"format codec=avc1 160x120 parameterSets=2 nal=4"), "compressed format description: avcC, SPS + PPS"
     assert has(r"passthrough copied=6 syncs=\d status=completed times=0\.00,0\.10,0\.30,0\.35,0\.80,1\.00"), "pass-through copy"
     assert has(r"copy decodes frames=\d+ duration=1\.\d\d"), "the copy decodes"

@@ -78,6 +78,8 @@ static void media(void) {
     say([NSString stringWithFormat:@"avaudiosession category=%@ error=%@", s.category, err ? @"yes" : @"none"]);
     AVPlayer *player = [AVPlayer playerWithPlayerItem:nil];
     say([NSString stringWithFormat:@"avplayer time=%.1f class=%@", CMTimeGetSeconds(player.currentTime), NSStringFromClass(player.class)]);
+    say([NSString stringWithFormat:@"avmetadata %@ %@ %@ %@ %@ %@", AVMetadataID3MetadataKeyAlbumTitle, AVMetadataIdentifierID3MetadataAlbumTitle,
+         AVMetadataIdentifieriTunesMetadataSongName, AVMetadataIdentifier3GPUserDataTitle, AVMetadataKeySpaceiTunes, AVMetadataFormatiTunesMetadata]);
 }
 
 static void security(void) {

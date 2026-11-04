@@ -139,19 +139,39 @@ open class AVMetadataItem: NSObject, NSCopying, NSMutableCopying, @unchecked Sen
         return items.filter { (k == nil || ($0.key as? NSString).map { $0 as String } == k || $0.commonKey?.rawValue == k) && (keySpace == nil || $0.keySpace == keySpace || (keySpace == .common && $0.commonKey != nil)) }
     }
     open class func metadataItems(from items: [AVMetadataItem], filteredAndSortedAccordingToPreferredLanguages languages: [String]) -> [AVMetadataItem] { items }
+    /// "<key space>/<key>": the common and ID3 key spaces as "common" and "id3", and the key's characters other than
+    /// letters, digits and . - _ percent-encoded (Latin-1: "itsk/%A9nam" for iTunes' ©nam) (issue #844)
     open class func identifier(forKey key: Any, keySpace: AVMetadataKeySpace) -> AVMetadataIdentifier? {
         let k = (key as? AVMetadataKey)?.rawValue ?? (key as? String) ?? "\(key)"
-        let space = keySpace == .common ? "common" : keySpace.rawValue
-        return AVMetadataIdentifier(space + "/" + k)
+        let space = keySpace == .common ? "common" : keySpace == .id3 ? "id3" : keySpace.rawValue
+        var enc = ""
+        for u in k.unicodeScalars {
+            if (u.value < 128 && (CharacterSet.alphanumerics.contains(u) || u == "." || u == "-" || u == "_")) { enc.unicodeScalars.append(u); continue }
+            let bytes: [UInt8] = u.value < 256 ? [UInt8(u.value)] : Array(String(u).utf8)
+            for b in bytes { enc += String(format: "%%%02X", b) }
+        }
+        return AVMetadataIdentifier(space + "/" + enc)
     }
     open class func keySpace(forIdentifier identifier: AVMetadataIdentifier) -> AVMetadataKeySpace? {
         guard let slash = identifier.rawValue.firstIndex(of: "/") else { return nil }
         let s = String(identifier.rawValue[..<slash])
-        return s == "common" ? .common : AVMetadataKeySpace(s)
+        return s == "common" ? .common : s == "id3" ? .id3 : AVMetadataKeySpace(s)
     }
     open class func key(forIdentifier identifier: AVMetadataIdentifier) -> (NSCopying & NSObjectProtocol)? {
         guard let slash = identifier.rawValue.firstIndex(of: "/") else { return nil }
-        return String(identifier.rawValue[identifier.rawValue.index(after: slash)...]) as NSString
+        var bytes = [UInt8](), out = ""
+        func flush() {      // UTF-8 when the bytes are, else Latin-1 (%A9 is ©)
+            guard !bytes.isEmpty else { return }
+            out += String(bytes: bytes, encoding: .utf8) ?? String(bytes.map { Character(Unicode.Scalar($0)) })
+            bytes = []
+        }
+        var it = identifier.rawValue[identifier.rawValue.index(after: slash)...].makeIterator()
+        while let c = it.next() {
+            if c == "%", let h = it.next(), let l = it.next(), let b = UInt8(String([h, l]), radix: 16) { bytes.append(b); continue }
+            flush(); out.append(c)
+        }
+        flush()
+        return out as NSString
     }
 }
 open class AVMutableMetadataItem: AVMetadataItem, @unchecked Sendable {

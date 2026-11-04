@@ -88,6 +88,14 @@ final class AssetsViewController: UIViewController {
             ?? a.commonMetadata.first { $0.commonKey == .commonKeyTitle }?.stringValue
         let location = a.metadata.first { $0.identifier == .quickTimeMetadataLocationISO6709 }?.stringValue
         log("metadata title=\(title ?? "none") location=\(location ?? "none")")
+        // the identifiers and keys of each format (#844): "<key space>/<key>", the key percent-encoded
+        log("metadata ids \(AVMetadataKey.id3MetadataKeyAlbumTitle.rawValue) \(AVMetadataIdentifier.id3MetadataAlbumTitle.rawValue) "
+            + "\(AVMetadataIdentifier.iTunesMetadataSongName.rawValue) \(AVMetadataIdentifier.quickTimeUserDataFullName.rawValue) "
+            + "\(AVMetadataIdentifier.identifier3GPUserDataTitle.rawValue) \(AVMetadataIdentifier.icyMetadataStreamTitle.rawValue) "
+            + "\(AVMetadataIdentifier.quickTimeMetadataDetectedFace.rawValue) \(AVMetadataKeySpace.icy.rawValue)")
+        let song = AVMetadataItem.identifier(forKey: AVMetadataKey.iTunesMetadataKeySongName, keySpace: .iTunes)!
+        log("metadata roundtrip same=\(song == .iTunesMetadataSongName) key=\(AVMetadataItem.key(forIdentifier: song) as? String ?? "-") "
+            + "space=\(AVMetadataItem.keySpace(forIdentifier: .id3MetadataAlbumTitle)?.rawValue ?? "-")")
 
         // pass-through copy: compressed samples out of a reader into a writer
         if let f = format {
