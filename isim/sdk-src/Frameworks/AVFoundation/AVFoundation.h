@@ -275,6 +275,7 @@ typedef NS_OPTIONS(NSUInteger, AVDelegatingPlaybackCoordinatorSeekOptions) {
 NS_ASSUME_NONNULL_END
 #import <AVFoundation/AVCapture.h>
 #import <AVFoundation/AVEditing.h>
+#import <AVFoundation/AVMetadata.h>
 #import <AVFAudio/AVFAudio.h>
 #else
 @class AVAudioSession, AVAsset, AVURLAsset, AVPlayer, AVPlayerItem, AVPlayerLayer, AVPlaybackCoordinator, AVPlayerPlaybackCoordinator,

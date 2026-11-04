@@ -16,7 +16,8 @@ def test_system_objc(launch):
     app = launch("HelloSystemObjC")
     app.wait_log(r"^HelloSystemObjC: done")
     lines = [r"cmtime sum=1\.75 cmp=1 valid=1", "avaudiosession category=AVAudioSessionCategoryAmbient error=none",
-             r"avplayer time=0\.0 class=AVPlayer", "security random=0 nonzero=1 key=1 verified=1",
+             r"avplayer time=0\.0 class=AVPlayer", "avmetadata TALB id3/TALB itsk/%A9nam uiso/titl itsk com.apple.itunes",
+             "security random=0 nonzero=1 key=1 verified=1",
              "reachability flags=1 callback=1", "cfhost localhost ok=1 before=0 resolved=1 loopback=1 typeid=1", "cfhost unknown ok=0 netdb=1",
              "cfhost 127.0.0.1 names=1 addresses=1", "cfhost async type=0 resolved=1 loopback=1 error=0 main=1", 
              "cfstream data buffer=he read=llo status=5 typeid=1 bridged=1", "cfstream memory written=abc typeid=1",
