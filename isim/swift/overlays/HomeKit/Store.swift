@@ -223,25 +223,57 @@ final class _HMStore: @unchecked Sendable {
         }
     }
 
-    /// saves the app's change (the sequence number tells other processes)
-    func save() {
-        data.seq += 1
+    /// writes the data (the sequence number tells other processes); the caller holds the file lock
+    private func write(_ d: _HMData) {
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         enc.dateEncodingStrategy = .iso8601
-        guard let d = try? enc.encode(data) else { return }
+        guard let bytes = try? enc.encode(d) else { return }
+        try? FileManager.default.createDirectory(atPath: (Self.file as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
         let tmp = Self.file + ".\(getpid()).tmp"
-        if FileManager.default.createFile(atPath: tmp, contents: d) { _ = rename(tmp, Self.file) }
+        if FileManager.default.createFile(atPath: tmp, contents: bytes) { _ = rename(tmp, Self.file) }
+    }
+
+    /// Issue #820: homes.json is shared with other apps and with `isim home` (isim-services.py), so each change is one
+    /// read-modify-write under an exclusive lock on homes.json.lock. Writing the app's whole copy instead lost a change
+    /// another process made in between (an accessory's adoption, overwritten by `isim home set`, or the reverse).
+    private func withFileLock<T>(_ body: () -> T) -> T {
+        try? FileManager.default.createDirectory(atPath: (Self.file as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        let fd = open(Self.file + ".lock", O_RDWR | O_CREAT, 0o644)
+        if fd >= 0 { _ = flock(fd, LOCK_EX) }
+        defer { if fd >= 0 { _ = flock(fd, LOCK_UN); close(fd) } }
+        return body()
+    }
+    /// takes another process's newer data before a change (under both locks); its delegate callbacks follow on the main thread
+    private func syncLocked() {
+        let fresh = Self.load()
+        guard fresh != _data else { return }
+        let old = _data
+        _data = fresh
+        DispatchQueue.main.async { _HMNotify.changes(from: old, to: fresh) }   // later: a delegate that changes the home would wait on the file lock
+    }
+    /// one change: the latest data from the file, the change, the file written
+    private func change(_ body: (inout _HMData) -> Void) {
+        lock.lock(); defer { lock.unlock() }
+        withFileLock {
+            syncLocked()
+            let before = _data
+            body(&_data)
+            guard _data != before else { return }
+            _data.seq += 1
+            write(_data)
+        }
     }
 
     /// half a second: the file's changes from outside, timers that are due
     func tick() {
-        let fresh = Self.load()
-        if fresh != data {
-            let old = data
-            data = fresh
-            _HMNotify.changes(from: old, to: fresh)
-        }
+        let fresh = withFileLock { Self.load() }
+        lock.lock()
+        let old = _data
+        let changed = fresh != old
+        if changed { _data = fresh }
+        lock.unlock()
+        if changed { _HMNotify.changes(from: old, to: fresh) }
         _HMAutomation.fireTimers()
     }
 
@@ -261,16 +293,15 @@ final class _HMStore: @unchecked Sendable {
         guard let (h, a) = accessoryPath(id) else { return nil }
         return h.map { data.homes[$0].accessories[a] } ?? data.available[a]
     }
+    /// changes an accessory and saves it (one locked read-modify-write of the file)
     func modifyAccessory(_ id: String, _ body: (inout _HMAccessoryRec) -> Void) {
-        lock.lock(); defer { lock.unlock() }
-        guard let (h, a) = accessoryPath(id) else { return }
-        if let h { body(&_data.homes[h].accessories[a]) } else { body(&_data.available[a]) }
+        change { d in
+            for h in d.homes.indices { if let a = d.homes[h].accessories.firstIndex(where: { $0.id == id }) { body(&d.homes[h].accessories[a]); return } }
+            if let a = d.available.firstIndex(where: { $0.id == id }) { body(&d.available[a]) }
+        }
     }
-    /// changes the data under the lock
-    func modify(_ body: (inout _HMData) -> Void) {
-        lock.lock(); defer { lock.unlock() }
-        body(&_data)
-    }
+    /// changes the data and saves it (one locked read-modify-write of the file)
+    func modify(_ body: (inout _HMData) -> Void) { change(body) }
     func homeOfAccessory(_ id: String) -> String? {
         guard let (h, _) = accessoryPath(id), let h else { return nil }
         return data.homes[h].id
@@ -312,7 +343,6 @@ final class _HMStore: @unchecked Sendable {
             }
         }
         guard changed else { return }
-        save()
         if notify { _HMNotify.valueChanged(id) }
         _HMAccessories.follow(id, value)
         _HMAutomation.characteristicChanged(id, value)

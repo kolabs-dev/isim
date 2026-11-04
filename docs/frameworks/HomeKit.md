@@ -9,7 +9,9 @@
 ## How isim implements it
 
 - **Decided (issue #416): simulated homes.** isim has no home hub and no accessories. The device keeps its homes in
-  `ISIM_DATA/Library/isim/HomeKit/homes.json`, shared by every app like iOS's home data.
+  `ISIM_DATA/Library/isim/HomeKit/homes.json`, shared by every app like iOS's home data. Every change
+  is one read-modify-write of that file under a lock (`homes.json.lock`) that apps and `isim home` share, so changes
+  made at the same moment by an app and from outside are all kept (#820).
   - `isim home seed` makes an example home with a home hub, rooms, a zone, eight accessories and two accessories
     nearby. The accessories are a color light, a thermostat, a lock, a garage door, an outlet, a motion sensor with a
     battery, blinds and a camera doorbell.

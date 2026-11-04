@@ -1366,6 +1366,24 @@ def hk_load():
     return {'seq': 0, 'homes': [], 'available': []}
 
 
+def hk_locked(fn):
+    """runs a home command under the lock running apps take for their changes (issue #820): without it, an app's
+    change made between this command's read and its write was lost"""
+    def run(*a, **k):
+        os.makedirs(os.path.dirname(HOMEKIT), exist_ok=True)
+        try:
+            import fcntl
+        except ImportError:                       # no flock on this host: unlocked, as before
+            return fn(*a, **k)
+        with open(HOMEKIT + '.lock', 'a') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                return fn(*a, **k)
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
+    return run
+
+
 def hk_save(d):
     d['seq'] = d.get('seq', 0) + 1
     os.makedirs(os.path.dirname(HOMEKIT), exist_ok=True)
@@ -1444,6 +1462,7 @@ def hk_value(fmt, text):
     return text
 
 
+@hk_locked
 def home(cmd, args):
     """HomeKit: the device's simulated homes"""
     t = hk_types()

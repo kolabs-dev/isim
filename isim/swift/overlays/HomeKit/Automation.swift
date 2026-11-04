@@ -104,7 +104,6 @@ open class HMActionSet: NSObject {
         let home = _HMStore.shared.data.homes[h]
         if let e = check(home, home.actionSets[s]) { _hmReply { completion(e) }; return }
         _HMStore.shared.modify { body(&$0.homes[h].actionSets[s]) }
-        _HMStore.shared.save()
         _hmReply { completion(nil) }
     }
 
@@ -157,7 +156,6 @@ open class HMTrigger: NSObject {
             guard let i = d.homes.firstIndex(where: { $0.id == h }), let t = d.homes[i].triggers.firstIndex(where: { $0.id == _id }) else { return }
             body(&d.homes[i].triggers[t])
         }
-        _HMStore.shared.save()
     }
     /// a change of an added trigger (triggers not in a home cannot change: objectNotAssociatedToAnyHome)
     func _change(_ completion: @escaping (Error?) -> Void, _ check: () -> NSError? = { nil }, _ body: (inout _HMTriggerRec) -> Void) {
@@ -683,7 +681,6 @@ enum _HMAutomation {
                 body(&d.homes[h].actionSets[s].actions[a])
             } } }
         }
-        _HMStore.shared.save()
     }
     static func updateEvent(_ rec: _HMEventRec) {
         _HMStore.shared.modify { d in
@@ -692,7 +689,6 @@ enum _HMAutomation {
                 if let i = d.homes[h].triggers[t].endEvents?.firstIndex(where: { $0.id == rec.id }) { d.homes[h].triggers[t].endEvents![i] = rec }
             } }
         }
-        _HMStore.shared.save()
     }
 
     /// runs an action set: writes each action's value; nil or the first error
@@ -712,7 +708,6 @@ enum _HMAutomation {
                 d.homes[h].actionSets[s].lastExecution = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down))
             }
         }
-        _HMStore.shared.save()
         NSLog("isim HomeKit: ran %@ (%d actions)", set.name, set.actions.count)
         return failed
     }
@@ -726,7 +721,6 @@ enum _HMAutomation {
             d.homes[h].triggers[i].lastFire = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down))
             if t.executeOnce == true { d.homes[h].triggers[i].enabled = false }
         }
-        _HMStore.shared.save()
     }
 
     /// timer triggers whose fire date passed, calendar events of this minute

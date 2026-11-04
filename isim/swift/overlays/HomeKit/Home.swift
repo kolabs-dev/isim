@@ -135,7 +135,6 @@ open class HMHomeManager: NSObject {
         if let e = _HMAccess.denied { _hmReply { completion(e) }; return }
         guard _HMStore.shared.home(home._id) != nil else { _hmReply { completion(_hmErr(.notFound)) }; return }
         _HMStore.shared.modify { $0.primary = home._id }
-        _HMStore.shared.save()
         _hmReply { completion(nil) }
     }
 
@@ -150,7 +149,6 @@ open class HMHomeManager: NSObject {
             d.homes.append(home)
             if d.primary == nil { d.primary = home.id }
         }
-        _HMStore.shared.save()
         NSLog("isim HomeKit: added home %@", homeName)
         _hmReply { completion(_HMObjects.shared.home(home.id), nil) }
     }
@@ -163,7 +161,6 @@ open class HMHomeManager: NSObject {
             d.homes.removeAll { $0.id == home._id }
             if d.primary == home._id { d.primary = d.homes.first?.id }
         }
-        _HMStore.shared.save()
         _hmReply { completion(nil) }
     }
 
@@ -181,7 +178,6 @@ open class HMHomeManager: NSObject {
         home.provisional = configuration.hubPairingIdentity.pairingIdentifier
         let rec = home
         _HMStore.shared.modify { $0.homes.append(rec) }
-        _HMStore.shared.save()
         return _HMObjects.shared.home(home.id)
     }
 }
@@ -275,7 +271,6 @@ open class HMHome: NSObject {
             _hmReply { completion(e) }; return
         }
         _modify { $0.name = name }
-        _HMStore.shared.save()
         _hmReply { completion(nil) }
     }
 
@@ -297,7 +292,6 @@ open class HMHome: NSObject {
         if let e = _blocked { _hmReply { completion(e) }; return }
         guard user._id != _rec?.users.first?.id else { _hmReply { completion(_hmErr(.insufficientPrivileges)) }; return }
         _modify { $0.users.removeAll { $0.id == user._id } }
-        _HMStore.shared.save()
         _hmReply { completion(nil) }
     }
 
@@ -345,7 +339,6 @@ open class HMHome: NSObject {
         var back = rec                          // a removed accessory is reset: it can be found and added again
         back.room = nil
         _HMStore.shared.modify { $0.available.append(back) }
-        _HMStore.shared.save()
         _hmReply { completion(nil) }
     }
 
@@ -356,7 +349,6 @@ open class HMHome: NSObject {
         let roomID: String? = room._id == "\(_id)-entire" ? nil : room._id
         if let r = roomID, _rec?.rooms.contains(where: { $0.id == r }) != true { _hmReply { completion(_hmErr(.notFound)) }; return }
         _modify { h in if let i = h.accessories.firstIndex(where: { $0.id == accessory._id }) { h.accessories[i].room = roomID } }
-        _HMStore.shared.save()
         _hmReply { completion(nil) }
     }
 
@@ -370,7 +362,6 @@ open class HMHome: NSObject {
     open func unblockAccessory(_ accessory: HMAccessory, completionHandler completion: @escaping (Error?) -> Void) {
         if let e = _blocked { _hmReply { completion(e) }; return }
         _modify { h in if let i = h.accessories.firstIndex(where: { $0.id == accessory._id }) { h.accessories[i].blocked = nil } }
-        _HMStore.shared.save()
         _hmReply { completion(nil) }
     }
 
@@ -403,7 +394,6 @@ open class HMHome: NSObject {
         if let e = _hmNameError(roomName, taken: (_rec?.rooms ?? []).map(\.name)) { _hmReply { completion(nil, e) }; return }
         let r = _HMRoomRec(id: _HMStore.newID(), name: roomName)
         _modify { $0.rooms.append(r) }
-        _HMStore.shared.save()
         _hmReply { completion(_HMObjects.shared.room(r.id), nil) }
     }
 
@@ -417,7 +407,6 @@ open class HMHome: NSObject {
             for i in h.zones.indices { h.zones[i].rooms.removeAll { $0 == room._id } }
             for i in h.accessories.indices where h.accessories[i].room == room._id { h.accessories[i].room = nil }
         }
-        _HMStore.shared.save()
         _hmReply { completion(nil) }
     }
 
@@ -429,7 +418,6 @@ open class HMHome: NSObject {
         if let e = _hmNameError(zoneName, taken: (_rec?.zones ?? []).map(\.name)) { _hmReply { completion(nil, e) }; return }
         let z = _HMZoneRec(id: _HMStore.newID(), name: zoneName, rooms: [])
         _modify { $0.zones.append(z) }
-        _HMStore.shared.save()
         _hmReply { completion(_HMObjects.shared.zone(z.id), nil) }
     }
 
@@ -438,7 +426,6 @@ open class HMHome: NSObject {
         if let e = _blocked { _hmReply { completion(e) }; return }
         guard _rec?.zones.contains(where: { $0.id == zone._id }) == true else { _hmReply { completion(_hmErr(.notFound)) }; return }
         _modify { $0.zones.removeAll { $0.id == zone._id } }
-        _HMStore.shared.save()
         _hmReply { completion(nil) }
     }
 
@@ -451,7 +438,6 @@ open class HMHome: NSObject {
         if let e = _hmNameError(serviceGroupName, taken: (_rec?.serviceGroups ?? []).map(\.name)) { _hmReply { completion(nil, e) }; return }
         let g = _HMGroupRec(id: _HMStore.newID(), name: serviceGroupName, services: [])
         _modify { $0.serviceGroups.append(g) }
-        _HMStore.shared.save()
         _hmReply { completion(_HMObjects.shared.group(g.id), nil) }
     }
 
@@ -460,7 +446,6 @@ open class HMHome: NSObject {
         if let e = _blocked { _hmReply { completion(e) }; return }
         guard _rec?.serviceGroups.contains(where: { $0.id == group._id }) == true else { _hmReply { completion(_hmErr(.notFound)) }; return }
         _modify { $0.serviceGroups.removeAll { $0.id == group._id } }
-        _HMStore.shared.save()
         _hmReply { completion(nil) }
     }
 
@@ -473,7 +458,6 @@ open class HMHome: NSObject {
         if let e = _hmNameError(actionSetName, taken: (_rec?.actionSets ?? []).map(\.name)) { _hmReply { completion(nil, e) }; return }
         let s = _HMActionSetRec(id: _HMStore.newID(), name: actionSetName, type: "HMActionSetTypeUserDefined", actions: [])
         _modify { $0.actionSets.append(s) }
-        _HMStore.shared.save()
         _hmReply { completion(_HMObjects.shared.actionSet(s.id), nil) }
     }
 
@@ -488,7 +472,6 @@ open class HMHome: NSObject {
             h.actionSets.removeAll { $0.id == s.id }
             for i in h.triggers.indices { h.triggers[i].actionSets.removeAll { $0 == s.id } }
         }
-        _HMStore.shared.save()
         _hmReply { completion(nil) }
     }
 
@@ -518,7 +501,6 @@ open class HMHome: NSObject {
         rec.enabled = false                     // a new trigger is disabled until enabled
         trigger._home = _id
         _modify { $0.triggers.append(rec) }
-        _HMStore.shared.save()
         _hmReply { completion(nil) }
     }
 
@@ -528,7 +510,6 @@ open class HMHome: NSObject {
         guard _rec?.triggers.contains(where: { $0.id == trigger._id }) == true else { _hmReply { completion(_hmErr(.notFound)) }; return }
         _modify { $0.triggers.removeAll { $0.id == trigger._id } }
         trigger._home = nil
-        _HMStore.shared.save()
         _hmReply { completion(nil) }
     }
 
@@ -581,7 +562,6 @@ open class HMHome: NSObject {
             d.homes[t].accessories += d.homes[s].accessories.map { var a = $0; a.room = nil; return a }
             d.homes.remove(at: s)
         }
-        _HMStore.shared.save()
         return ProvisionalHomeTransferResult(transferredAccessories: source.accessories.map {
             .init(uuid: UUID(uuidString: $0.id) ?? UUID(), name: $0.name)
         }, failedAccessories: [])
@@ -600,7 +580,6 @@ extension _HMHomeRec {
             d.homes[h].accessories.append(acc)
             ok = true
         }
-        if ok { _HMStore.shared.save() }
         return ok
     }
 }
@@ -634,7 +613,6 @@ open class HMRoom: NSObject {
         if _id == "\(h.id)-entire" { _hmReply { completion(_hmErr(.roomForHomeCannotBeUpdated)) }; return }
         if let e = _hmNameError(name, taken: h.rooms.filter { $0.id != _id }.map(\.name)) { _hmReply { completion(e) }; return }
         _HMStore.shared.modify { d in if let r = d.homes[i].rooms.firstIndex(where: { $0.id == _id }) { d.homes[i].rooms[r].name = name } }
-        _HMStore.shared.save()
         _hmReply { completion(nil) }
     }
 }
@@ -659,7 +637,6 @@ open class HMZone: NSObject {
         let home = _HMStore.shared.data.homes[h]
         if let e = check(home, home.zones[z]) { _hmReply { completion(e) }; return }
         _HMStore.shared.modify { body(&$0.homes[h].zones[z]) }
-        _HMStore.shared.save()
         _hmReply { completion(nil) }
     }
     @objc(updateName:completionHandler:)
@@ -700,7 +677,6 @@ open class HMServiceGroup: NSObject {
         let home = _HMStore.shared.data.homes[h]
         if let e = check(home, home.serviceGroups[g]) { _hmReply { completion(e) }; return }
         _HMStore.shared.modify { body(&$0.homes[h].serviceGroups[g]) }
-        _HMStore.shared.save()
         _hmReply { completion(nil) }
     }
     @objc(updateName:completionHandler:)
