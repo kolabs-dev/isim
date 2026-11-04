@@ -18,7 +18,8 @@
  *    globe / emoji, mic and hide-keyboard keys in the bottom row, flick characters on the letter keys; the shortcuts
  *    bar (the responder's input assistant groups at the ends of the predictive bar: by default undo, redo and paste,
  *    and bold / italic / underline in a text view that allows editing text attributes); the emoji keyboard's grid
- *    spans the iPad keyboard (about 58 pt cells, four rows, running on into the next categories; estimated).
+ *    spans the iPad keyboard (about 58 pt cells, four rows, running on into the next categories; estimated); the
+ *    floating keyboard (pinch it in, or script `keyboard floating`): the iPhone layout, dragged by its handle;
  * Key views carry accessibility identifiers (isim-kb-q, isim-kb-space, isim-kb-globe, ...).
  * ISIM_SOFTWARE_KEYBOARD=0 disables the on-screen keyboard (hardware typing still works). */
 #import "UIKitInputPrivate.h"
@@ -91,7 +92,11 @@ static NSArray *rows_for(int layer, NSString *lang) {
  * with the shifted character above the number-row and punctuation keys (a downward swipe or shift types it; the letters
  * have none). Its numbers and symbols planes, and other languages, are the standard layout. The key proportions are
  * estimated from screenshots, not measured. */
-static BOOL kb_ipad(void) { return UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad; }
+static BOOL kb_device_ipad(void) { return UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad; }
+/* the floating keyboard (iPad: pinch the keyboard in, or script `keyboard floating`): the iPhone's layout in a small
+   window the person can drag by its handle; pinching it out (or `keyboard docked`) docks it again */
+static BOOL kb_floating;
+static BOOL kb_ipad(void) { return kb_device_ipad() && !kb_floating; }   /* the iPadOS layout: docked on an iPad */
 static NSArray *ipad_rows(int layer, NSString *lang) {
     switch (layer) {
     case L_NUMBERS: return @[@[@"1", @"2", @"3", @"4", @"5", @"6", @"7", @"8", @"9", @"0"],
@@ -204,6 +209,7 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
 @property (nonatomic, readonly) BOOL showsBar;            /* predictions, or (iPad) the shortcuts bar's groups */
 - (void)_updateSuggestions;
 - (void)_clearInline;
+- (void)_rebuild;
 - (void)_layoutBar;
 @end
 @implementation __IsimKeyboardKeys {
@@ -1109,7 +1115,7 @@ static double math_expr(const char **p, BOOL *ok) {
 static NSArray<NSString *> *system_boards(void) { return @[@"en_US", @"pt_BR", @"es_ES", @"fr_FR", @"de_DE", @"emoji"]; }
 static BOOL is_system(NSString *ident) { return [system_boards() containsObject:ident]; }
 
-@interface __IsimKeyboardController : NSObject
+@interface __IsimKeyboardController : NSObject <UIGestureRecognizerDelegate>
 @end
 @implementation __IsimKeyboardController {
     __IsimKeyboardWindow *_window;
@@ -1124,6 +1130,9 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     BOOL _shown;
     UIView *_inputOverride, *_accessory;   /* the responder's inputView (instead of the keys) and inputAccessoryView (above) */
     BOOL _dictating; UIView *_listening;
+    UIView *_handle;                     /* the floating keyboard's drag handle */
+    CGPoint _floatOrigin;                /* the floating keyboard's origin (screen points); x < 0: not placed yet */
+    BOOL _dragging;                      /* a drag that began on the handle */
 }
 + (instancetype)shared { static __IsimKeyboardController *c; if (!c) c = [self new]; return c; }
 + (void)load_isim {
@@ -1144,7 +1153,7 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
 #pragma clang diagnostic pop
 }
 /* the bar under the keys with the globe and the mic: Face ID iPhones (iPads have both keys in the bottom row) */
-- (BOOL)_barVisible { return isim_ui_device()->safe_bottom > 0 && !_inputOverride && !kb_ipad(); }
+- (BOOL)_barVisible { return isim_ui_device()->safe_bottom > 0 && !_inputOverride && !kb_device_ipad(); }
 - (CGFloat)_accessoryHeight {
     if (!_accessory) return 0;
     CGFloat h = _accessory.frame.size.height;
@@ -1233,6 +1242,20 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     _keys.onLeaveEmoji = ^{ [w _leaveEmoji]; };
     _keys.onDictation = ^{ [w _dictation]; };
     _keys.onDismiss = ^{ [w _dismissKey]; };
+    if (kb_device_ipad()) {                       /* iPad: pinch in to float the keyboard, out to dock it; drag it by the handle */
+        UIPinchGestureRecognizer *pinch = [[UIPinchGestureRecognizer alloc] initWithTarget:self action:@selector(_pinched:)];
+        [_window addGestureRecognizer:pinch];
+        UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(_dragged:)];
+        pan.maximumNumberOfTouches = 1;
+        pan.delegate = self;                      /* only on the floating keyboard's handle: the keys keep their swipes */
+        [_window addGestureRecognizer:pan];
+        _handle = [UIView new];
+        _handle.backgroundColor = [UIColor colorWithWhite:0.5 alpha:0.6];
+        _handle.layer.cornerRadius = 2.5;
+        _handle.accessibilityIdentifier = @"isim-kb-float-handle";
+        _handle.hidden = YES;
+        [_window addSubview:_handle];
+    }
     _bar = [UIView new]; [_window addSubview:_bar];
     UIButton *globe = [UIButton buttonWithType:UIButtonTypeCustom];
     globe.tintColor = UIColor.secondaryLabelColor;
@@ -1323,7 +1346,95 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     CGSize s = [v systemLayoutSizeFittingSize:CGSizeMake(W, 216) withHorizontalFittingPriority:UILayoutPriorityRequired verticalFittingPriority:UILayoutPriorityFittingSizeLevel];
     return s.height > 20 ? s.height : 216;
 }
+/* the floating keyboard: 320 pt wide (the iPhone layout, its predictive bar) and a 20 pt band for the handle (estimated
+   from iPadOS screenshots); placed bottom centre at first, then where it was dragged, kept on screen */
+enum { FLOAT_W = 320, FLOAT_HANDLE = 20 };
+- (BOOL)_floatingNow { return kb_floating && !_inputOverride && !_hostedView; }
+- (CGRect)_floatFrameFor:(CGFloat)contentH {
+    const struct isim_device *d = isim_ui_device();
+    CGFloat H = contentH + FLOAT_HANDLE;
+    CGPoint o = _floatOrigin;
+    if (o.x < 0) o = CGPointMake(round((d->width - FLOAT_W) / 2), d->height - d->safe_bottom - H - 20);
+    o.x = MAX(0, MIN(o.x, d->width - FLOAT_W));
+    o.y = MAX(d->safe_top, MIN(o.y, d->height - H));
+    _floatOrigin = o;
+    return CGRectMake(o.x, o.y, FLOAT_W, H);
+}
+- (void)_layoutFloating {
+    CGFloat contentH = [self _contentHeight];
+    CGRect f = [self _floatFrameFor:contentH];
+    _window.frame = f;
+    _window.layer.cornerRadius = 14;
+    _window.layer.masksToBounds = YES;
+    _accessory.hidden = YES;
+    _bar.hidden = YES;
+    _content.frame = CGRectMake(0, 0, FLOAT_W, contentH);
+    _keys.frame = _content.bounds;
+    _handle.hidden = NO;
+    _handle.frame = CGRectMake((FLOAT_W - 36) / 2, contentH + (FLOAT_HANDLE - 5) / 2, 36, 5);
+    _listening.frame = CGRectMake(70, 2, FLOAT_W - 140, 40);
+    isim_ui_set_needs_layout();
+}
+/* floating or docked: the keys take the other layout; apps hear the keyboard leave the bottom of the screen
+   (UIKeyboardWillHide / DidHide, the end frame the floating one: proposed) or come back to it (WillShow / DidShow) */
+- (void)_setFloating:(BOOL)on {
+    if (!kb_device_ipad()) { NSLog(@"isim: keyboard: only an iPad's keyboard floats"); return; }
+    if (on == kb_floating) { NSLog(@"isim: keyboard %@ (already)", on ? @"floating" : @"docked"); return; }
+    kb_floating = on;
+    if (on) _floatOrigin = CGPointMake(-1, -1);
+    if (!_window) { NSLog(@"isim: keyboard %@", on ? @"floating" : @"docked"); return; }
+    [_keys _rebuild];
+    if (!_shown) { [self _relayout]; NSLog(@"isim: keyboard %@", on ? @"floating" : @"docked"); return; }
+    CGRect old = keyboard_frame;
+    if (on) {
+        keyboard_frame = CGRectZero;                 /* nothing to avoid at the bottom of the screen */
+        [self _relayout];
+        CGRect to = _window.frame;
+        [self _post:UIKeyboardWillHideNotification from:old to:to];
+        [self _post:UIKeyboardWillChangeFrameNotification from:old to:to];
+        [self _post:UIKeyboardDidHideNotification from:old to:to];
+        [self _post:UIKeyboardDidChangeFrameNotification from:old to:to];
+    } else {
+        CGRect from = _window.frame;
+        _window.layer.cornerRadius = 0;
+        _handle.hidden = YES; _accessory.hidden = NO;
+        keyboard_frame = CGRectZero;
+        [self _relayout];
+        CGRect to = _window.frame;
+        [self _post:UIKeyboardWillShowNotification from:from to:to];
+        [self _post:UIKeyboardWillChangeFrameNotification from:from to:to];
+        keyboard_frame = to;
+        [self _post:UIKeyboardDidShowNotification from:from to:to];
+        [self _post:UIKeyboardDidChangeFrameNotification from:from to:to];
+    }
+    CGRect w = _window.frame;
+    NSLog(@"isim: keyboard %@ (%g,%g %gx%g)", on ? @"floating" : @"docked", w.origin.x, w.origin.y, w.size.width, w.size.height);
+}
+- (void)_pinched:(UIPinchGestureRecognizer *)g {
+    if (g.state != UIGestureRecognizerStateEnded) return;
+    if (!kb_floating && g.scale < 0.8) [self _setFloating:YES];
+    else if (kb_floating && g.scale > 1.25) [self _setFloating:NO];
+}
+- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)g {
+    return [self _floatingNow] && [g locationInView:_window].y >= _window.bounds.size.height - FLOAT_HANDLE - 8;
+}
+- (void)_dragged:(UIPanGestureRecognizer *)g {
+    if (g.state == UIGestureRecognizerStateBegan) _dragging = YES;
+    if (!_dragging || ![self _floatingNow]) return;
+    CGPoint t = [g translationInView:nil];
+    [g setTranslation:CGPointZero inView:nil];
+    _floatOrigin = CGPointMake(round(_floatOrigin.x + t.x), round(_floatOrigin.y + t.y));
+    [self _layoutFloating];
+    if (g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled) {
+        _dragging = NO;
+        CGRect w = _window.frame;
+        NSLog(@"isim: keyboard moved (%.0f,%.0f)", w.origin.x, w.origin.y);
+    }
+}
 - (void)_relayout {
+    if ([self _floatingNow]) { [self _layoutFloating]; return; }
+    _window.layer.cornerRadius = 0;
+    _handle.hidden = YES; _accessory.hidden = NO;
     const struct isim_device *d = isim_ui_device();
     CGFloat contentH = [self _contentHeight], barH = [self _barVisible] ? 45 + d->safe_bottom : 0, accH = [self _accessoryHeight];
     CGFloat H = accH + contentH + barH;
@@ -1414,6 +1525,13 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     if (ck && old != t) [ck.controller _isim_setTextInput:t];
     if (_shown) { [self _relayout]; return; }
     _shown = YES;
+    if ([self _floatingNow]) {                        /* the floating keyboard covers nothing apps lay out around */
+        [self _relayout];
+        _window.hidden = NO;
+        if (ck) { [ck.controller viewWillAppear:NO]; [ck.controller viewDidAppear:NO]; }
+        NSLog(@"isim: keyboard shown (%@, floating)", [self _currentName]);
+        return;
+    }
     CGRect from = keyboard_frame;
     [self _relayout];
     CGRect to = _window.frame;
@@ -1442,6 +1560,15 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     _shown = NO;
     _target = nil;
     [_menu removeFromSuperview]; _menu = nil;
+    if ([self _floatingNow]) {                        /* nothing to tell apps: they did not lay out around it */
+        __IsimCustomKeyboard *fk = [self _customFor:[self _ident]];
+        if (fk) [fk.controller viewWillDisappear:NO];
+        _window.hidden = YES;
+        [self _setAccessory:nil];
+        if (fk) { [fk.controller viewDidDisappear:NO]; [fk.controller _isim_setTextInput:nil]; }
+        NSLog(@"isim: keyboard hidden");
+        return;
+    }
     CGRect from = keyboard_frame, to = CGRectOffset(from, 0, from.size.height);
     [self _post:UIKeyboardWillHideNotification from:from to:to];
     [self _post:UIKeyboardWillChangeFrameNotification from:from to:to];
@@ -1551,7 +1678,15 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
 @end
 
 /* custom keyboards ask this through needsInputModeSwitchKey */
-BOOL isim_ui_keyboard_needs_switch_key(void) { return isim_ui_device()->safe_bottom <= 0 || kb_ipad(); }
+BOOL isim_ui_keyboard_needs_switch_key(void) { return isim_ui_device()->safe_bottom <= 0 || kb_device_ipad(); }
+/* script `keyboard floating|docked|toggle` (iPad) */
+void isim_ui_keyboard_float(const char *what) {
+    BOOL on = !strcmp(what, "floating") || !strcmp(what, "float") || (!strcmp(what, "toggle") && !kb_floating);
+    if (strcmp(what, "floating") && strcmp(what, "float") && strcmp(what, "docked") && strcmp(what, "dock") && strcmp(what, "toggle")) {
+        NSLog(@"isim: keyboard floating|docked|toggle"); return;
+    }
+    [[__IsimKeyboardController shared] _setFloating:on];
+}
 void isim_ui_keyboard_advance(void) { [[__IsimKeyboardController shared] _next]; }
 void isim_ui_keyboard_check(void) { [[__IsimKeyboardController shared] _check]; }
 void isim_ui_keyboard_install(void) { [__IsimKeyboardController load_isim]; }

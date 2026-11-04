@@ -1,5 +1,6 @@
 // Sample: keyboard types on isim — a text field per UIKeyboardType: number, decimal and phone pads, email, URL,
-// Twitter, web search, numbers and punctuation. Each field prints its text as it changes.
+// Twitter, web search, numbers and punctuation. Each field prints its text as it changes; the keyboard's show and hide
+// notifications are printed too (an iPad's floating keyboard hides the docked one).
 import UIKit
 
 @main
@@ -30,6 +31,12 @@ final class KeyboardTypesViewController: UIViewController {
             f.accessibilityIdentifier = "f-\(name)"
             f.addAction(UIAction { _ in print("text \(name)=\(f.text ?? "")") }, for: .editingChanged)
             stack.addArrangedSubview(f)
+        }
+        for (name, n) in [("will show", UIResponder.keyboardWillShowNotification), ("will hide", UIResponder.keyboardWillHideNotification)] {
+            NotificationCenter.default.addObserver(forName: n, object: nil, queue: .main) { note in
+                let f = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue ?? .zero
+                print("keyboard \(name) \(Int(f.minX)),\(Int(f.minY)) \(Int(f.width))x\(Int(f.height))")
+            }
         }
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
