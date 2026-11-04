@@ -1,5 +1,5 @@
-// Sample: the iOS 27.1 SwiftUI APIs for foldable devices on isim's devices, none of which folds — onHingeChange
-// (never called: no hinge), GeometryProxy.reservedRegions (the Dynamic Island's occlusion, no division; fixed and
+// Sample: the iOS 27.1 SwiftUI APIs for foldable devices — onHingeChange
+// (on iPhone Duo when the hinge moves; never on the other devices), GeometryProxy.reservedRegions (the Dynamic Island's occlusion, no division; fixed and
 // mirrored), \.toolbarVerticalEdge (nil), toolbarVerticalBehavior / toolbarVerticalCompressionBehavior / axisBehavior
 // on a toolbar, \.splitArrangementAxis and \.overlayArrangementZIndex inside ArrangementViews, and a
 // CameraCaptureAccessory (never available). It prints what the UI test checks.
@@ -61,7 +61,15 @@ struct Foldable: View {
             .toolbarVerticalCompressionBehavior(.prefersToolbarItems)
         }
         .toolbarVerticalBehavior(.disabled)
-        .onHingeChange { old, new in hingeChanges += 1; print("fold hinge changed \(new.hinge == nil)") }
+        .onHingeChange { old, new in
+            hingeChanges += 1
+            func d(_ c: DeviceHingeContext) -> String {
+                guard let h = c.hinge else { return "none" }
+                let st = h.status == .closed ? "closed" : h.status == .fullyOpen ? "fullyOpen" : "partiallyOpen"
+                return "\(Int(h.angle.degrees.rounded())) \(st)"
+            }
+            print("fold hinge changed \(d(old)) -> \(d(new))")
+        }
         .overlay {
             GeometryReader { proxy in
                 Color.clear.onAppear {

@@ -2,9 +2,10 @@
 // onHingeChange), reserved regions (GeometryProxy.reservedRegions), the vertical bar (toolbarVerticalBehavior,
 // toolbarVerticalCompressionBehavior, axisBehavior, \.toolbarVerticalEdge) and CameraCaptureAccessory (with the iOS 27
 // SceneAccessoryContent and sceneAccessory it is used through). Signatures from Apple's documentation. Adapted like
-// isim's UIKit for foldable devices (UIArrangements.m): none of isim's devices folds (issue #115), so there is never a
-// hinge (the context stays `hinge == nil` and never changes), the only reserved region is the occlusion of the Dynamic
-// Island or the notch (no division), there is no vertical bar (its edge is nil; the behaviours are kept and change
+// isim's UIKit for foldable devices (UIArrangements.m): on iPhone Duo (`--device iphoneduo`, issue #115) the context has
+// the hinge (its angle and status) and onHingeChange runs when it moves (script `fold open|closed|angle N`); on the other
+// devices the context's hinge is nil and never changes. Reserved regions are UIKit's (the occlusion of the Dynamic Island
+// or the notch, and on iPhone Duo's inner display the fold as a division); there is no vertical bar (its edge is nil; the behaviours are kept and change
 // nothing) and the camera capture accessory is never available (isim has no camera capture session to present it in).
 // `\.splitArrangementAxis` and `\.overlayArrangementZIndex` are in Arrangement.swift.
 import UIKit
@@ -30,16 +31,28 @@ public struct DeviceHinge: Equatable, Hashable, Sendable {
 /// The hinges of the device, for onHingeChange.
 @available(iOS 27.1, *)
 public struct DeviceHingeContext: Equatable, Sendable {
-    /// The device's hinge; nil on a device that does not fold (all of isim's).
+    /// The device's hinge; nil on a device that does not fold.
     public let hinge: DeviceHinge?
+
+    /// the context at a hinge angle in degrees (-1: no hinge)
+    init(_degrees deg: Double) {
+        hinge = deg < 0 ? nil : DeviceHinge(angle: .degrees(deg), status: deg <= 0 ? .closed : deg >= 180 ? .fullyOpen : .partiallyOpen)
+    }
 }
 
+@_silgen_name("isim_device_hinge_angle") func _isimDeviceHingeAngle() -> Double
+
 extension View {
-    /// Runs `action` with the old and new context when the device's hinge changes. isim's devices do not fold, so the
-    /// context (no hinge) never changes and `action` is not called.
+    /// Runs `action` with the old and new context when the device's hinge moves (iPhone Duo: script
+    /// `fold open|closed|angle N`). On a device that does not fold the context never changes and `action` is not called.
     @available(iOS 27.1, *)
     public func onHingeChange(isEnabled: Bool = true, _ action: @escaping (DeviceHingeContext, DeviceHingeContext) -> Void) -> some View {
-        _env { _ in }
+        onReceive(NotificationCenter.default.publisher(for: Notification.Name("_UIIsimHingeDidChangeNotification"))) { n in
+            guard isEnabled else { return }
+            let old = DeviceHingeContext(_degrees: (n.userInfo?["old"] as? NSNumber)?.doubleValue ?? _isimDeviceHingeAngle())
+            let new = DeviceHingeContext(_degrees: (n.userInfo?["new"] as? NSNumber)?.doubleValue ?? _isimDeviceHingeAngle())
+            if old != new { action(old, new) }
+        }
     }
 }
 

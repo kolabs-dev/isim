@@ -1,6 +1,6 @@
 // Sample: iOS 27.1 UIKit for foldable devices on isim's (non-folding) devices — UIArrangementViewController (split
 // and overlay arrangements, dimension ranges, layout priority, view states, placements, arrangementViewController),
-// UIHingeInteraction (no hinge), reserved regions (the Dynamic Island / notch occludes, no division), the vertical bar
+// UIHingeInteraction (no hinge; on iPhone Duo the hinge and the fold's division region), reserved regions (the Dynamic Island / notch occludes), the vertical bar
 // (verticalBarEdge, preferredVerticalBarBehavior through containers, axisBehavior, verticalBarCompressionBehavior),
 // and iOS 26 layout regions (safe area, margins, a 27.1 bar strip along an edge).
 import UIKit
@@ -29,8 +29,13 @@ final class LibraryViewController: UIViewController {
         if #available(iOS 27.1, *) { item.axisBehavior = .horizontalOnly; navigationItem.verticalBarCompressionBehavior = .prefersTabBar }
         navigationItem.rightBarButtonItem = item
         if #available(iOS 27.1, *) {
-            view.addInteraction(UIHingeInteraction { _, update in
-                log("hinge \(update.hinge.map { "status \($0.status.rawValue) angle \($0.angle)" } ?? "nil")")
+            view.addInteraction(UIHingeInteraction { [weak self] _, update in
+                log("hinge \(update.hinge.map { "status \($0.status.rawValue) degrees \(Int(($0.angle * 180 / .pi).rounded()))" } ?? "nil")")
+                // iPhone Duo's inner display: the fold, a division region (issue #115)
+                guard let v = self?.view, update.hinge != nil else { return }
+                for r in v.reservedRegions(kind: .division, options: .includeInactive) {
+                    log("division \(r.id) x \(Int(r.frame.minX)) width \(Int(r.frame.width)) height \(Int(r.frame.height)) active \(r.isActive)")
+                }
             })
         }
     }

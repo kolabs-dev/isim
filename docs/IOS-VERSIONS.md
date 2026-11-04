@@ -52,7 +52,7 @@ incompatible runtime), and when no runtime is chosen it picks a compatible one. 
 | iPhone Duo | 27.1 | 27.1 |
 
 **iPhone Duo** (`--device iphoneduo`, a foldable) starts folded, on its cover display (466 x 678 pt). Script `fold
-open|closed|toggle` (or `ISIM_FOLD=open` at boot) switches to the inner display (951 x 669 pt, regular x regular) and
+open|closed|toggle|angle N` (or `ISIM_FOLD=open` or an angle at boot; the window's More menu has Fold / unfold) switches to the inner display (951 x 669 pt, regular x regular) and
 back; apps resize through UIKit's size transition, and apps linked against an Apple SDK older than iOS 27.1 keep the
 cover's size, letterboxed with black borders, as on the device. Apps built with isim's SDK resize. The displays' sizes,
 scale and corner radii are the simulator device type's (read by a third party from Xcode 27.2 beta 2); the safe areas,

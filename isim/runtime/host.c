@@ -175,6 +175,20 @@ static const struct { const char *id; struct isim_device d; } inner_displays[] =
 static struct isim_device outer_dev;                     /* the preset folded (the cover display), upright */
 static int fold_inner = -1;                              /* its inner display (inner_displays), -1: not foldable */
 static int fold_open;                                    /* the device is unfolded */
+static double fold_angle;                                /* the hinge, in degrees: 0 closed .. 180 flat (script `fold angle N`) */
+#define FOLD_INNER_MIN 30                                /* from this angle the inner display is in use (proposed: Apple does not say) */
+/* a fold command's argument (open, closed, toggle, angle N or N): the angle it asks for, or -1 */
+static double fold_parse(const char *arg) {
+    double a;
+    if (!strncmp(arg, "open", 4)) return 180;
+    if (!strncmp(arg, "closed", 6)) return 0;
+    if (!strncmp(arg, "toggle", 6)) return fold_open ? 0 : 180;
+    if (!strncmp(arg, "angle", 5)) arg += 5;
+    char *end;
+    a = strtod(arg, &end);
+    if (end == arg) return -1;
+    return a < 0 ? 0 : a > 180 ? 180 : a;
+}
 static int fold_letterbox;                               /* this app keeps the cover's size on the inner display */
 static int dev_is_pad(void);
 static int fold_letterboxed_app(void);
@@ -193,7 +207,9 @@ static void device_from_env(void) {
     outer_dev = dev;
     for (size_t i = 0; d && i < sizeof inner_displays / sizeof *inner_displays; i++) if (!strcmp(inner_displays[i].id, d)) fold_inner = (int)i;
     const char *f = getenv("ISIM_FOLD");
-    fold_open = fold_inner >= 0 && f && !strcmp(f, "open");
+    fold_angle = f ? fold_parse(f) : 0;                  /* open, closed or an angle */
+    if (fold_angle < 0) fold_angle = 0;
+    fold_open = fold_inner >= 0 && fold_angle >= FOLD_INNER_MIN;
     if (fold_open && getenv("ISIM_CLIENT_SOCK") && fold_letterboxed_app()) fold_letterbox = 1;   /* launched unfolded */
     if (fold_open && !fold_letterbox) { dev = inner_displays[fold_inner].d; dev.orientation = 1; }
     portrait_dev = dev;
@@ -399,6 +415,11 @@ ISIM_GUEST_ABI int isim_device_orientation(void) { return device_orient; }
 ISIM_GUEST_ABI int isim_device_fold_state(void) {
     if (!portrait_dev.width) device_from_env();
     return fold_inner < 0 ? 0 : fold_open && !fold_letterbox ? 2 : 1;
+}
+/* the hinge's angle in degrees (0 closed, 180 flat), or -1 on a device that does not fold */
+ISIM_GUEST_ABI double isim_device_hinge_angle(void) {
+    if (!portrait_dev.width) device_from_env();
+    return fold_inner < 0 ? -1 : fold_angle;
 }
 /* the device folds or unfolds: the screen becomes the other display, in the same orientation */
 static void fold_set(int open) {
@@ -1784,11 +1805,12 @@ static int script_step(struct isim_event *ev) {
               : !strcmp(arg, "left") ? ccw[device_orient] : !strcmp(arg, "right") ? cw[device_orient] : 0;
         if (o) { device_orient = o; pending[npending++] = (struct isim_event){ .type = EV_DEVICE_ORIENTATION, .key = o }; script_resume = now() + 0.5; }
         else fprintf(stderr, "isim host: unknown orientation '%s'\n", arg);
-    } else if (!strcmp(cmd, "fold") && !shell_mode && sscanf(args, " %63[^; ]", arg) == 1) {
-        /* the app alone (isim run): a foldable folds or unfolds (`fold open|closed|toggle`); under the shell, shell_fold */
-        int open = !strcmp(arg, "open") ? 1 : !strcmp(arg, "closed") ? 0 : !strcmp(arg, "toggle") ? !fold_open : -1;
+    } else if (!strcmp(cmd, "fold") && !shell_mode && sscanf(args, " %63[^;]", arg) == 1) {
+        /* the app alone (isim run): a foldable folds or unfolds (`fold open|closed|toggle|angle N`); under the shell, shell_fold */
+        double angle = fold_parse(arg);
+        int open = angle < 0 ? -1 : angle >= FOLD_INNER_MIN;
         if (fold_inner < 0) fprintf(stderr, "isim host: fold: %s does not fold\n", portrait_dev.name);
-        else if (open < 0) fprintf(stderr, "isim host: fold: open, closed or toggle, not '%s'\n", arg);
+        else if (open < 0) fprintf(stderr, "isim host: fold: open, closed, toggle or angle N, not '%s'\n", arg);
         else if (open != fold_open && fold_letterboxed_app()) {   /* keeps the cover's size (no compositor to letterbox it) */
             fold_letterbox = open; fold_set(open);
             fprintf(stderr, "isim host: %s; the app keeps the cover display's size (linked against the iOS %u.%u SDK)\n",
@@ -1800,6 +1822,13 @@ static int script_step(struct isim_event *ev) {
             struct isim_event e = { .type = EV_SYSTEM }; snprintf(e.text, sizeof e.text, "fold %s", open ? "open" : "closed");
             pending[npending++] = e;
             fprintf(stderr, "isim host: %s, %s display (%gx%g)\n", open ? "unfolded" : "folded", open ? "inner" : "cover", dev.width, dev.height);
+            script_resume = now() + 0.5;
+        }
+        if (fold_inner >= 0 && open >= 0 && angle != fold_angle) {   /* the hinge moved: apps hear of it (UIHingeInteraction, onHingeChange) */
+            struct isim_event e = { .type = EV_SYSTEM }; snprintf(e.text, sizeof e.text, "hinge %g %g", angle, fold_angle);   /* new, old */
+            fold_angle = angle;
+            pending[npending++] = e;
+            fprintf(stderr, "isim host: hinge %g degrees\n", angle);
             script_resume = now() + 0.5;
         }
     } else if (!strcmp(cmd, "shake")) {          /* Device > Shake (motion event) */
@@ -2042,7 +2071,8 @@ static int next_event(struct isim_event *ev, double timeout) {
         ssize_t n = recv(client_sock, &m, sizeof m, 0);
         if (n <= 0) { ev->type = EV_QUIT; return 1; }        /* the shell went away */
         *ev = m.ev; ev->timestamp = isim_time();
-        if (ev->type == EV_SYSTEM && !strncmp(ev->text, "fold ", 5) && !client_fold(!strcmp(ev->text + 5, "open"))) {
+        if (ev->type == EV_SYSTEM && !strncmp(ev->text, "hinge ", 6)) fold_angle = atof(ev->text + 6);   /* UIKit hears of it too */
+        if (ev->type == EV_SYSTEM && !strncmp(ev->text, "fold ", 5) && !client_fold(!strncmp(ev->text + 5, "open", 4))) {
             memset(ev, 0, sizeof *ev); ev->type = EV_REDRAW;   /* nothing changed for the app (UIKit hears of a change) */
         }
         if (ev->type == EV_SYSTEM && !strncmp(ev->text, "statusbar-cellular ", 19)) {   /* the status bar we draw */
@@ -2558,7 +2588,7 @@ static const struct shim isim_table[] = {
     H(isim_crypto_25519_check_public), H(isim_crypto_x25519), H(isim_crypto_ed25519_sign), H(isim_crypto_ed25519_verify),
     H(isim_pki_available), H(isim_pki_error), H(isim_pki_generate), H(isim_pki_public), H(isim_pki_key_bits), H(isim_pki_sign), H(isim_pki_verify),
     H(isim_pki_encrypt), H(isim_pki_decrypt), H(isim_pki_ecdh), H(isim_pki_cert_parse), H(isim_pki_key_der), H(isim_pki_trust), H(isim_pki_trust_ex), H(isim_pki_pkcs12),
-    H(isim_set_orientation), H(isim_device_orientation), H(isim_device_fold_state),
+    H(isim_set_orientation), H(isim_device_orientation), H(isim_device_fold_state), H(isim_device_hinge_angle),
     H(isim_gfx_offscreen_begin), H(isim_gfx_offscreen_snapshot), H(isim_gfx_offscreen_end), H(isim_gfx_offscreen_depth),
     H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_text_ink_markup), H(isim_tl_create), H(isim_tl_free), H(isim_tl_size), H(isim_tl_line_count), H(isim_tl_line), H(isim_tl_index_rect), H(isim_tl_index_at), H(isim_tl_draw), H(isim_tl_set_tabs), H(isim_text_draw_markup),
     H(isim_regex_compile), H(isim_regex_free), H(isim_regex_capture_count), H(isim_regex_group_number), H(isim_regex_error_message), H(isim_regex_match),
