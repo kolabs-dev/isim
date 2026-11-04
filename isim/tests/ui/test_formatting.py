@@ -77,3 +77,12 @@ def test_de_de(runs):
     assert "fmt list=Red, Green und Blue" in de and "fmt date-relative=vor 2 Stunden" in de and \
         "fmt date-yesterday=gestern" in de, "de_DE: list + relative time"
     assert "text=1.234.567,891" in de and "text=Red, Green und Blue" in de, "de_DE: values shown on screen"
+
+
+def test_foundation_extras(runs):
+    # issue #860: Decimal parse strategies and classification, CocoaError codes and Core Data userInfo, byte counts
+    us, _, _, _ = runs
+    assert "x860 decimal 1234.5678 percent 0.125 currency 19.99" in us, us[-2000:]
+    assert "x860 class true true signOf -7 ordered true" in us
+    assert "x860 cocoa 1550 title xpc true alias true" in us
+    assert "x860 bytes 3.5 MB parsed 5." in us

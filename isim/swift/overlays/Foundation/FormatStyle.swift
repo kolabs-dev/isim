@@ -151,6 +151,7 @@ public enum CurrencyFormatStyleConfiguration {
     public typealias Precision = NumberFormatStyleConfiguration.Precision
     public typealias DecimalSeparatorDisplayStrategy = NumberFormatStyleConfiguration.DecimalSeparatorDisplayStrategy
     public typealias RoundingRule = NumberFormatStyleConfiguration.RoundingRule
+    public typealias Notation = NumberFormatStyleConfiguration.Notation
     public struct SignDisplayStrategy: Codable, Hashable, Sendable {
         enum Kind: Int, Codable, Hashable { case automatic, never, always, alwaysIncludingZero, accounting, accountingAlways }
         let kind: Kind

@@ -107,3 +107,8 @@ extension NSCustomMigrationStage {
         set { __didMigrateHandler = newValue.map { h in { m, s, e in do { try h(m, s); return true } catch { e?.pointee = error as NSError; return false } } } }
     }
 }
+
+extension CocoaError {
+    /// the conflicts of a failed save (NSPersistentStoreSaveConflictsErrorKey; issue #860)
+    public var persistentStoreSaveConflicts: [NSMergeConflict]? { errorUserInfo[NSPersistentStoreSaveConflictsErrorKey] as? [NSMergeConflict] }
+}
