@@ -66,3 +66,7 @@ usr/lib/swift/libswiftNaturalLanguage.dylib 0.34.0
 # Apple's class over vDSP_DiscreteFourierTransformable. Swift apps built with 0.33 or earlier that use vImage's Swift
 # API or vDSP.DiscreteFourierTransform must be rebuilt.
 usr/lib/swift/libswiftAccelerate.dylib 0.34.0
+# 0.35.0 (issue #850): AppIntents has Apple's value model: AppEntity and AppEnum refine _IntentValue (ValueType /
+# UnwrappedType), which Apple's IntentParameter / EntityProperty / IntentParameterContext overloads are constrained on.
+# Swift apps built with 0.34 or earlier that use AppIntents must be rebuilt.
+usr/lib/swift/libswiftAppIntents.dylib 0.35.0

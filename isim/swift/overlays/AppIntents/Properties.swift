@@ -11,10 +11,15 @@ import UniformTypeIdentifiers
 
 /// A property of an AppEntity the system can show, filter and sort by (`@Property(title:)` in an entity).
 @propertyWrapper
-public final class EntityProperty<Value>: @unchecked Sendable {
+public final class EntityProperty<Value>: @unchecked Sendable where Value: _IntentValue, Value: Sendable {
     var _value: Value?
     let _title: LocalizedStringResource?
     let _identifier: String?
+    /// the Spotlight attribute it is indexed under (`indexingKey:` / `customIndexingKey:`)
+    var _options: [String: Any] = [:]
+    /// a computed property's value, from its entity (`getter:` / `getSetter:` / `asyncGetter:`)
+    var _getter: ((Any) -> Any?)?
+    var _asyncGetter: ((Any) async throws -> Any?)?
     public var wrappedValue: Value {
         get {
             if let v = _value { return v }
@@ -36,7 +41,7 @@ public final class EntityProperty<Value>: @unchecked Sendable {
     }
 }
 extension AppEntity {
-    public typealias Property<Value> = EntityProperty<Value>
+    public typealias Property<Value> = EntityProperty<Value> where Value: _IntentValue, Value: Sendable
 }
 /// Options of an entity property (iOS 26).
 public struct EntityPropertyModifiers: OptionSet, Sendable {
@@ -173,6 +178,9 @@ public protocol CustomAppIntentErrorConvertible: Error {
 public struct AppIntentError: Error, LocalizedError, Equatable, Sendable, CustomLocalizedStringResourceConvertible {
     let code: String
     let message: String
+    /// needsValueError / needsDisambiguationError: what the system asks for before performing again
+    var _needs: _IsimNeedsValue?
+    init(needs: _IsimNeedsValue) { code = "needsValue"; message = ""; _needs = needs }
     public var localizedStringResource: LocalizedStringResource { LocalizedStringResource(String.LocalizationValue(message)) }
     public var errorDescription: String? { message }
     var restart: Bool { code == "restartPerform" }
@@ -302,8 +310,8 @@ public struct IntentCurrencyAmount: Hashable, Sendable, CustomStringConvertible 
 // MARK: - dynamic options
 
 /// What an options provider returns: a list of values, or an IntentItemCollection with titles and sections.
-public protocol ResultsCollection {
-    associatedtype Result
+public protocol ResultsCollection<Result> {
+    associatedtype Result: _IntentValue
     var items: [Result] { get }
     var promptLabel: LocalizedStringResource? { get }
     var usesIndexedCollation: Bool { get }
@@ -315,13 +323,13 @@ extension ResultsCollection {
     public var usesIndexedCollation: Bool { false }
     public var _isimItems: [IntentItem<Result>] { items.map { IntentItem($0) } }
 }
-extension Array: ResultsCollection {
+extension Array: ResultsCollection where Element: _IntentValue {
     public typealias Result = Element
     public var items: [Element] { self }
     public static var empty: [Element] { [] }
 }
 /// One value with how it is shown.
-public struct IntentItem<Value>: @unchecked Sendable, Identifiable {
+public struct IntentItem<Value>: @unchecked Sendable, Identifiable where Value: _IntentValue {
     public let id = UUID()
     public var value: Value
     let _title: LocalizedStringResource?, _subtitle: LocalizedStringResource?, _image: DisplayRepresentation.Image?
@@ -342,7 +350,7 @@ public struct IntentItem<Value>: @unchecked Sendable, Identifiable {
     }
 }
 /// A titled group of values.
-public struct IntentItemSection<Result>: @unchecked Sendable {
+public struct IntentItemSection<Result>: @unchecked Sendable where Result: _IntentValue {
     public var description: DisplayRepresentation?
     public var items: [IntentItem<Result>]
     public init(items: [IntentItem<Result>]) { description = nil; self.items = items }
@@ -363,7 +371,7 @@ public struct IntentItemSection<Result>: @unchecked Sendable {
     }
 }
 /// The values an options provider offers, in sections, with a prompt.
-public struct IntentItemCollection<Result>: ResultsCollection, @unchecked Sendable {
+public struct IntentItemCollection<Result>: ResultsCollection, @unchecked Sendable where Result: _IntentValue {
     public var sections: [IntentItemSection<Result>]
     public var promptLabel: LocalizedStringResource?
     public var usesIndexedCollation: Bool
@@ -384,7 +392,7 @@ public struct IntentItemCollection<Result>: ResultsCollection, @unchecked Sendab
 /// The values a parameter can take, computed when the system asks (`@Parameter(title:optionsProvider:)`).
 public protocol DynamicOptionsProvider: Sendable {
     associatedtype Result: ResultsCollection
-    associatedtype DefaultValue = Never
+    associatedtype DefaultValue: _IntentValue = Result.Result where DefaultValue.ValueType == Result.Result.ValueType
     func results() async throws -> Result
     func defaultResult() async -> DefaultValue?
 }
@@ -402,23 +410,6 @@ extension DynamicOptionsProvider {
         }
     }
 }
-extension IntentParameter {
-    public convenience init<P: DynamicOptionsProvider>(title: LocalizedStringResource, description: LocalizedStringResource? = nil, optionsProvider: P) {
-        self.init(title: title, description: description)
-        _optionsProvider = { await optionsProvider._isimOptions() }
-    }
-    public convenience init<P: DynamicOptionsProvider>(title: LocalizedStringResource, description: LocalizedStringResource? = nil, default value: Value,
-                                                       optionsProvider: P) {
-        self.init(title: title, description: description, default: value)
-        _optionsProvider = { await optionsProvider._isimOptions() }
-    }
-    public convenience init<P: DynamicOptionsProvider>(title: LocalizedStringResource, description: LocalizedStringResource? = nil,
-                                                       requestValueDialog: IntentDialog?, optionsProvider: P) {
-        self.init(title: title, description: description, requestValueDialog: requestValueDialog)
-        _optionsProvider = { await optionsProvider._isimOptions() }
-    }
-}
-
 // MARK: - parameter summaries
 
 /// The sentence Shortcuts shows for an action, with its parameters in place (`static var parameterSummary`).
