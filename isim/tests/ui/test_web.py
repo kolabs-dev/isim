@@ -60,6 +60,7 @@ def test_web(launch, web):
     app.tap(100, 248 + TOP)
     app.wait_log(r"^HelloWeb: calc 6 \* 7 = 42")
     app.wait_log(r"page out: reply 42")                                   # WKScriptMessageHandlerWithReply
+    app.wait_log(r'page out: detail \{"factors":\[2,3\],"label":"2×3","parity":\{"even":true\},"product":6\}')   # a dictionary reply (#828)
     app.tap(140, 317 + TOP)
     app.wait_log(r"keyboard shown", count=2)                              # the field's keyboard (the first was prompt()'s)
     app.type("hello")

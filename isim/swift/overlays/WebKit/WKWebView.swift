@@ -865,8 +865,7 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
         if name.hasPrefix("isimExt"), #available(iOS 18.4, *) {          // browser.* from a web extension
             _WKExtBridge.receive(self, name: name, body: body) { [weak self] value, error in
                 if req == "0" { return }
-                if let error { self?._send(["reply", req, "0", error]) } else { self?._send(["reply", req, "1", _wkJSONText(_wkJSONText(value ?? NSNull()))])  /* as JSON text, which the shim parses:
-                                                                                        objects and arrays in replies arrive empty (#828) */ }
+                if let error { self?._send(["reply", req, "0", error]) } else { self?._send(["reply", req, "1", _wkJSONText(value ?? NSNull())]) }
             }
             return
         }

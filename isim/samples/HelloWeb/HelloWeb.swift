@@ -63,7 +63,7 @@ a { position: absolute; left: 16px; font-size: 18px; color: #007aff; }
 <button class="b" id="alert" style="top:104px" onclick="alert('Hello from JavaScript'); out('alert done')">Alert</button>
 <button class="b" id="confirm" style="top:152px" onclick="out('confirm ' + confirm('Delete everything?'))">Confirm</button>
 <button class="b" id="prompt" style="top:200px" onclick="out('prompt ' + prompt('Your name?', 'Ada'))">Prompt</button>
-<button class="b" id="reply" style="top:248px" onclick="window.webkit.messageHandlers.calc.postMessage({a: 6, b: 7}).then(function (r) { out('reply ' + r) })">Ask native</button>
+<button class="b" id="reply" style="top:248px" onclick="var c = window.webkit.messageHandlers.calc; c.postMessage({a: 6, b: 7}).then(function (r) { out('reply ' + r); return c.postMessage({a: 2, b: 3, detail: true}) }).then(function (d) { out('detail ' + JSON.stringify(d, ['even', 'factors', 'label', 'parity', 'product'])) })">Ask native</button>
 <input id="field" style="position:absolute;top:300px;left:16px;width:250px;height:34px;font-size:17px" placeholder="Type here" oninput="out('typed ' + this.value)">
 <a id="next" href="isim-demo://pages/two" style="top:350px">Next page (scheme handler)</a>
 <a id="blocked" href="https://blocked.example/" style="top:385px">Blocked link</a>
@@ -115,8 +115,10 @@ final class MessageHandler: NSObject, WKScriptMessageHandler {
 final class CalcHandler: NSObject, WKScriptMessageHandlerWithReply {
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) async -> (Any?, String?) {
         let o = message.body as? [String: Any] ?? [:]
-        let r = (o["a"] as? Int ?? 0) * (o["b"] as? Int ?? 0)
+        let a = o["a"] as? Int ?? 0, b = o["b"] as? Int ?? 0, r = a * b
         log("calc \(o["a"] ?? "-") * \(o["b"] ?? "-") = \(r)")
+        // a dictionary with an array, a string and a nested dictionary (issue #828)
+        if o["detail"] as? Bool == true { return (["product": r, "factors": [a, b], "label": "\(a)×\(b)", "parity": ["even": r % 2 == 0]], nil) }
         return (r, nil)
     }
 }
