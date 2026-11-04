@@ -160,6 +160,21 @@
 + (NSUnitFuelEfficiency *)milesPerImperialGallon { static NSUnitFuelEfficiency *u; static dispatch_once_t o; dispatch_once(&o, ^{ u = [[NSUnitFuelEfficiency alloc] initWithSymbol:@"mpg Imp." converter:[[_IsimUnitConverterReciprocal alloc] initWithReciprocal:282.481]]; u->_isimKey = @"milesPerImperialGallon"; u->_isimOne = @"mile per imperial gallon"; u->_isimOther = @"miles per imperial gallon"; }); return u; }
 + (NSUnitFuelEfficiency *)milesPerGallon { static NSUnitFuelEfficiency *u; static dispatch_once_t o; dispatch_once(&o, ^{ u = [[NSUnitFuelEfficiency alloc] initWithSymbol:@"mpg" converter:[[_IsimUnitConverterReciprocal alloc] initWithReciprocal:235.215]]; u->_isimKey = @"milesPerGallon"; u->_isimOne = @"mile per gallon"; u->_isimOther = @"miles per gallon"; }); return u; }
 @end
+@implementation NSUnitConcentrationMass
++ (instancetype)baseUnit { return [self gramsPerLiter]; }
++ (NSUnitConcentrationMass *)gramsPerLiter { static NSUnitConcentrationMass *u; static dispatch_once_t o; dispatch_once(&o, ^{ u = [[NSUnitConcentrationMass alloc] initWithSymbol:@"g/L" converter:[[NSUnitConverterLinear alloc] initWithCoefficient:1.0 constant:0.0]]; u->_isimKey = @"gramsPerLiter"; u->_isimOne = @"gram per liter"; u->_isimOther = @"grams per liter"; }); return u; }
++ (NSUnitConcentrationMass *)milligramsPerDeciliter { static NSUnitConcentrationMass *u; static dispatch_once_t o; dispatch_once(&o, ^{ u = [[NSUnitConcentrationMass alloc] initWithSymbol:@"mg/dL" converter:[[NSUnitConverterLinear alloc] initWithCoefficient:0.01 constant:0.0]]; u->_isimKey = @"milligramsPerDeciliter"; u->_isimOne = @"milligram per deciliter"; u->_isimOther = @"milligrams per deciliter"; }); return u; }
+/* mmol/L of a substance of the given molar mass: 1 mmol/L = gramsPerMole / 1000 g/L */
++ (NSUnitConcentrationMass *)millimolesPerLiterWithGramsPerMole:(double)gramsPerMole {
+    NSUnitConcentrationMass *u = [[NSUnitConcentrationMass alloc] initWithSymbol:@"mmol/L" converter:[[NSUnitConverterLinear alloc] initWithCoefficient:gramsPerMole * 0.001 constant:0.0]];
+    u->_isimKey = @"millimolesPerLiter"; u->_isimOne = @"millimole per liter"; u->_isimOther = @"millimoles per liter";
+    return u;
+}
+@end
+@implementation NSUnitDispersion
++ (instancetype)baseUnit { return [self partsPerMillion]; }
++ (NSUnitDispersion *)partsPerMillion { static NSUnitDispersion *u; static dispatch_once_t o; dispatch_once(&o, ^{ u = [[NSUnitDispersion alloc] initWithSymbol:@"ppm" converter:[[NSUnitConverterLinear alloc] initWithCoefficient:1.0 constant:0.0]]; u->_isimKey = @"partsPerMillion"; u->_isimOne = @"part per million"; u->_isimOther = @"parts per million"; }); return u; }
+@end
 @implementation NSUnitIlluminance
 + (instancetype)baseUnit { return [self lux]; }
 + (NSUnitIlluminance *)lux { static NSUnitIlluminance *u; static dispatch_once_t o; dispatch_once(&o, ^{ u = [[NSUnitIlluminance alloc] initWithSymbol:@"lx" converter:[[NSUnitConverterLinear alloc] initWithCoefficient:1.0 constant:0.0]]; u->_isimKey = @"lux"; u->_isimOne = @"lux"; u->_isimOther = @"lux"; }); return u; }

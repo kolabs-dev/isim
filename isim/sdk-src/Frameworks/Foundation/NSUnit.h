@@ -128,6 +128,16 @@ NS_SWIFT_NAME(UnitFuelEfficiency)
 @property (class, readonly, copy) NSUnitFuelEfficiency *milesPerImperialGallon;
 @property (class, readonly, copy) NSUnitFuelEfficiency *milesPerGallon;
 @end
+NS_SWIFT_NAME(UnitConcentrationMass)
+@interface NSUnitConcentrationMass : NSDimension <NSSecureCoding>
+@property (class, readonly, copy) NSUnitConcentrationMass *gramsPerLiter;
+@property (class, readonly, copy) NSUnitConcentrationMass *milligramsPerDeciliter;
++ (NSUnitConcentrationMass *)millimolesPerLiterWithGramsPerMole:(double)gramsPerMole;
+@end
+NS_SWIFT_NAME(UnitDispersion)
+@interface NSUnitDispersion : NSDimension <NSSecureCoding>
+@property (class, readonly, copy) NSUnitDispersion *partsPerMillion;
+@end
 NS_SWIFT_NAME(UnitIlluminance)
 @interface NSUnitIlluminance : NSDimension <NSSecureCoding>
 @property (class, readonly, copy) NSUnitIlluminance *lux;

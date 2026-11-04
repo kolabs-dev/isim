@@ -105,3 +105,16 @@ def test_bookshelf_runs(launch, tmp_path):
     r.app.quit()
     r = Run(launch, tmp_path, {"intent": "HelloBookshelfIntents.SyncLibraryIntent"})
     assert r.step(1)["dialog"] == "Synced after 2 attempts."
+
+
+def test_bookshelf_typed_parameters(launch, tmp_path):
+    # Apple's typed overloads (issue #850): defaults and the options each value type takes, read back through the
+    # parameters' getters (controlStyle, defaultValue, defaultUnit, dateKind, valueState, displayName, inputOptions)
+    r = Run(launch, tmp_path, {"intent": "HelloBookshelfIntents.PrintLabelsIntent"})
+    s = r.step(1)
+    assert s["outcome"] == "success" and s["dialog"] == "2 labels for a 80 cm shelf.", s
+    r.app.wait_log(r"bi typed glucose .*")
+    for line in ("bi typed copies 2 stepper true default 2", "bi typed width 0.8 unit true negatives false",
+                 "bi typed due true unset true", "bi typed laminate Matte caption true", "bi typed loan 7200 unit true",
+                 "bi typed glucose 18 mg/dL, ppm"):
+        assert re.search("^" + re.escape(line) + "$", r.app.log, re.M), (line, re.findall(r"^bi typed.*$", r.app.log, re.M))

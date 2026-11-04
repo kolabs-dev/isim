@@ -146,6 +146,29 @@ struct SyncLibraryIntent: AppIntent {
     }
 }
 
+/// Apple's typed overloads (issue #850): an Int with a stepper and a range, a measurement with a default unit, a date
+/// kind, a Bool's display names, a String's input options and a Swift Duration; perform() reads them back
+struct PrintLabelsIntent: AppIntent {
+    static var title: LocalizedStringResource { "Print Labels" }
+    @Parameter(title: "Copies", default: 2, controlStyle: .stepper, inclusiveRange: (lowerBound: 1, upperBound: 5)) var copies: Int
+    @Parameter(title: "Shelf Width", defaultValue: 80, defaultUnit: .centimeters, supportsNegativeNumbers: false) var width: Measurement<UnitLength>
+    @Parameter(title: "Due", kind: .date) var due: Date?
+    @Parameter(title: "Laminate", default: false, displayName: Bool.IntentDisplayName(true: "Glossy", false: "Matte")) var laminate: Bool
+    @Parameter(title: "Caption", inputOptions: String.IntentInputOptions(capitalizationType: .words)) var caption: String?
+    @Parameter(title: "Loan", default: .seconds(7200), defaultUnit: .hours) var loan: Duration
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        print("bi typed copies \(copies) stepper \($copies.controlStyle == .stepper) default \($copies.defaultValue ?? 0)")
+        print("bi typed width \(width.converted(to: .meters).value) unit \($width.defaultUnit == .centimeters) negatives \($width.supportsNegativeNumbers ?? true)")
+        print("bi typed due \($due.dateKind == .date) unset \({ if case .unset = $due.valueState { return true }; return false }())")
+        print("bi typed laminate \($laminate.displayName?.false.description ?? "-") caption \($caption.inputOptions?.capitalizationType == .words)")
+        print("bi typed loan \(loan.components.seconds) unit \($loan.defaultUnit == .hours)")
+        let glucose = Measurement(value: 1, unit: UnitConcentrationMass.millimolesPerLiter(withGramsPerMole: 180)).converted(to: .milligramsPerDeciliter)
+        print("bi typed glucose \(Int(glucose.value.rounded())) mg/dL, \(UnitDispersion.partsPerMillion.symbol)")
+        fflush(stdout)
+        return .result(dialog: "\(copies) labels for a \(Int(width.value)) cm shelf.")
+    }
+}
+
 // MARK: the app
 
 @main

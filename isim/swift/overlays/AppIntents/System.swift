@@ -311,7 +311,7 @@ enum _IsimValues {
         }
         let k = _IsimValues.kind(p._isimValueType)
         let name = names[ObjectIdentifier(p)] ?? ""
-        let prompt = dialog ?? p._isimPrompt ?? _IsimValues.prompt(p._isimTitle, k)
+        let prompt = dialog ?? p._isimPrompt ?? _IsimValues.prompt(p._isimTitle.isEmpty ? name : p._isimTitle, k)
         var options: [_IsimOption]
         if let among { options = among.enumerated().map { _IsimOption(id: "\($0.offset)", title: _IsimValues.describe($0.element), subtitle: "", value: $0.element) } }
         else if let provided = p._isimProvidedOptions { options = await provided() }          /* a DynamicOptionsProvider */
@@ -429,10 +429,10 @@ enum _IsimValues {
             while performed == nil {
                 do { performed = try await _perform(intent) }
                 catch let e as AppIntentError where e.restart && attempts < 4 { attempts += 1 }   /* restartPerform */
-                catch let e as _IsimNeedsValue where attempts < 4 {      /* needsValueError(): ask, then perform again */
+                catch let e as AppIntentError where e._needs != nil && attempts < 4 {  /* needsValueError(): ask, then perform again */
                     attempts += 1
-                    guard let p = e.parameter as? _IsimAnyParameter else { throw e }
-                    let v = try await _IsimRun.ask(p, dialog: e.dialog, among: nil)
+                    guard let n = e._needs, let p = n.parameter as? _IsimAnyParameter else { throw e }
+                    let v = try await _IsimRun.ask(p, dialog: n.dialog, among: n.among)
                     _ = p._isimSet(v)
                 }
             }
@@ -484,7 +484,7 @@ func _isimOpenTarget<O: OpenIntent>(_ o: O) -> String { _isimTypeName(O.Value.se
     static func colorName(_ c: ShortcutTileColor) -> String { "\(c)" }
     static func paramInfo(_ name: String, _ p: _IsimAnyParameter) async -> [String: Any] {
         let k = _IsimValues.kind(p._isimValueType)
-        var d: [String: Any] = ["name": name, "title": p._isimTitle, "kind": k.name, "optional": p._isimOptional, "hasValue": p._isimHasValue]
+        var d: [String: Any] = ["name": name, "title": p._isimTitle.isEmpty ? name : p._isimTitle, "kind": k.name, "optional": p._isimOptional, "hasValue": p._isimHasValue]
         if let pr = p._isimPrompt { d["prompt"] = pr }
         if let v = p._isimCurrent { d["value"] = _IsimValues.describe(v) }
         let opts: [_IsimOption]

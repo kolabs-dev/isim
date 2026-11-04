@@ -200,13 +200,19 @@ extension Optional: _IsimOptional {
 }
 
 @propertyWrapper
-public final class IntentParameter<Value>: @unchecked Sendable {
+public final class IntentParameter<Value>: @unchecked Sendable where Value: _IntentValue, Value: Sendable {
     var _value: Value?
     /// a DynamicOptionsProvider's values (Properties.swift)
     var _optionsProvider: (() async -> [_IsimOption])?
-    public let title: LocalizedStringResource
+    let _title: LocalizedStringResource?
     let _description: LocalizedStringResource?
     let _requestValueDialog: IntentDialog?
+    /// what the overload was given beyond title, description and default (control style, range, unit, …), for its getters
+    var _options: [String: Any]
+    /// the value given as the parameter's default (`default:`, or `defaultValue:` and `defaultUnit:` for measurements)
+    public let defaultValue: Value.UnwrappedType?
+    /// the parameter's title: the one given, else the property's name
+    public var title: LocalizedStringResource { _title ?? "" }
     public var wrappedValue: Value {
         get {
             if let v = _value { return v }
@@ -215,62 +221,71 @@ public final class IntentParameter<Value>: @unchecked Sendable {
         }
         set { _value = newValue }
     }
-    public init(title: LocalizedStringResource, description: LocalizedStringResource? = nil, default value: Value) {
-        self.title = title; _description = description; _requestValueDialog = nil; _value = value
+    /// every overload (ParameterOverloads.swift) ends here
+    init(_isimTitle title: LocalizedStringResource?, description: LocalizedStringResource?, default value: Any?, requestValueDialog: IntentDialog?,
+         options: [String: Any]) {
+        _title = title; _description = description; _requestValueDialog = requestValueDialog; _options = options
+        let d = value.flatMap { _IsimValues.cast($0, to: Value.UnwrappedType.self) }
+        defaultValue = d
+        _value = d.flatMap { _IsimValues.cast($0, to: Value.self) }
     }
-    public init(title: LocalizedStringResource, description: LocalizedStringResource? = nil) where Value: ExpressibleByNilLiteral {
-        self.title = title; _description = description; _requestValueDialog = nil; _value = nil
+    func _isimOption<T>(_ keys: String...) -> T? {
+        for k in keys { if let v = _options[k] as? T { return v } }
+        return nil
     }
-    /// a required parameter: the system asks for it before perform() when it has no value
-    public init(title: LocalizedStringResource, description: LocalizedStringResource? = nil) {
-        self.title = title; _description = description; _requestValueDialog = nil; _value = nil
-    }
-    public init(title: LocalizedStringResource, description: LocalizedStringResource? = nil, requestValueDialog: IntentDialog?) {
-        self.title = title; _description = description; _requestValueDialog = requestValueDialog; _value = nil
-    }
-    public init(title: LocalizedStringResource, description: LocalizedStringResource? = nil, default value: Value, requestValueDialog: IntentDialog?) {
-        self.title = title; _description = description; _requestValueDialog = requestValueDialog; _value = value
-    }
-    public init(title: LocalizedStringResource, default value: Value, inclusiveRange: (Value, Value)) {
-        self.title = title; _description = nil; _requestValueDialog = nil; _value = value
-    }
-    public init(title: LocalizedStringResource, description: LocalizedStringResource? = nil, default value: Value, inclusiveRange: (Value, Value),
-                requestValueDialog: IntentDialog?) {
-        self.title = title; _description = description; _requestValueDialog = requestValueDialog; _value = value
-    }
-    public init(wrappedValue: Value, title: LocalizedStringResource) { self.title = title; _description = nil; _requestValueDialog = nil; _value = wrappedValue }
+    /// whether the parameter has a value
+    public final var valueState: ValueState { _value.map { .set($0) } ?? .unset }
     public var projectedValue: IntentParameter<Value> { self }
     public var description: LocalizedStringResource? { _description }
 
     /// Asks the person for the value (Siri / the Shortcuts run UI) and keeps it.
-    @MainActor public func requestValue(_ dialog: IntentDialog? = nil) async throws -> Value {
+    @MainActor public final func requestValue(_ dialog: IntentDialog? = nil) async throws -> Value.ValueType {
         let v = try await _IsimRun.ask(self, dialog: dialog?.text ?? _requestValueDialog?.text, among: nil)
-        guard let typed = _IsimValues.cast(v, to: Value.self) else { throw _IsimIntentError.cancelled }
-        _value = typed
+        guard let typed = _IsimValues.cast(v, to: Value.ValueType.self) else { throw _IsimIntentError.cancelled }
+        if let whole = _IsimValues.cast(v, to: Value.self) { _value = whole }
         return typed
     }
     /// Asks the person to choose one of several values.
-    @MainActor public func requestDisambiguation(among values: [Value], dialog: IntentDialog? = nil) async throws -> Value {
-        let v = try await _IsimRun.ask(self, dialog: dialog?.text ?? "Which one?", among: values.map { $0 as Any })
-        guard let typed = _IsimValues.cast(v, to: Value.self) else { throw _IsimIntentError.cancelled }
-        _value = typed
+    @MainActor public final func requestDisambiguation(among itemsToDisambiguate: [Value.ValueType], dialog: IntentDialog? = nil) async throws -> Value.ValueType {
+        let v = try await _IsimRun.ask(self, dialog: dialog?.text ?? _isimOption("requestDisambiguationDialog").map { (d: IntentDialog) in d.text } ?? "Which one?",
+                                       among: itemsToDisambiguate.map { $0 as Any })
+        guard let typed = _IsimValues.cast(v, to: Value.ValueType.self) else { throw _IsimIntentError.cancelled }
+        if let whole = _IsimValues.cast(v, to: Value.self) { _value = whole }
         return typed
     }
     /// Asks the person to confirm a value: true when they do.
-    @MainActor public func requestConfirmation(for value: Value, dialog: IntentDialog? = nil) async throws -> Bool {
+    @MainActor public final func requestConfirmation(for itemToConfirm: Value.ValueType, dialog: IntentDialog? = nil) async throws -> Bool {
+        try await _isimConfirm(itemToConfirm, dialog: dialog, snippet: nil)
+    }
+    /// Asks the person to confirm a value, with a view showing it.
+    @MainActor public final func requestConfirmation<ViewType: View>(for itemToConfirm: Value.ValueType, dialog: IntentDialog? = nil, view: ViewType) async throws -> Bool {
+        try await _isimConfirm(itemToConfirm, dialog: dialog, snippet: AnyView(view))
+    }
+    @MainActor public final func requestConfirmation<ViewType: View>(for itemToConfirm: Value.ValueType, dialog: IntentDialog? = nil,
+                                                                     @ViewBuilder view: () -> ViewType) async throws -> Bool {
+        try await _isimConfirm(itemToConfirm, dialog: dialog, snippet: AnyView(view()))
+    }
+    @MainActor func _isimConfirm(_ item: Value.ValueType, dialog: IntentDialog?, snippet: AnyView?) async throws -> Bool {
         do {
-            try await _IsimRun.confirm(dialog: dialog?.text ?? "Did you mean \(_IsimValues.describe(value))?", snippet: nil, action: "Yes", cancel: "No")
+            try await _IsimRun.confirm(dialog: dialog?.text ?? "Did you mean \(_IsimValues.describe(item))?", snippet: snippet, action: "Yes", cancel: "No")
             return true
         } catch _IsimIntentError.cancelled { return false }
     }
     /// Thrown from perform(): the system asks for the value, then runs perform() again.
-    public func needsValueError(_ dialog: IntentDialog? = nil) -> some Error { _IsimNeedsValue(parameter: self, dialog: dialog?.text) }
+    public final func needsValueError(_ dialog: IntentDialog? = nil) -> AppIntentError {
+        AppIntentError(needs: _IsimNeedsValue(parameter: self, dialog: dialog?.text, among: nil))
+    }
+    /// Thrown from perform(): the system asks the person to choose one of the values, then runs perform() again.
+    public final func needsDisambiguationError(among itemsToDisambiguate: [Value.ValueType], dialog: IntentDialog? = nil) -> AppIntentError {
+        AppIntentError(needs: _IsimNeedsValue(parameter: self, dialog: dialog?.text, among: itemsToDisambiguate.map { $0 as Any }))
+    }
 }
 public typealias Parameter = IntentParameter
 
 struct _IsimNeedsValue: Error, CustomStringConvertible, @unchecked Sendable {
     let parameter: AnyObject
     let dialog: String?
+    let among: [Any]?
     var description: String { "needsValue" }
 }
 enum _IsimIntentError: Error, CustomStringConvertible {
@@ -290,7 +305,7 @@ protocol _IsimAnyParameter: AnyObject {
     func _isimSet(_ v: Any?) -> Bool
 }
 extension IntentParameter: _IsimAnyParameter {
-    var _isimTitle: String { title.description }
+    var _isimTitle: String { _title?.description ?? "" }
     var _isimPrompt: String? { _requestValueDialog?.text }
     var _isimHasValue: Bool {
         guard let v = _value else { return false }
@@ -337,7 +352,7 @@ public struct TypeDisplayRepresentation: ExpressibleByStringLiteral, Sendable {
     public init(stringLiteral value: String) { name = LocalizedStringResource(String.LocalizationValue(value)) }
 }
 public protocol AppValue {}
-@_alwaysEmitConformanceMetadata public protocol AppEnum: CaseIterable, RawRepresentable, Hashable, AppValue, Sendable where RawValue == String {
+@_alwaysEmitConformanceMetadata public protocol AppEnum: CaseIterable, RawRepresentable, Hashable, AppValue, Sendable, _IntentValue where RawValue == String {
     static var typeDisplayRepresentation: TypeDisplayRepresentation { get }
     static var caseDisplayRepresentations: [Self: DisplayRepresentation] { get }
 }
@@ -360,7 +375,7 @@ public protocol EntityStringQuery: EntityQuery {
 public protocol EnumerableEntityQuery: EntityQuery {
     func allEntities() async throws -> [Entity]
 }
-@_alwaysEmitConformanceMetadata public protocol AppEntity: Identifiable, Sendable {
+@_alwaysEmitConformanceMetadata public protocol AppEntity: Identifiable, Sendable, _IntentValue {
     associatedtype DefaultQuery: EntityQuery
     static var typeDisplayRepresentation: TypeDisplayRepresentation { get }
     var displayRepresentation: DisplayRepresentation { get }
