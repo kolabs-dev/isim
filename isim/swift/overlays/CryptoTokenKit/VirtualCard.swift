@@ -32,7 +32,31 @@ func _unhex(_ s: String) -> [UInt8]? {
 }
 func _hex<S: Sequence>(_ s: S) -> String where S.Element == UInt8 { s.map { String(format: "%02X", $0) }.joined() }
 
-final class _TKVirtualCard: @unchecked Sendable {
+/// what a slot's card talks to: a virtual card of readers.json, or a host PC/SC card (issue #745)
+protocol _TKCardBackend: AnyObject, Sendable {
+    var atr: [UInt8] { get }
+    /// the token driver readers.json names (virtual cards only), and the serial number tokens are named by
+    var token: String? { get }
+    var serial: String { get }
+    /// starts a session (T=0 bit 0, T=1 bit 1 as allowed); the protocol in use, nil: decided by the ATR (virtual cards)
+    func beginSession(protocols: Int) -> Bool
+    var activeProtocol: Int? { get }
+    /// one command APDU's response (data, SW1, SW2); nil when the card cannot be reached
+    func exchange(_ apdu: [UInt8]) -> [UInt8]?
+    func endSession()
+}
+extension _TKCardBackend {
+    /// whether the card has an applet of this AID (SELECT answers 9000 or 61xx): how a token driver is found for a card
+    /// that names none
+    func selects(_ aid: [UInt8]) -> Bool {
+        guard !aid.isEmpty, aid.count < 256, beginSession(protocols: 3) else { return false }
+        defer { endSession() }
+        guard let r = exchange([0x00, 0xA4, 0x04, 0x00, UInt8(aid.count)] + aid + [0x00]), r.count >= 2 else { return false }
+        return r[r.count - 2] == 0x90 && r[r.count - 1] == 0x00 || r[r.count - 2] == 0x61
+    }
+}
+
+final class _TKVirtualCard: _TKCardBackend, @unchecked Sendable {
     struct Applet {
         var aid: [UInt8], fci: [UInt8]
         var files: [String: [UInt8]], objects: [String: [UInt8]], protected: Set<String>
@@ -75,6 +99,9 @@ final class _TKVirtualCard: @unchecked Sendable {
         triesLeft = maxTries
     }
     func endSession() { selected = nil; file = nil; verified = false; chained = []; rest = [] }
+    func beginSession(protocols: Int) -> Bool { true }
+    var activeProtocol: Int? { nil }
+    func exchange(_ apdu: [UInt8]) -> [UInt8]? { respond(apdu) }
 
     static let ok: [UInt8] = [0x90, 0x00]
     private func tries() -> [UInt8] { triesLeft == 0 ? [0x69, 0x83] : [0x63, 0xC0 | UInt8(min(triesLeft, 15))] }
@@ -194,13 +221,48 @@ final class _TKVirtualCard: @unchecked Sendable {
     }
 }
 
-/// the readers of readers.json, re-read when the file changes (inserting or removing a card)
+@_silgen_name("isim_pcsc_readers") private func isim_pcsc_readers() -> UnsafeMutablePointer<CChar>?
+@_silgen_name("isim_pcsc_begin") private func isim_pcsc_begin(_ reader: UnsafePointer<CChar>, _ protocols: Int32, _ proto: UnsafeMutablePointer<Int32>?) -> Int64
+@_silgen_name("isim_pcsc_transmit") private func isim_pcsc_transmit(_ h: Int64, _ proto: Int32, _ apdu: UnsafePointer<UInt8>, _ len: Int32, _ out: UnsafeMutablePointer<UInt8>, _ cap: Int32) -> Int32
+@_silgen_name("isim_pcsc_end") private func isim_pcsc_end(_ h: Int64, _ reset: Int32)
+@_silgen_name("isim_media_free") private func _tk_host_free(_ p: UnsafeMutableRawPointer?)
+
+/// a card in one of the host's PC/SC readers (passthrough to pcsclite, issue #745): each session is SCardConnect and a
+/// transaction, each APDU one SCardTransmit
+final class _TKPCSCCard: _TKCardBackend, @unchecked Sendable {
+    let reader: String, atr: [UInt8]
+    private var handle: Int64 = 0, proto: Int32 = 0
+    init(reader: String, atr: [UInt8]) { self.reader = reader; self.atr = atr }
+    var token: String? { nil }
+    var serial: String { String(_hex(atr).suffix(8)) }
+    func beginSession(protocols: Int) -> Bool {
+        if handle != 0 { return true }
+        handle = isim_pcsc_begin(reader, Int32(protocols), &proto)
+        return handle != 0
+    }
+    var activeProtocol: Int? { handle != 0 ? Int(proto) : nil }
+    func exchange(_ apdu: [UInt8]) -> [UInt8]? {
+        guard handle != 0 else { return nil }
+        var out = [UInt8](repeating: 0, count: 65538)
+        let n = apdu.withUnsafeBufferPointer { a in isim_pcsc_transmit(handle, proto, a.baseAddress!, Int32(a.count), &out, Int32(out.count)) }
+        return n < 2 ? nil : Array(out.prefix(Int(n)))
+    }
+    func endSession() {
+        guard handle != 0 else { return }
+        isim_pcsc_end(handle, 0)
+        handle = 0
+    }
+    deinit { endSession() }
+}
+
+/// the readers of readers.json, re-read when the file changes (inserting or removing a card), and with ISIM_PCSC=1 the
+/// host's PC/SC readers after them (a virtual reader's name wins)
 final class _TKReaders: @unchecked Sendable {
     static let shared = _TKReaders()
-    struct Reader { var name: String; var pinPad: Bool; var cardKey: String?; var card: [String: Any]? }
+    struct Reader { var name: String; var pinPad: Bool; var cardKey: String?; var card: [String: Any]?; var pcscATR: [UInt8]? = nil; var pcsc = false }
     private let lock = NSLock()
     private(set) var readers: [Reader] = []
-    private var cards: [String: _TKVirtualCard] = [:]       // reader name -> the inserted card's state
+    private var cards: [String: any _TKCardBackend] = [:]   // reader name -> the inserted card's state
     private var stamp = ""
     private var timer: DispatchSourceTimer?
     private var observers: [UUID: () -> Void] = [:]
@@ -215,7 +277,8 @@ final class _TKReaders: @unchecked Sendable {
     /// re-reads the file when it changed; returns whether it did
     @discardableResult func reload() -> Bool {
         let attrs = try? FileManager.default.attributesOfItem(atPath: path)
-        let s = "\((attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0) \((attrs?[.size] as? NSNumber)?.intValue ?? -1)"
+        let pcsc = Self.pcscList()
+        let s = "\((attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0) \((attrs?[.size] as? NSNumber)?.intValue ?? -1)\n" + (pcsc ?? "")
         lock.lock(); defer { lock.unlock() }
         if s == stamp { return false }
         stamp = s
@@ -228,9 +291,17 @@ final class _TKReaders: @unchecked Sendable {
                 list.append(Reader(name: name, pinPad: r["pinPad"] as? Bool ?? false, cardKey: key, card: card))
             }
         }
+        for line in (pcsc ?? "").split(separator: "\n") {
+            let f = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+            guard f.count >= 4, !f[0].isEmpty, !list.contains(where: { $0.name == f[0] }) else { continue }
+            let atr = f[1] == "present" ? _unhex(f[2]).flatMap { $0.count >= 2 ? $0 : nil } : nil
+            let key: String? = f[1] == "empty" ? nil : "pcsc:\(f[3]):\(f[1]):\(f[2])"     // the event count: a card put back
+            list.append(Reader(name: f[0], pinPad: false, cardKey: key, card: nil, pcscATR: atr, pcsc: true))
+        }
         for r in list {
             if r.cardKey == nil { cards[r.name] = nil; continue }
             if let old = readers.first(where: { $0.name == r.name }), old.cardKey == r.cardKey, cards[r.name] != nil { continue }
+            if r.pcsc { cards[r.name] = r.pcscATR.map { _TKPCSCCard(reader: r.name, atr: $0) }; continue }
             cards[r.name] = r.card.flatMap(_TKVirtualCard.init)
         }
         for name in cards.keys where !list.contains(where: { $0.name == name }) { cards[name] = nil }
@@ -238,7 +309,13 @@ final class _TKReaders: @unchecked Sendable {
         return true
     }
     func reader(_ name: String) -> Reader? { lock.lock(); defer { lock.unlock() }; return readers.first { $0.name == name } }
-    func card(_ name: String) -> _TKVirtualCard? { lock.lock(); defer { lock.unlock() }; return cards[name] }
+    /// the host's PC/SC readers (lines: name, state, ATR, event count), nil without ISIM_PCSC=1 or PC/SC
+    static func pcscList() -> String? {
+        guard let p = isim_pcsc_readers() else { return nil }
+        defer { _tk_host_free(p) }
+        return String(cString: p)
+    }
+    func card(_ name: String) -> (any _TKCardBackend)? { lock.lock(); defer { lock.unlock() }; return cards[name] }
     var names: [String] { lock.lock(); defer { lock.unlock() }; return readers.map(\.name) }
 
     /// calls `changed` on the main queue whenever the readers change (polled: the file is written by `isim smartcard`)

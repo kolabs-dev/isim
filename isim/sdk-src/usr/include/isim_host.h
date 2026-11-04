@@ -286,6 +286,13 @@ int isim_tts_synthesize(const char *text, const char *voice, double wpm, double 
 int isim_braille_available(void);
 char *_Nullable isim_braille_tables(void);
 char *_Nullable isim_braille_translate(const char *table, const char *text, int back, int *_Nullable *_Nullable positions, int *_Nullable count);
+/* PC/SC card readers over the host's pcsclite, with ISIM_PCSC=1 (CryptoTokenKit, issue #745): the readers (one line each:
+   name, state empty|present|mute, ATR hex, event count; tab-separated; NULL without PC/SC), a session (connect and
+   begin a transaction: the card handle, 0 when it failed), one APDU (the response's length, -1 on an error) and the end */
+char *_Nullable isim_pcsc_readers(void);
+int64_t isim_pcsc_begin(const char *reader, int protocols, int *_Nullable protocol);
+int isim_pcsc_transmit(int64_t handle, int protocol, const uint8_t *apdu, int len, uint8_t *out, int cap);
+void isim_pcsc_end(int64_t handle, int reset);
 /* speech with events through the host's libespeak-ng (host_tts.c): kind 1 word, 2 sentence, 3 SSML mark, 5 end,
    7 phoneme; text positions in characters of the input text; 0 when libespeak-ng is unavailable */
 struct isim_tts_event { int kind, text_pos, text_len; long frame; char name[64]; };
