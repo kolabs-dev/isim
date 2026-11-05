@@ -60,6 +60,26 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     log("x872 traits \(traits) defaults \(defaults) list \(list) unavailable \(unavailable)")
 }
 
+// #872: members that only Apple's Swift names reach (they imported under other names before)
+@MainActor func x872NameChecks() {
+    let image = UIImage(systemName: "star")!.stretchableImage(withLeftCapWidth: 3, topCapHeight: 2)
+    let config = UIImage.SymbolConfiguration(font: .systemFont(ofSize: 17), scale: .large)
+    var ran = false
+    let control = UIControl()
+    control.sendAction(UIAction { _ in ran = true })
+    let view = UIView(); view.tintAdjustmentMode = .dimmed
+    let props: UITouch.Properties = [.force, .azimuth]
+    let vc = UIViewController()
+    let moving = vc.isMovingToParent || vc.isMovingFromParent
+    let pasteboard = !UIPasteboard.Name.general.rawValue.isEmpty
+    let overscan = UIScreen.main.overscanCompensation == .scale
+    let options = UIView.AnimationOptions.curveEaseInOut.isEmpty
+    var parts = ["caps \(image.leftCapWidth),\(image.topCapHeight)", "config \(UIImage(systemName: "star", withConfiguration: config) != nil)", "sent \(ran)"]
+    parts += ["dimmed \(view.tintAdjustmentMode == .dimmed)", "touch \(props.contains(.force))", "moving \(moving)"]
+    parts += ["pasteboard \(pasteboard)", "overscan \(overscan)", "symbols \(control.isSymbolAnimationEnabled)", "options \(options)"]
+    log("x872 names " + parts.joined(separator: " "))
+}
+
 // #872: list cell accessories with Apple's option types and placement positions
 @MainActor func x872AccessoryChecks() {
     let cell = UICollectionViewListCell(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
@@ -94,7 +114,7 @@ final class TableViewController: UITableViewController {
     @objc final class Person: NSObject { @objc let name: String; init(_ n: String) { name = n } }
     override func viewDidLoad() {
         super.viewDidLoad()
-        x872Checks(); x872AccessoryChecks()
+        x872Checks(); x872AccessoryChecks(); x872NameChecks()
         title = "People"
         tableView.register(NameCell.self, forCellReuseIdentifier: "c")
         tableView.separatorInsetReference = .fromCellEdges; tableView.separatorInset = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)

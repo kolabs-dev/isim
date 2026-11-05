@@ -543,8 +543,8 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, getter=isEditing) BOOL editing;
 - (void)setEditing:(BOOL)editing animated:(BOOL)animated;
 @property (nonatomic, readonly) UIBarButtonItem *editButtonItem;
-@property (nonatomic, readonly, getter=isMovingToParentViewController) BOOL movingToParentViewController;
-@property (nonatomic, readonly, getter=isMovingFromParentViewController) BOOL movingFromParentViewController;
+@property (nonatomic, readonly, getter=isMovingToParentViewController) BOOL movingToParentViewController NS_SWIFT_NAME(isMovingToParent);
+@property (nonatomic, readonly, getter=isMovingFromParentViewController) BOOL movingFromParentViewController NS_SWIFT_NAME(isMovingFromParent);
 @end
 /* iOS 16: how the navigation item lays out its content (navigator: center groups go to the overflow menu) */
 typedef NS_ENUM(NSInteger, UINavigationItemStyle) { UINavigationItemStyleNavigator, UINavigationItemStyleBrowser, UINavigationItemStyleEditor }

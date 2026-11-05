@@ -204,9 +204,9 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) CGFloat pixelAspectRatio;
 @end
 typedef NS_ENUM(NSInteger, UIScreenOverscanCompensation) { UIScreenOverscanCompensationScale, UIScreenOverscanCompensationInsetBounds,
-    UIScreenOverscanCompensationNone };
+    UIScreenOverscanCompensationNone } NS_SWIFT_NAME(UIScreen.OverscanCompensation);
 typedef NS_ENUM(NSInteger, UIScreenReferenceDisplayModeStatus) { UIScreenReferenceDisplayModeStatusNotSupported = 0,
-    UIScreenReferenceDisplayModeStatusNotEnabled, UIScreenReferenceDisplayModeStatusEnabled, UIScreenReferenceDisplayModeStatusLimited } API_AVAILABLE(ios(17.0));
+    UIScreenReferenceDisplayModeStatusNotEnabled, UIScreenReferenceDisplayModeStatusEnabled, UIScreenReferenceDisplayModeStatusLimited } NS_SWIFT_NAME(UIScreen.ReferenceDisplayModeStatus) API_AVAILABLE(ios(17.0));
 @interface UIScreen (UISceneExtras)
 @property (nonatomic, readonly, copy) NSArray<UIScreenMode *> *availableModes;
 @property (nullable, nonatomic, readonly, strong) UIScreenMode *preferredMode;

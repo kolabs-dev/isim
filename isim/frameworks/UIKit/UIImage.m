@@ -71,6 +71,12 @@ enum { SYM_MODE_UNSPECIFIED, SYM_MODE_MONOCHROME, SYM_MODE_HIERARCHICAL, SYM_MOD
 + (instancetype)configurationWithScale:(UIImageSymbolScale)s { return [self configurationWithPointSize:0 weight:UIImageSymbolWeightUnspecified scale:s]; }
 + (instancetype)configurationWithWeight:(UIImageSymbolWeight)w { return [self configurationWithPointSize:0 weight:w scale:UIImageSymbolScaleUnspecified]; }
 + (instancetype)configurationWithTextStyle:(UIFontTextStyle)style { return [self configurationWithFont:[UIFont preferredFontForTextStyle:style]]; }
++ (instancetype)configurationWithTextStyle:(UIFontTextStyle)style scale:(UIImageSymbolScale)scale {
+    UIImageSymbolConfiguration *c = [self configurationWithTextStyle:style]; c->_scale = scale; return c;
+}
++ (instancetype)configurationWithFont:(UIFont *)font scale:(UIImageSymbolScale)scale {
+    UIImageSymbolConfiguration *c = [self configurationWithFont:font]; c->_scale = scale; return c;
+}
 /* the font's weight carries over (Image(systemName:).fontWeight(.bold), .font(.system(size:weight:))) */
 + (instancetype)configurationWithFont:(UIFont *)font {
     CGFloat fw = font._isim_weight;
@@ -248,6 +254,16 @@ static BOOL swaps(UIImageOrientation o) { return o == UIImageOrientationLeft || 
     return [self resizableImageWithCapInsets:c resizingMode:UIImageResizingModeStretch];
 }
 - (UIEdgeInsets)capInsets { return _caps; }
+/* the caps as stretchableImageWithLeftCapWidth:topCapHeight: set them (0 when the image is not stretchable) */
+- (NSInteger)leftCapWidth { return _resizable && _rmode == UIImageResizingModeStretch ? (NSInteger)_caps.left : 0; }
+- (NSInteger)topCapHeight { return _resizable && _rmode == UIImageResizingModeStretch ? (NSInteger)_caps.top : 0; }
+- (UITraitCollection *)traitCollection { return self.symbolConfiguration.traitCollection ?: [UITraitCollection new]; }
++ (UIImage *)imageNamed:(NSString *)name inBundle:(NSBundle *)bundle compatibleWithTraitCollection:(UITraitCollection *)traits {
+    return [self imageNamed:name inBundle:bundle withConfiguration:traits ? [UIImageConfiguration configurationWithTraitCollection:traits] : nil];
+}
++ (UIImage *)systemImageNamed:(NSString *)name compatibleWithTraitCollection:(UITraitCollection *)traits {
+    return [self systemImageNamed:name withConfiguration:traits ? [UIImageConfiguration configurationWithTraitCollection:traits] : nil];
+}
 - (UIImageResizingMode)resizingMode { return _rmode; }
 + (UIImage *)animatedImageWithImages:(NSArray<UIImage *> *)images duration:(NSTimeInterval)d {
     if (!images.count) return nil;
@@ -494,6 +510,7 @@ static NSDictionary<NSString *, NSArray<UIColor *> *> *multicolor_table(void) {
     CGContextRestoreGState(ctx);
 }
 - (void)drawAtPoint:(CGPoint)p { [self drawInRect:(CGRect){ p, _size }]; }
+- (void)drawAtPoint:(CGPoint)p blendMode:(CGBlendMode)m alpha:(CGFloat)a { [self drawInRect:(CGRect){ p, _size } blendMode:m alpha:a]; }
 @end
 
 /* ---------------- UIImageView ---------------- */

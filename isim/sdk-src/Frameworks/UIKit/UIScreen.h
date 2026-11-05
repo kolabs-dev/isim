@@ -21,6 +21,8 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly, getter=isCaptured) BOOL captured API_DEPRECATED("Use UITraitCollection.sceneCaptureState", ios(11.0, 27.0));
 /* a display link for this screen (isim: the device's, as CADisplayLink displayLinkWithTarget:selector:) */
 - (nullable CADisplayLink *)displayLinkWithTarget:(id)target selector:(SEL)sel API_DEPRECATED("Use UIWindowScene.displayLink(target:selector:)", ios(4.0, 27.0));
+/* a snapshot of what the screen shows (its key window's contents) */
+- (UIView *)snapshotViewAfterScreenUpdates:(BOOL)afterUpdates;
 @end
 UIKIT_EXTERN NSNotificationName const UIScreenBrightnessDidChangeNotification;
 /* isim: never posted (no screen recording or mirroring, the device screen has one mode) */

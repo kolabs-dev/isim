@@ -17,6 +17,8 @@ def test_list_extras(launch, ios):
     app.wait_log(r"^lx ada at 1-0$")
     assert app.wait_log(r"^lx x872 .*$").group(0) == "lx x872 traits true defaults true list true unavailable true", \
         "UITraitCollection(_:value:) / replacing, list text properties, alpha, image padding, content-unavailable alignment / background / role"
+    assert app.wait_log(r"^lx x872 names .*$").group(0) == ("lx x872 names caps 3,2 config true sent true dimmed true touch true moving false "
+        "pasteboard true overscan true symbols true options true"), "Apple's Swift names of UIImage, UIControl, UIView, UIViewController, UITouch, UIPasteboard, UIScreen members (#872)"
     assert app.wait_log(r"^lx x872 accessories .*$").group(0) == "lx x872 accessories label,checkmark,badge,reorder defaults true", \
         "UICellAccessory options, AccessoryType.customView(view) and Placement.position(after:)"
     log = app.log
