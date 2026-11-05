@@ -55,6 +55,7 @@ static CGImageRef render(CGFloat w, CGFloat h, void (^draw)(CGContextRef c)) {
     [self tracking];
     [self models];
     [self documentCamera];
+    [self extras];
     say(@"done");
 }
 
@@ -230,6 +231,29 @@ static CGImageRef render(CGFloat w, CGFloat h, void (^draw)(CGContextRef c)) {
              (unsigned long)s.salientObjects.count, f2(CGRectGetMidX(o.boundingBox)), f2(CGRectGetMidY(o.boundingBox))]);
     } else say(@"saliency none");
     CGImageRelease(shapes); CGImageRelease(words); CGImageRelease(tilted); CGImageRelease(disk);
+}
+
+/// issue #852: VNGeometryUtils' bounding circle, the trajectories request, a foreground instance mask, revisions
+- (void)extras {
+    NSArray<VNPoint *> *corners = @[[[VNPoint alloc] initWithX:0 y:0], [[VNPoint alloc] initWithX:1 y:0],
+                                    [[VNPoint alloc] initWithX:1 y:1], [[VNPoint alloc] initWithX:0 y:1]];
+    NSError *err = nil;
+    VNCircle *circle = [VNGeometryUtils boundingCircleForPoints:corners error:&err];
+    VNDetectTrajectoriesRequest *traj = [[VNDetectTrajectoriesRequest alloc] initWithFrameAnalysisSpacing:(CMTime){0, 1, kCMTimeFlags_Valid, 0} trajectoryLength:6 completionHandler:nil];
+    CGImageRef disk = render(200, 200, ^(CGContextRef c) {
+        CGContextSetFillColorWithColor(c, UIColor.whiteColor.CGColor); CGContextFillRect(c, CGRectMake(0, 0, 200, 200));
+        CGContextSetFillColorWithColor(c, UIColor.redColor.CGColor); CGContextFillEllipseInRect(c, CGRectMake(60, 60, 80, 80));
+    });
+    VNGenerateForegroundInstanceMaskRequest *fg = [[VNGenerateForegroundInstanceMaskRequest alloc] init];
+    VNImageRequestHandler *h = [[VNImageRequestHandler alloc] initWithCGImage:disk options:@{}];
+    BOOL ok = [h performRequests:@[fg] error:&err];
+    VNInstanceMaskObservation *m = fg.results.firstObject;
+    CVPixelBufferRef scaled = m ? [m generateScaledMaskForImageForInstances:m.allInstances fromRequestHandler:h error:&err] : NULL;
+    say([NSString stringWithFormat:@"extras circle %@,%@ radius %@ contains %d trajectory length %ld revision %lu foreground ok %d instances %lu scaled %zux%zu",
+         f2(circle.center.x), f2(circle.center.y), f2(circle.radius), [circle containsPoint:[[VNPoint alloc] initWithX:0.5 y:0.5]],
+         (long)traj.trajectoryLength, (unsigned long)VNDetectTrajectoriesRequestRevision1, ok, (unsigned long)m.allInstances.count,
+         scaled ? CVPixelBufferGetWidth(scaled) : 0, scaled ? CVPixelBufferGetHeight(scaled) : 0]);
+    CGImageRelease(disk);
 }
 
 /// an unsupported request's error, the class factories, the time range, VNUtils.h

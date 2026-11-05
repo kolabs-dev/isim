@@ -95,13 +95,15 @@ private extension CGRect { var area: CGFloat { isNull ? 0 : width * height } }
 
 @objc(VNFaceLandmarkRegion) open class VNFaceLandmarkRegion: NSObject, @unchecked Sendable {
     @objc open var requestRevision: Int { 3 }
+    @objc open var pointCount: Int { 0 }
+    @objc public convenience init?(coder: NSCoder) { self.init() }
 }
 @objc public enum VNPointsClassification: Int, Sendable { case disconnected = 0, openPath = 1, closedPath = 2 }
 @objc(VNFaceLandmarkRegion2D) open class VNFaceLandmarkRegion2D: VNFaceLandmarkRegion, @unchecked Sendable {
     @objc let _points: [CGPoint], _box: CGRect
     @objc public let pointsClassification: VNPointsClassification
     @objc init(points: [CGPoint], box: CGRect, classification: VNPointsClassification) { _points = points; _box = box; pointsClassification = classification }
-    @objc open var pointCount: Int { _points.count }
+    @objc open override var pointCount: Int { _points.count }
     /// the points, normalized to the face's bounding box (lower-left origin)
     @nonobjc open var normalizedPoints: [CGPoint] { _points }
     /// the points in an image of `imageSize` (lower-left origin)
@@ -124,6 +126,7 @@ private extension CGRect { var area: CGFloat { isNull ? 0 : width * height } }
     deinit { for p in _c { p?.deallocate() } }
 }
 @objc(VNFaceLandmarks) open class VNFaceLandmarks: NSObject, @unchecked Sendable {
+    @objc public convenience init?(coder: NSCoder) { self.init() }
     @objc open var confidence: VNConfidence { _confidence }
     @objc var _confidence: VNConfidence = 0.5
     @objc open var requestRevision: Int { 3 }

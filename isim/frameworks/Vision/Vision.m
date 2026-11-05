@@ -95,7 +95,7 @@ size_t VNElementTypeSize(VNElementType t) { return t == VNElementTypeFloat ? siz
 // MARK: - CMTime and matrix_float3x3 of the tracking and registration classes (issue #373)
 
 @interface VNStatefulRequest (ISIMSpacing)
-- (instancetype)_isim_initWithSpacing:(NSArray<NSNumber *> *)spacing completionHandler:(VNRequestCompletionHandler)completionHandler;
+- (instancetype)_isim_initWithSpacing:(NSArray<NSNumber *> *)spacing completionHandler:(VNRequestCompletionHandler)completionHandler __attribute__((objc_method_family(init)));
 - (NSArray<NSNumber *> *)_isim_frameAnalysisSpacing;
 @end
 @implementation VNStatefulRequest (ISIMStructs)
@@ -209,3 +209,87 @@ NSString * const VNAnimalBodyPoseObservationJointsGroupNameForelegs = @"animal_g
 NSString * const VNAnimalBodyPoseObservationJointsGroupNameHindlegs = @"animal_group_hindlegs";
 NSString * const VNAnimalBodyPoseObservationJointsGroupNameTail = @"animal_group_tail";
 NSString * const VNAnimalBodyPoseObservationJointsGroupNameAll = @"VNIPOAll";
+
+// MARK: - issue #852: the new classes' constants, CMTime, CMTimeRange and simd matrices
+
+VNComputeStage const VNComputeStageMain = @"VNComputeStageMain";
+VNComputeStage const VNComputeStagePostProcessing = @"VNComputeStagePostProcessing";
+VNAnimalIdentifier const VNAnimalIdentifierDog = @"Dog";
+VNAnimalIdentifier const VNAnimalIdentifierCat = @"Cat";
+
+static NSArray<NSNumber *> *isim_time(CMTime t) { return @[ @(t.value), @(t.timescale), @(t.flags), @(t.epoch) ]; }
+static simd_float4x4 isim_matrix(NSArray<NSNumber *> *v) {
+    simd_float4x4 m = matrix_identity_float4x4;
+    if (v.count == 16) for (int c = 0; c < 4; c++) for (int r = 0; r < 4; r++) m.columns[c][r] = v[c * 4 + r].floatValue;
+    return m;
+}
+static NSArray<NSNumber *> *isim_numbers(simd_float4x4 m) {
+    NSMutableArray<NSNumber *> *a = [NSMutableArray array];
+    for (int c = 0; c < 4; c++) for (int r = 0; r < 4; r++) [a addObject:@(m.columns[c][r])];
+    return a;
+}
+
+@interface VNDetectTrajectoriesRequest (ISIMStructsPrivate)
+- (instancetype)_isim_initWithSpacing:(NSArray<NSNumber *> *)spacing trajectoryLength:(NSInteger)length completionHandler:(VNRequestCompletionHandler)handler __attribute__((objc_method_family(init)));
+@property (nonatomic, copy) NSArray<NSNumber *> *_isim_targetFrameTime;
+@end
+@implementation VNDetectTrajectoriesRequest (ISIMStructs)
+- (instancetype)initWithFrameAnalysisSpacing:(CMTime)t trajectoryLength:(NSInteger)length completionHandler:(VNRequestCompletionHandler)handler {
+    return [self _isim_initWithSpacing:isim_time(t) trajectoryLength:length completionHandler:handler];
+}
+- (CMTime)targetFrameTime {
+    NSArray<NSNumber *> *v = self._isim_targetFrameTime;
+    return v.count < 4 ? (CMTime){ 0, 0, 0, 0 } : (CMTime){ v[0].longLongValue, v[1].intValue, v[2].unsignedIntValue, v[3].longLongValue };
+}
+- (void)setTargetFrameTime:(CMTime)t { self._isim_targetFrameTime = isim_time(t); }
+@end
+
+@interface VNTrajectoryObservation (ISIMStructsPrivate)
+- (NSArray<NSNumber *> *)_isim_equationCoefficients;
+@end
+@implementation VNTrajectoryObservation (ISIMStructs)
+- (simd_float3)equationCoefficients {
+    NSArray<NSNumber *> *v = [self _isim_equationCoefficients];
+    return v.count == 3 ? simd_make_float3(v[0].floatValue, v[1].floatValue, v[2].floatValue) : simd_make_float3(0, 0, 0);
+}
+@end
+
+@interface VNPoint3D (ISIMStructsPrivate)
+- (NSArray<NSNumber *> *)_isim_position;
+- (instancetype)_isim_initWithPosition:(NSArray<NSNumber *> *)position __attribute__((objc_method_family(init)));
+@end
+@implementation VNPoint3D (ISIMStructs)
+- (instancetype)initWithPosition:(simd_float4x4)position { return [self _isim_initWithPosition:isim_numbers(position)]; }
+- (simd_float4x4)position { return isim_matrix([self _isim_position]); }
+@end
+
+@interface VNHumanBodyRecognizedPoint3D (ISIMStructsPrivate)
+- (NSArray<NSNumber *> *)_isim_localPosition;
+@end
+@implementation VNHumanBodyRecognizedPoint3D (ISIMStructs)
+- (simd_float4x4)localPosition { return isim_matrix([self _isim_localPosition]); }
+@end
+
+@interface VNHumanBodyPose3DObservation (ISIMStructsPrivate)
+- (NSArray<NSNumber *> *)_isim_cameraOriginMatrix;
+- (nullable NSArray<NSNumber *> *)_isim_cameraRelativePositionForJointName:(NSString *)name error:(NSError **)error;
+@end
+@implementation VNHumanBodyPose3DObservation (ISIMStructs)
+- (simd_float4x4)cameraOriginMatrix { return isim_matrix([self _isim_cameraOriginMatrix]); }
+- (BOOL)getCameraRelativePosition:(simd_float4x4 *)out forJointName:(VNHumanBodyPose3DObservationJointName)name error:(NSError **)error {
+    NSArray<NSNumber *> *v = [self _isim_cameraRelativePositionForJointName:name error:error];
+    if (!v) return NO;
+    if (out) *out = isim_matrix(v);
+    return YES;
+}
+@end
+
+@interface VNVideoProcessor (ISIMStructsPrivate)
+- (BOOL)_isim_analyzeTimeRange:(NSArray<NSNumber *> *)range error:(NSError **)error;
+@end
+@implementation VNVideoProcessor (ISIMStructs)
+- (BOOL)analyzeTimeRange:(CMTimeRange)r error:(NSError **)error {
+    NSArray<NSNumber *> *v = [isim_time(r.start) arrayByAddingObjectsFromArray:isim_time(r.duration)];
+    return [self _isim_analyzeTimeRange:v error:error];
+}
+@end

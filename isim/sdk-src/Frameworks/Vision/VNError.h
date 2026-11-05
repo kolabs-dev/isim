@@ -9,6 +9,7 @@ typedef NS_ENUM(NSInteger, VNErrorCode) {
     VNErrorUnknownError, VNErrorInvalidOperation, VNErrorInvalidImage, VNErrorInvalidArgument, VNErrorInvalidModel,
     VNErrorUnsupportedRevision, VNErrorDataUnavailable, VNErrorTimeStampNotFound, VNErrorUnsupportedRequest, VNErrorTimeout,
     VNErrorUnsupportedComputeStage, VNErrorUnsupportedComputeDevice,
+    VNErrorResourceUnavailable, VNErrorResourceCorrupted,
 } API_AVAILABLE(ios(11.0));
 NS_ASSUME_NONNULL_END
 #endif

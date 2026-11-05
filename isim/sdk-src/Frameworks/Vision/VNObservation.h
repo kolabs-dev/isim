@@ -70,6 +70,9 @@ API_AVAILABLE(ios(13.0))
 /* isim: one candidate per line */
 - (NSArray<VNRecognizedText *> *)topCandidates:(NSUInteger)maxCandidateCount;
 @end
+typedef NS_ENUM(NSInteger, VNBarcodeCompositeType) {
+    VNBarcodeCompositeTypeNone = 0, VNBarcodeCompositeTypeLinked, VNBarcodeCompositeTypeGS1TypeA, VNBarcodeCompositeTypeGS1TypeB, VNBarcodeCompositeTypeGS1TypeC,
+} API_AVAILABLE(ios(17.0));
 API_AVAILABLE(ios(11.0))
 @interface VNBarcodeObservation : VNRectangleObservation
 @property (readonly, nonatomic, copy) VNBarcodeSymbology symbology;
@@ -78,6 +81,9 @@ API_AVAILABLE(ios(11.0))
 @property (readonly, nonatomic, getter=isGS1DataCarrier) BOOL GS1DataCarrier API_AVAILABLE(ios(17.0));
 @property (readonly, nonatomic, getter=isColorInverted) BOOL colorInverted API_AVAILABLE(ios(17.0));
 @property (readonly, nonatomic, copy, nullable) NSString *supplementalPayloadString API_AVAILABLE(ios(17.0));
+/* isim reads no composite parts */
+@property (readonly, nonatomic, copy, nullable) NSData *supplementalPayloadData API_AVAILABLE(ios(17.0));
+@property (readonly, nonatomic) VNBarcodeCompositeType supplementalCompositeType API_AVAILABLE(ios(17.0));
 @end
 API_AVAILABLE(ios(14.0))
 @interface VNHorizonObservation : VNObservation
@@ -91,6 +97,7 @@ API_AVAILABLE(ios(13.0))
 @end
 API_AVAILABLE(ios(15.0))
 @interface VNHumanObservation : VNDetectedObjectObservation
+@property (readonly, nonatomic) BOOL upperBodyOnly;
 @end
 /* isim: the Euclidean distance between feature prints */
 API_AVAILABLE(ios(13.0))
