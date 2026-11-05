@@ -69,7 +69,43 @@ typedef NS_ENUM(NSInteger, AVCapturePhotoOutputCaptureReadiness) {
 @property (nonatomic, readonly, getter=isVideoHDRSupported) BOOL videoHDRSupported;
 @property (nonatomic, readonly, getter=isMultiCamSupported) BOOL multiCamSupported;
 @property (nonatomic, readonly) NSArray<AVCaptureDeviceFormat *> *supportedDepthDataFormats;
+/* issue #876: capability flags (see the overlay's CaptureDeviceExtras.swift) */
+@property (nonatomic, readonly, getter=isGlobalToneMappingSupported) BOOL globalToneMappingSupported;
+@property (nonatomic, readonly, getter=isHighPhotoQualitySupported) BOOL highPhotoQualitySupported;
+@property (nonatomic, readonly, getter=isStudioLightSupported) BOOL studioLightSupported;
+@property (nonatomic, readonly) BOOL reactionEffectsSupported API_AVAILABLE(ios(17.0));
+@property (nonatomic, readonly, getter=isAutoVideoFrameRateSupported) BOOL autoVideoFrameRateSupported API_AVAILABLE(ios(18.0));
+@property (nonatomic, readonly, getter=isBackgroundReplacementSupported) BOOL backgroundReplacementSupported API_AVAILABLE(ios(18.0));
+@property (nonatomic, readonly, getter=isSpatialVideoCaptureSupported) BOOL spatialVideoCaptureSupported API_AVAILABLE(ios(18.0));
+@property (nonatomic, readonly) CGFloat videoZoomFactorUpscaleThreshold;
+@property (nonatomic, readonly) NSArray<NSNumber *> *secondaryNativeResolutionZoomFactors;
+@property (nonatomic, readonly) NSArray<NSNumber *> *supportedColorSpaces;            /* AVCaptureColorSpace */
+- (BOOL)isVideoStabilizationModeSupported:(NSInteger)videoStabilizationMode;             /* AVCaptureVideoStabilizationMode */
+@property (nonatomic, readonly, getter=isCameraLensSmudgeDetectionSupported) BOOL cameraLensSmudgeDetectionSupported API_AVAILABLE(ios(26.0));
+@property (nonatomic, readonly, getter=isSmartFramingSupported) BOOL smartFramingSupported API_AVAILABLE(ios(26.0));
+@property (nonatomic, readonly, getter=isCinematicVideoCaptureSupported) BOOL cinematicVideoCaptureSupported API_AVAILABLE(ios(26.0));
 @end
+/* reaction effects (iOS 17) */
+typedef NSString *AVCaptureReactionType NS_TYPED_ENUM;
+FOUNDATION_EXPORT AVCaptureReactionType const AVCaptureReactionTypeThumbsUp, AVCaptureReactionTypeThumbsDown, AVCaptureReactionTypeBalloons,
+    AVCaptureReactionTypeHeart, AVCaptureReactionTypeFireworks, AVCaptureReactionTypeRain, AVCaptureReactionTypeConfetti,
+    AVCaptureReactionTypeLasers API_AVAILABLE(ios(17.0));
+FOUNDATION_EXPORT NSString *AVCaptureReactionSystemImageNameForType(AVCaptureReactionType reactionType) API_AVAILABLE(ios(17.0));
+API_AVAILABLE(ios(17.0))
+@interface AVCaptureReactionEffectState : NSObject
+@property (nonatomic, readonly) AVCaptureReactionType reactionType;
+@end
+typedef NS_ENUM(NSInteger, AVCaptureSystemUserInterface) { AVCaptureSystemUserInterfaceVideoEffects = 1, AVCaptureSystemUserInterfaceMicrophoneModes = 2 } API_AVAILABLE(ios(15.0));
+typedef NS_ENUM(NSInteger, AVCaptureLensStabilizationStatus) { AVCaptureLensStabilizationStatusUnsupported = 0, AVCaptureLensStabilizationStatusOff,
+    AVCaptureLensStabilizationStatusActive, AVCaptureLensStabilizationStatusOutOfRange, AVCaptureLensStabilizationStatusUnavailable } API_AVAILABLE(ios(11.0));
+typedef NS_ENUM(NSInteger, AVCaptureCameraLensSmudgeDetectionStatus) { AVCaptureCameraLensSmudgeDetectionStatusDisabled = 0,
+    AVCaptureCameraLensSmudgeDetectionStatusSmudgeNotDetected, AVCaptureCameraLensSmudgeDetectionStatusSmudged,
+    AVCaptureCameraLensSmudgeDetectionStatusUnknown } API_AVAILABLE(ios(26.0));
+typedef NS_OPTIONS(NSUInteger, AVCapturePrimaryConstituentDeviceRestrictedSwitchingBehaviorConditions) {
+    AVCapturePrimaryConstituentDeviceRestrictedSwitchingBehaviorConditionNone = 0,
+    AVCapturePrimaryConstituentDeviceRestrictedSwitchingBehaviorConditionVideoZoomChanged = 1 << 0,
+    AVCapturePrimaryConstituentDeviceRestrictedSwitchingBehaviorConditionFocusModeChanged = 1 << 1,
+    AVCapturePrimaryConstituentDeviceRestrictedSwitchingBehaviorConditionExposureModeChanged = 1 << 2 } API_AVAILABLE(ios(15.0));
 @interface AVCaptureDevice : NSObject
 + (nullable AVCaptureDevice *)defaultDeviceWithMediaType:(AVMediaType)mediaType;
 + (nullable AVCaptureDevice *)defaultDeviceWithDeviceType:(AVCaptureDeviceType)deviceType mediaType:(nullable AVMediaType)mediaType position:(AVCaptureDevicePosition)position;
@@ -121,6 +157,39 @@ typedef NS_ENUM(NSInteger, AVCapturePhotoOutputCaptureReadiness) {
 - (void)setFocusModeLockedWithLensPosition:(float)lensPosition completionHandler:(nullable void (^)(CMTime syncTime))handler;
 @property (nonatomic, retain, nullable) AVCaptureDeviceFormat *activeDepthDataFormat;
 @property (nonatomic, readonly) AVCaptureSystemPressureState *systemPressureState;   /* KVO-observable */
+/* issue #876 (see the overlay's CaptureDeviceExtras.swift) */
+- (BOOL)supportsAVCaptureSessionPreset:(AVCaptureSessionPreset)preset;
++ (nullable NSData *)extrinsicMatrixFromDevice:(AVCaptureDevice *)fromDevice toDevice:(AVCaptureDevice *)toDevice;
++ (void)showSystemUserInterface:(AVCaptureSystemUserInterface)systemUserInterface API_AVAILABLE(ios(15.0));
+@property (nonatomic, readonly, getter=isContinuityCamera) BOOL continuityCamera API_AVAILABLE(ios(16.0));
+@property (nonatomic, readonly, nullable) AVCaptureDevice *companionDeskViewCamera API_AVAILABLE(ios(16.0));
+@property (nonatomic) CGRect centerStageRectOfInterest API_AVAILABLE(ios(16.4));
+@property (nonatomic, getter=isFaceDrivenAutoExposureEnabled) BOOL faceDrivenAutoExposureEnabled API_AVAILABLE(ios(15.4));
+@property (nonatomic) BOOL automaticallyAdjustsFaceDrivenAutoExposureEnabled API_AVAILABLE(ios(15.4));
+@property (nonatomic, getter=isGlobalToneMappingEnabled) BOOL globalToneMappingEnabled;
+@property (nonatomic, getter=isAutoVideoFrameRateEnabled) BOOL autoVideoFrameRateEnabled API_AVAILABLE(ios(18.0));
+@property (class, nonatomic, readonly) BOOL reactionEffectsEnabled API_AVAILABLE(ios(17.0));
+@property (class, nonatomic, readonly) BOOL reactionEffectGesturesEnabled API_AVAILABLE(ios(17.0));
+@property (nonatomic, readonly) BOOL canPerformReactionEffects API_AVAILABLE(ios(17.0));
+@property (nonatomic, readonly) NSSet<AVCaptureReactionType> *availableReactionTypes API_AVAILABLE(ios(17.0));
+- (void)performEffectForReaction:(AVCaptureReactionType)reactionType API_AVAILABLE(ios(17.0));
+@property (nonatomic, readonly) NSArray<AVCaptureReactionEffectState *> *reactionEffectsInProgress API_AVAILABLE(ios(17.0));
+@property (class, nonatomic, readonly, getter=isStudioLightEnabled) BOOL studioLightEnabled API_AVAILABLE(ios(16.0));
+@property (nonatomic, readonly, getter=isStudioLightActive) BOOL studioLightActive API_AVAILABLE(ios(16.0));
+@property (class, nonatomic, readonly, getter=isBackgroundReplacementEnabled) BOOL backgroundReplacementEnabled API_AVAILABLE(ios(18.0));
+@property (nonatomic, readonly, getter=isBackgroundReplacementActive) BOOL backgroundReplacementActive API_AVAILABLE(ios(18.0));
+@property (nonatomic, readonly) AVCapturePrimaryConstituentDeviceRestrictedSwitchingBehaviorConditions primaryConstituentDeviceRestrictedSwitchingBehaviorConditions API_AVAILABLE(ios(15.0));
+@property (nonatomic, copy) NSArray<AVCaptureDevice *> *fallbackPrimaryConstituentDevices API_AVAILABLE(ios(15.0));
+@property (nonatomic, readonly) NSArray<AVCaptureDevice *> *supportedFallbackPrimaryConstituentDevices API_AVAILABLE(ios(15.0));
+@property (nonatomic, readonly, getter=isFocusRectOfInterestSupported) BOOL focusRectOfInterestSupported API_AVAILABLE(ios(26.0));
+@property (nonatomic, readonly, getter=isExposureRectOfInterestSupported) BOOL exposureRectOfInterestSupported API_AVAILABLE(ios(26.0));
+@property (nonatomic, readonly) CGSize minFocusRectOfInterestSize, minExposureRectOfInterestSize API_AVAILABLE(ios(26.0));
+@property (nonatomic) CGRect focusRectOfInterest, exposureRectOfInterest API_AVAILABLE(ios(26.0));
+- (CGRect)defaultRectForFocusPointOfInterest:(CGPoint)pointOfInterest API_AVAILABLE(ios(26.0));
+- (CGRect)defaultRectForExposurePointOfInterest:(CGPoint)pointOfInterest API_AVAILABLE(ios(26.0));
+@property (nonatomic, readonly, getter=isCameraLensSmudgeDetectionEnabled) BOOL cameraLensSmudgeDetectionEnabled API_AVAILABLE(ios(26.0));
+@property (nonatomic, readonly) AVCaptureCameraLensSmudgeDetectionStatus cameraLensSmudgeDetectionStatus API_AVAILABLE(ios(26.0));
+@property (nonatomic, readonly) float nominalFocalLengthIn35mmFilm API_AVAILABLE(ios(26.0));
 @end
 @interface AVCaptureDeviceDiscoverySession : NSObject
 + (instancetype)discoverySessionWithDeviceTypes:(NSArray<AVCaptureDeviceType> *)deviceTypes mediaType:(nullable AVMediaType)mediaType
