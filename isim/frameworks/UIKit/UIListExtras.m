@@ -165,6 +165,10 @@ static char kMoving, kCadence, kCVFocus, kCVFocusEditing, kCVRemembers, kCVSelfS
     m.position = p;
     UICollectionViewLayout *l = self.collectionViewLayout;
     NSIndexPath *t = [l targetIndexPathForInteractivelyMovingItem:m.target withPosition:p];
+    /* iOS 15: the delegate may redirect the proposed position */
+    id<UICollectionViewDelegate> d = self.delegate;
+    if (t && [d respondsToSelector:@selector(collectionView:targetIndexPathForMoveOfItemFromOriginalIndexPath:atCurrentIndexPath:toProposedIndexPath:)])
+        t = [d collectionView:self targetIndexPathForMoveOfItemFromOriginalIndexPath:m.from atCurrentIndexPath:m.target toProposedIndexPath:t];
     if (t && t.section < self.numberOfSections && t.item < [self numberOfItemsInSection:t.section]) m.target = t;
     UICollectionViewLayoutInvalidationContext *ctx = [l invalidationContextForInteractivelyMovingItems:@[m.target] withTargetPosition:p previousIndexPaths:@[m.from] previousPosition:was];
     [l invalidateLayoutWithContext:ctx];

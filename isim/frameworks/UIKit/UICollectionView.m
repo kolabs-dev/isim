@@ -1698,7 +1698,16 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
         }
     }
     for (NSIndexPath *ip in _cells.allKeys) if (![keepCells containsObject:ip]) { [self _recycleCell:_cells[ip] at:ip]; [_cells removeObjectForKey:ip]; }
-    for (NSString *k in _supps.allKeys) if (![keepSupps containsObject:k]) { [self _recycleSupp:_supps[k]]; [_supps removeObjectForKey:k]; }
+    for (NSString *k in _supps.allKeys) if (![keepSupps containsObject:k]) {
+        UICollectionReusableView *v = _supps[k];
+        NSArray<NSString *> *parts = [k componentsSeparatedByString:@"|"];          /* kind|section|item */
+        if (parts.count >= 3 && [self.delegate respondsToSelector:@selector(collectionView:didEndDisplayingSupplementaryView:forElementOfKind:atIndexPath:)]) {
+            NSString *kind = [[parts subarrayWithRange:NSMakeRange(0, parts.count - 2)] componentsJoinedByString:@"|"];
+            NSIndexPath *sip = [NSIndexPath indexPathForItem:parts[parts.count - 1].integerValue inSection:parts[parts.count - 2].integerValue];
+            [self.delegate collectionView:self didEndDisplayingSupplementaryView:v forElementOfKind:kind atIndexPath:sip];
+        }
+        [self _recycleSupp:v]; [_supps removeObjectForKey:k];
+    }
     for (NSNumber *s in _orthos.allKeys) if (![orthoSecs containsObject:s]) { [_orthos[s] removeFromSuperview]; [_orthos removeObjectForKey:s]; }
     for (NSString *k in _decos.allKeys) if (![keepDecos containsObject:k]) {
         UICollectionReusableView *v = _decos[k];
@@ -1828,6 +1837,13 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
     [_selected addObject:ip]; c.selected = YES;
     if ([d respondsToSelector:@selector(collectionView:didSelectItemAtIndexPath:)]) [d collectionView:self didSelectItemAtIndexPath:ip];
     isim_ib_cell_selected(c);                    /* storyboard selection segue */
+    /* iOS 16 primary actions: outside editing, a tap performs the item's action and the selection does not stay */
+    BOOL editing = self.isEditing;
+    if (!editing && [d respondsToSelector:@selector(collectionView:performPrimaryActionForItemAtIndexPath:)]
+        && (![d respondsToSelector:@selector(collectionView:canPerformPrimaryActionForItemAtIndexPath:)] || [d collectionView:self canPerformPrimaryActionForItemAtIndexPath:ip])) {
+        [d collectionView:self performPrimaryActionForItemAtIndexPath:ip];
+        if (!_allowsMultipleSelection) [self _deselect:ip notify:NO];
+    }
 }
 - (void)_deselect:(NSIndexPath *)ip notify:(BOOL)notify {
     [_selected removeObject:ip]; _cells[ip].selected = NO;

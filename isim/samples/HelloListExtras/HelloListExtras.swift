@@ -189,6 +189,13 @@ final class GridViewController: UICollectionViewController {
         return c
     }
     override func collectionView(_ cv: UICollectionView, canMoveItemAt ip: IndexPath) -> Bool { true }
+    // #872: the delegate sees the proposed position during interactive movement (once per original item)
+    var movementLogged = false
+    override func collectionView(_ cv: UICollectionView, targetIndexPathForMoveOfItemFromOriginalIndexPath original: IndexPath,
+                                 atCurrentIndexPath current: IndexPath, toProposedIndexPath proposed: IndexPath) -> IndexPath {
+        if !movementLogged { movementLogged = true; log("move target asked from \(original.item)") }
+        return proposed
+    }
     override func collectionView(_ cv: UICollectionView, moveItemAt from: IndexPath, to: IndexPath) {
         let x = items.remove(at: from.item); items.insert(x, at: to.item)
         log("moved \(x) to \(to.item) order \(items.joined(separator: ","))")

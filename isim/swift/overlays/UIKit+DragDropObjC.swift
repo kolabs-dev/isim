@@ -17,6 +17,10 @@ import ObjectiveC
     @objc(dragInteraction:sessionDidMove:) optional func didMove(_ i: UIDragInteraction, _ s: AnyObject)
     @objc(dragInteraction:session:willEndWithOperation:) optional func willEnd(_ i: UIDragInteraction, _ s: AnyObject, _ op: UIDropOperation)
     @objc(dragInteraction:session:didEndWithOperation:) optional func didEnd(_ i: UIDragInteraction, _ s: AnyObject, _ op: UIDropOperation)
+    @objc(dragInteraction:sessionDidTransferItems:) optional func didTransfer(_ i: UIDragInteraction, _ s: AnyObject)
+    @objc(dragInteraction:prefersFullSizePreviewsForSession:) optional func fullSize(_ i: UIDragInteraction, _ s: AnyObject) -> Bool
+    @objc(dragInteraction:sessionIsRestrictedToDraggingApplication:) optional func restricted(_ i: UIDragInteraction, _ s: AnyObject) -> Bool
+    @objc(dragInteraction:item:willAnimateCancelWithAnimator:) optional func willAnimateCancel(_ i: UIDragInteraction, _ item: UIDragItem, _ a: AnyObject)
 }
 @MainActor @objc(UIDropInteractionDelegate) protocol _ObjCDropInteractionDelegate: NSObjectProtocol {
     @objc(dropInteraction:canHandleSession:) optional func canHandle(_ i: UIDropInteraction, _ s: AnyObject) -> Bool
@@ -86,6 +90,10 @@ private func keep(_ owner: AnyObject, _ key: UnsafeRawPointer, _ adapter: AnyObj
     func dragInteraction(_ i: UIDragInteraction, session s: UIDragSession, willEndWith op: UIDropOperation) { d?.willEnd?(i, s, op) }
     func dragInteraction(_ i: UIDragInteraction, session s: UIDragSession, didEndWith op: UIDropOperation) { d?.didEnd?(i, s, op) }
     func dragInteraction(_ i: UIDragInteraction, sessionAllowsMoveOperation s: UIDragSession) -> Bool { d?.allowsMove?(i, s) ?? true }
+    func dragInteraction(_ i: UIDragInteraction, sessionDidTransferItems s: UIDragSession) { d?.didTransfer?(i, s) }
+    func dragInteraction(_ i: UIDragInteraction, prefersFullSizePreviewsFor s: UIDragSession) -> Bool { d?.fullSize?(i, s) ?? false }
+    func dragInteraction(_ i: UIDragInteraction, sessionIsRestrictedToDraggingApplication s: UIDragSession) -> Bool { d?.restricted?(i, s) ?? false }
+    func dragInteraction(_ i: UIDragInteraction, item: UIDragItem, willAnimateCancelWith a: UIDragAnimating) { d?.willAnimateCancel?(i, item, a) }
 }
 @MainActor final class _ObjCDropInteractionAdapter: NSObject, @preconcurrency UIDropInteractionDelegate {
     weak var target: AnyObject?

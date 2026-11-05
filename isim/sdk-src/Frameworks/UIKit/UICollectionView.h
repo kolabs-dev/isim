@@ -353,7 +353,8 @@ NS_SWIFT_UI_ACTOR
 - (NSIndexPath *)collectionView:(UICollectionView *)collectionView indexPathForIndexTitle:(NSString *)title atIndex:(NSInteger)index API_AVAILABLE(ios(14.0));
 @end
 @class UIContextMenuConfiguration;
-@protocol UIContextMenuInteractionAnimating, UIContextMenuInteractionCommitAnimating;
+@protocol UIContextMenuInteractionAnimating, UIContextMenuInteractionCommitAnimating, UISpringLoadedInteractionContext;
+@class UITargetedPreview, UIWindowSceneActivationConfiguration;
 @protocol UICollectionViewDelegate <UIScrollViewDelegate>
 @optional
 - (UICollectionViewTransitionLayout *)collectionView:(UICollectionView *)collectionView transitionLayoutForOldLayout:(UICollectionViewLayout *)fromLayout
@@ -372,8 +373,27 @@ NS_SWIFT_UI_ACTOR
 - (nullable UIContextMenuConfiguration *)collectionView:(UICollectionView *)collectionView contextMenuConfigurationForItemsAtIndexPaths:(NSArray<NSIndexPath *> *)indexPaths point:(CGPoint)point API_AVAILABLE(ios(16.0));
 - (nullable UIContextMenuConfiguration *)collectionView:(UICollectionView *)collectionView contextMenuConfigurationForItemAtIndexPath:(NSIndexPath *)indexPath point:(CGPoint)point API_DEPRECATED("Use collectionView:contextMenuConfigurationForItemsAtIndexPaths:point:", ios(13.0, 16.0));
 - (void)collectionView:(UICollectionView *)collectionView willPerformPreviewActionForMenuWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(id<UIContextMenuInteractionCommitAnimating>)animator;
-- (void)collectionView:(UICollectionView *)collectionView willDisplayContextMenuWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(nullable id<UIContextMenuInteractionAnimating>)animator;
-- (void)collectionView:(UICollectionView *)collectionView willEndContextMenuInteractionWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(nullable id<UIContextMenuInteractionAnimating>)animator;
+- (void)collectionView:(UICollectionView *)collectionView willDisplayContextMenuWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(nullable id<UIContextMenuInteractionAnimating>)animator NS_SWIFT_NAME(collectionView(_:willDisplayContextMenu:animator:));
+- (void)collectionView:(UICollectionView *)collectionView willEndContextMenuInteractionWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(nullable id<UIContextMenuInteractionAnimating>)animator NS_SWIFT_NAME(collectionView(_:willEndContextMenuInteraction:animator:));
+/* the views a context menu's preview animates from and to (iOS 16; isim: the item's own view) */
+- (nullable UITargetedPreview *)collectionView:(UICollectionView *)collectionView contextMenuConfiguration:(UIContextMenuConfiguration *)configuration highlightPreviewForItemAtIndexPath:(NSIndexPath *)indexPath API_AVAILABLE(ios(16.0));
+- (nullable UITargetedPreview *)collectionView:(UICollectionView *)collectionView contextMenuConfiguration:(UIContextMenuConfiguration *)configuration dismissalPreviewForItemAtIndexPath:(NSIndexPath *)indexPath API_AVAILABLE(ios(16.0));
+/* iOS 16 primary actions: a tap on an item that is not being edited performs it */
+- (BOOL)collectionView:(UICollectionView *)collectionView canPerformPrimaryActionForItemAtIndexPath:(NSIndexPath *)indexPath API_AVAILABLE(ios(16.0));
+- (void)collectionView:(UICollectionView *)collectionView performPrimaryActionForItemAtIndexPath:(NSIndexPath *)indexPath API_AVAILABLE(ios(16.0));
+/* supplementary views going off screen */
+- (void)collectionView:(UICollectionView *)collectionView didEndDisplayingSupplementaryView:(UICollectionReusableView *)view forElementOfKind:(NSString *)elementKind atIndexPath:(NSIndexPath *)indexPath;
+/* editing (iOS 14) and where a moved item may go (iOS 15; asked during interactive movement) */
+- (BOOL)collectionView:(UICollectionView *)collectionView canEditItemAtIndexPath:(NSIndexPath *)indexPath API_AVAILABLE(ios(14.0));
+- (NSIndexPath *)collectionView:(UICollectionView *)collectionView targetIndexPathForMoveOfItemFromOriginalIndexPath:(NSIndexPath *)originalIndexPath
+    atCurrentIndexPath:(NSIndexPath *)currentIndexPath toProposedIndexPath:(NSIndexPath *)proposedIndexPath API_AVAILABLE(ios(15.0));
+/* the offset to land on after a layout change (isim: not asked), spring loading and the two-finger multiple selection (isim: not started),
+   a new window for an item (iPad multitasking: isim opens none) */
+- (CGPoint)collectionView:(UICollectionView *)collectionView targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset;
+- (BOOL)collectionView:(UICollectionView *)collectionView shouldSpringLoadItemAtIndexPath:(NSIndexPath *)indexPath withContext:(id<UISpringLoadedInteractionContext>)context NS_SWIFT_NAME(collectionView(_:shouldSpringLoadItemAt:with:));
+- (BOOL)collectionView:(UICollectionView *)collectionView shouldBeginMultipleSelectionInteractionAtIndexPath:(NSIndexPath *)indexPath API_AVAILABLE(ios(13.0));
+- (void)collectionView:(UICollectionView *)collectionView didBeginMultipleSelectionInteractionAtIndexPath:(NSIndexPath *)indexPath API_AVAILABLE(ios(13.0));
+- (nullable UIWindowSceneActivationConfiguration *)collectionView:(UICollectionView *)collectionView sceneActivationConfigurationForItemAtIndexPath:(NSIndexPath *)indexPath point:(CGPoint)point API_AVAILABLE(ios(15.0));
 /* multiple selection with a two-finger pan (isim: not called) and the focus engine's preferred item  */
 - (void)collectionViewDidEndMultipleSelectionInteraction:(UICollectionView *)collectionView API_AVAILABLE(ios(13.0));
 - (nullable NSIndexPath *)indexPathForPreferredFocusedViewInCollectionView:(UICollectionView *)collectionView;
