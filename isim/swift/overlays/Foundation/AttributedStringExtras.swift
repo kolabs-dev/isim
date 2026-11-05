@@ -862,3 +862,41 @@ extension PresentationIntent {
   /// the number of intent types, innermost first
   public var count: Int { components.count }
 }
+
+// MARK: - notifications as an async sequence
+
+extension NotificationCenter {
+  /// The notifications posted with this name (and object), as they arrive.
+  public struct Notifications: AsyncSequence, @unchecked Sendable {
+    public typealias Element = Notification
+    let stream: AsyncStream<Notification>
+    public struct Iterator: AsyncIteratorProtocol {
+      var base: AsyncStream<Notification>.Iterator
+      public mutating func next() async -> Notification? { await base.next() }
+    }
+    public func makeAsyncIterator() -> Iterator { Iterator(base: stream.makeAsyncIterator()) }
+  }
+  public func notifications(named name: Notification.Name, object: (any AnyObject & Sendable)? = nil) -> Notifications {
+    let (stream, cont) = AsyncStream<Notification>.makeStream(bufferingPolicy: .unbounded)
+    nonisolated(unsafe) let token = addObserver(forName: name, object: object, queue: nil) { n in cont.yield(n) }
+    let center = self
+    cont.onTermination = { _ in center.removeObserver(token) }
+    return Notifications(stream: stream)
+  }
+}
+
+// MARK: - NSString's variadic formatting (Objective-C variadic methods don't import)
+
+extension NSString {
+  public convenience init(format: NSString, _ args: CVarArg...) {
+    let s = withVaList(args) { NSString(format: format as String, arguments: $0) }
+    self.init(string: s as String)
+  }
+  public convenience init(format: NSString, locale: Locale?, _ args: CVarArg...) {
+    self.init(string: String(format: format as String, locale: locale, arguments: args))
+  }
+  public func appendingFormat(_ format: NSString, _ args: CVarArg...) -> NSString {
+    let s = withVaList(args) { NSString(format: format as String, arguments: $0) }
+    return appending(s as String) as NSString
+  }
+}

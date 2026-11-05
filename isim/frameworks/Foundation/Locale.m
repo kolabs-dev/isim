@@ -27,6 +27,12 @@ NSLocaleKey const NSLocaleIdentifier = @"locale:id", NSLocaleLanguageCode = @"kC
     NSLocaleCurrencySymbol = @"kCFLocaleCurrencySymbolKey", NSLocaleCurrencyCode = @"currency",
     NSLocaleUsesMetricSystem = @"kCFLocaleUsesMetricSystemKey", NSLocaleCalendarIdentifier = @"calendar";
 NSNotificationName const NSCurrentLocaleDidChangeNotification = @"kCFLocaleCurrentLocaleDidChangeNotification";
+NSLocaleKey const NSLocaleVariantCode = @"kCFLocaleVariantCodeKey", NSLocaleExemplarCharacterSet = @"kCFLocaleExemplarCharacterSetKey",
+    NSLocaleCalendar = @"kCFLocaleCalendarKey", NSLocaleCollationIdentifier = @"collation", NSLocaleMeasurementSystem = @"kCFLocaleMeasurementSystemKey",
+    NSLocaleCollatorIdentifier = @"kCFLocaleCollatorIdentifierKey", NSLocaleQuotationBeginDelimiterKey = @"kCFLocaleQuotationBeginDelimiterKey",
+    NSLocaleQuotationEndDelimiterKey = @"kCFLocaleQuotationEndDelimiterKey",
+    NSLocaleAlternateQuotationBeginDelimiterKey = @"kCFLocaleAlternateQuotationBeginDelimiterKey",
+    NSLocaleAlternateQuotationEndDelimiterKey = @"kCFLocaleAlternateQuotationEndDelimiterKey";
 
 /* ---------------- settings ---------------- */
 NSArray<NSString *> *isim_preferred_languages(void) {
@@ -567,6 +573,16 @@ static NSArray<NSString *> *icu_codes(int kind, const char *locale) {
     if ([key isEqualToString:NSLocaleCurrencyCode]) return self.currencyCode;
     if ([key isEqualToString:NSLocaleUsesMetricSystem]) return @(self.usesMetricSystem);
     if ([key isEqualToString:NSLocaleCalendarIdentifier]) return self.calendarIdentifier;
+    if ([key isEqualToString:NSLocaleCalendar]) { NSCalendar *c = [NSCalendar calendarWithIdentifier:self.calendarIdentifier]; c.locale = self; return c; }
+    if ([key isEqualToString:NSLocaleVariantCode]) return self.variantCode;
+    if ([key isEqualToString:NSLocaleExemplarCharacterSet]) return self.exemplarCharacterSet;
+    if ([key isEqualToString:NSLocaleCollationIdentifier]) return self.collationIdentifier;
+    if ([key isEqualToString:NSLocaleCollatorIdentifier]) return self.collatorIdentifier;
+    if ([key isEqualToString:NSLocaleMeasurementSystem]) return self.usesMetricSystem ? @"Metric" : ([_region isEqualToString:@"GB"] ? @"U.K." : @"U.S.");
+    if ([key isEqualToString:NSLocaleQuotationBeginDelimiterKey]) return self.quotationBeginDelimiter;
+    if ([key isEqualToString:NSLocaleQuotationEndDelimiterKey]) return self.quotationEndDelimiter;
+    if ([key isEqualToString:NSLocaleAlternateQuotationBeginDelimiterKey]) return self.alternateQuotationBeginDelimiter;
+    if ([key isEqualToString:NSLocaleAlternateQuotationEndDelimiterKey]) return self.alternateQuotationEndDelimiter;
     return nil;
 }
 - (NSString *)localizedStringForLanguageCode:(NSString *)code {
@@ -599,6 +615,9 @@ static NSArray<NSString *> *icu_codes(int kind, const char *locale) {
     if ([key isEqualToString:NSLocaleScriptCode]) return [self localizedStringForScriptCode:value];
     if ([key isEqualToString:NSLocaleCurrencyCode]) return [self localizedStringForCurrencyCode:value];
     if ([key isEqualToString:NSLocaleCalendarIdentifier]) return [self localizedStringForCalendarIdentifier:value];
+    if ([key isEqualToString:NSLocaleVariantCode]) return [self localizedStringForVariantCode:value];
+    if ([key isEqualToString:NSLocaleCollationIdentifier]) return [self localizedStringForCollationIdentifier:value];
+    if ([key isEqualToString:NSLocaleCollatorIdentifier]) return [self localizedStringForCollatorIdentifier:value];
     return nil;
 }
 + (NSLocaleLanguageDirection)characterDirectionForLanguage:(NSString *)code {
@@ -1331,3 +1350,124 @@ void isim_reapply_time_zone_setting(void) {
     default_tz = nil;
     if (changed) [NSNotificationCenter.defaultCenter postNotificationName:NSSystemTimeZoneDidChangeNotification object:nil];
 }
+
+
+/* ---------------- NSLocale: identifiers, quotation marks, exemplar characters ---------------- */
+/* CLDR's quotation marks for common languages: begin, end, alternate begin, alternate end */
+static NSArray<NSString *> *locale_quotes(NSString *lang) {
+    static NSDictionary<NSString *, NSArray *> *t;
+    if (!t) t = @{ @"de": @[@"„", @"“", @"‚", @"‘"], @"fr": @[@"«", @"»", @"«", @"»"], @"es": @[@"«", @"»", @"“", @"”"],
+                   @"it": @[@"«", @"»", @"“", @"”"], @"ru": @[@"«", @"»", @"„", @"“"], @"pl": @[@"„", @"”", @"«", @"»"],
+                   @"ja": @[@"「", @"」", @"『", @"』"], @"zh": @[@"“", @"”", @"‘", @"’"], @"ko": @[@"“", @"”", @"‘", @"’"],
+                   @"nl": @[@"‘", @"’", @"“", @"”"], @"sv": @[@"”", @"”", @"’", @"’"], @"da": @[@"“", @"”", @"‘", @"’"],
+                   @"pt": @[@"“", @"”", @"‘", @"’"], @"cs": @[@"„", @"“", @"‚", @"‘"], @"he": @[@"”", @"”", @"’", @"’"],
+                   @"ar": @[@"”", @"“", @"’", @"‘"], @"tr": @[@"“", @"”", @"‘", @"’"], @"uk": @[@"«", @"»", @"„", @"“"] };
+    return t[lang] ?: @[@"“", @"”", @"‘", @"’"];
+}
+/* Windows LCIDs of the common locales */
+static NSDictionary<NSString *, NSNumber *> *locale_lcids(void) {
+    static NSDictionary *t;
+    if (!t) t = @{ @"en_US": @1033, @"en_GB": @2057, @"en_AU": @3081, @"en_CA": @4105, @"fr_FR": @1036, @"fr_CA": @3084, @"de_DE": @1031,
+                   @"es_ES": @3082, @"es_MX": @2058, @"it_IT": @1040, @"pt_BR": @1046, @"pt_PT": @2070, @"ja_JP": @1041, @"ko_KR": @1042,
+                   @"zh_CN": @2052, @"zh_TW": @1028, @"ru_RU": @1049, @"nl_NL": @1043, @"sv_SE": @1053, @"da_DK": @1030, @"pl_PL": @1045,
+                   @"tr_TR": @1055, @"ar_SA": @1025, @"he_IL": @1037, @"hi_IN": @1081, @"th_TH": @1054, @"uk_UA": @1058, @"cs_CZ": @1029 };
+    return t;
+}
+@implementation NSLocale (NSExtendedLocale)
+- (NSString *)languageIdentifier {
+    NSMutableArray *p = [NSMutableArray arrayWithObject:self.languageCode ?: @"und"];
+    if (self.scriptCode) [p addObject:self.scriptCode];
+    if (self.countryCode) [p addObject:self.countryCode];
+    return [p componentsJoinedByString:@"-"];
+}
+- (NSString *)variantCode {
+    NSArray *parts = [[self.localeIdentifier componentsSeparatedByString:@"@"].firstObject componentsSeparatedByString:@"_"];
+    NSString *last = parts.count >= 3 ? parts.lastObject : nil;
+    return last.length > 2 && last.length != 4 ? last : nil;                  /* not a region or a script */
+}
+- (NSString *)collationIdentifier {
+    for (NSString *kv in [[self.localeIdentifier componentsSeparatedByString:@"@"].lastObject componentsSeparatedByString:@";"])
+        if ([kv hasPrefix:@"collation="]) return [kv substringFromIndex:10];
+    return nil;
+}
+- (NSString *)collatorIdentifier { return [self.localeIdentifier componentsSeparatedByString:@"@"].firstObject; }
+- (NSCharacterSet *)exemplarCharacterSet {
+    if ([self.languageCode isEqualToString:@"en"]) return [NSCharacterSet characterSetWithCharactersInString:@"abcdefghijklmnopqrstuvwxyz"];
+    return [NSCharacterSet letterCharacterSet];
+}
+- (NSString *)quotationBeginDelimiter { return locale_quotes(self.languageCode)[0]; }
+- (NSString *)quotationEndDelimiter { return locale_quotes(self.languageCode)[1]; }
+- (NSString *)alternateQuotationBeginDelimiter { return locale_quotes(self.languageCode)[2]; }
+- (NSString *)alternateQuotationEndDelimiter { return locale_quotes(self.languageCode)[3]; }
+- (NSString *)localizedStringForVariantCode:(NSString *)code {
+    if ([code.uppercaseString isEqualToString:@"POSIX"]) return @"Computer";
+    return nil;
+}
+- (NSString *)localizedStringForCollationIdentifier:(NSString *)ident {
+    NSDictionary *names = @{ @"standard": @"Standard Sort Order", @"phonebook": @"Phonebook Sort Order", @"pinyin": @"Pinyin Sort Order",
+                             @"stroke": @"Stroke Order", @"traditional": @"Traditional Sort Order", @"search": @"General-Purpose Search",
+                             @"emoji": @"Emoji Sort Order", @"zhuyin": @"Zhuyin Sort Order", @"big5han": @"Traditional Chinese Sort Order - Big5",
+                             @"gb2312han": @"Simplified Chinese Sort Order - GB2312", @"unihan": @"Radical-Stroke Sort Order" };
+    return names[ident];
+}
+- (NSString *)localizedStringForCollatorIdentifier:(NSString *)ident { return [self localizedStringForLocaleIdentifier:ident]; }
++ (NSArray<NSString *> *)ISOLanguageCodes {
+    return @[@"af", @"am", @"ar", @"as", @"az", @"be", @"bg", @"bn", @"bo", @"bs", @"ca", @"cs", @"cy", @"da", @"de", @"el", @"en", @"eo", @"es",
+             @"et", @"eu", @"fa", @"fi", @"fil", @"fo", @"fr", @"ga", @"gl", @"gu", @"ha", @"he", @"hi", @"hr", @"hu", @"hy", @"id", @"ig", @"is",
+             @"it", @"ja", @"ka", @"kk", @"km", @"kn", @"ko", @"ky", @"lo", @"lt", @"lv", @"mk", @"ml", @"mn", @"mr", @"ms", @"mt", @"my", @"nb",
+             @"ne", @"nl", @"nn", @"or", @"pa", @"pl", @"ps", @"pt", @"ro", @"ru", @"si", @"sk", @"sl", @"so", @"sq", @"sr", @"sv", @"sw", @"ta",
+             @"te", @"th", @"tk", @"tr", @"uk", @"ur", @"uz", @"vi", @"yo", @"zh", @"zu"];
+}
++ (NSDictionary<NSString *, NSString *> *)componentsFromLocaleIdentifier:(NSString *)string {
+    NSLocale *l = [NSLocale localeWithLocaleIdentifier:[self canonicalLocaleIdentifierFromString:string]];
+    NSMutableDictionary *d = [NSMutableDictionary dictionary];
+    if (l.languageCode) d[NSLocaleLanguageCode] = l.languageCode;
+    if (l.scriptCode) d[NSLocaleScriptCode] = l.scriptCode;
+    if (l.countryCode) d[NSLocaleCountryCode] = l.countryCode;
+    if (l.variantCode) d[NSLocaleVariantCode] = l.variantCode;
+    NSArray *at = [string componentsSeparatedByString:@"@"];
+    if (at.count > 1)
+        for (NSString *kv in [at[1] componentsSeparatedByString:@";"]) {
+            NSArray *p = [kv componentsSeparatedByString:@"="];
+            if (p.count == 2) d[p[0]] = p[1];
+        }
+    return d;
+}
++ (NSString *)localeIdentifierFromComponents:(NSDictionary<NSString *, NSString *> *)dict {
+    NSMutableString *s = [NSMutableString stringWithString:dict[NSLocaleLanguageCode] ?: @""];
+    if (dict[NSLocaleScriptCode]) [s appendFormat:@"_%@", dict[NSLocaleScriptCode]];
+    if (dict[NSLocaleCountryCode]) [s appendFormat:@"_%@", dict[NSLocaleCountryCode]];
+    if (dict[NSLocaleVariantCode]) [s appendFormat:@"%@_%@", dict[NSLocaleCountryCode] ? @"" : @"_", dict[NSLocaleVariantCode]];
+    NSMutableArray *kw = [NSMutableArray array];
+    for (NSString *k in [dict.allKeys sortedArrayUsingSelector:@selector(compare:)])
+        if (![@[NSLocaleLanguageCode, NSLocaleScriptCode, NSLocaleCountryCode, NSLocaleVariantCode] containsObject:k]) [kw addObject:[NSString stringWithFormat:@"%@=%@", k, dict[k]]];
+    if (kw.count) [s appendFormat:@"@%@", [kw componentsJoinedByString:@";"]];
+    return s;
+}
+/* "EN-us" -> "en_US", "zh-hant-tw" -> "zh_Hant_TW" */
++ (NSString *)canonicalLocaleIdentifierFromString:(NSString *)string {
+    NSArray *at = [string componentsSeparatedByString:@"@"];
+    NSArray *parts = [[at[0] stringByReplacingOccurrencesOfString:@"-" withString:@"_"] componentsSeparatedByString:@"_"];
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSUInteger i = 0; i < parts.count; i++) {
+        NSString *p = parts[i];
+        if (!p.length) continue;
+        if (i == 0) [out addObject:p.lowercaseString];
+        else if (p.length == 4 && i == 1) [out addObject:[[p substringToIndex:1].uppercaseString stringByAppendingString:[p substringFromIndex:1].lowercaseString]];
+        else [out addObject:p.uppercaseString];
+    }
+    NSString *base = [out componentsJoinedByString:@"_"];
+    return at.count > 1 ? [NSString stringWithFormat:@"%@@%@", base, at[1]] : base;
+}
+/* "en_US" -> "en-US" */
++ (NSString *)canonicalLanguageIdentifierFromString:(NSString *)string {
+    return [[self canonicalLocaleIdentifierFromString:[string componentsSeparatedByString:@"@"].firstObject] stringByReplacingOccurrencesOfString:@"_" withString:@"-"];
+}
++ (NSString *)localeIdentifierFromWindowsLocaleCode:(uint32_t)lcid {
+    for (NSString *k in locale_lcids()) if ([locale_lcids()[k] unsignedIntValue] == lcid) return k;
+    return nil;
+}
++ (uint32_t)windowsLocaleCodeFromLocaleIdentifier:(NSString *)ident { return [locale_lcids()[[self canonicalLocaleIdentifierFromString:ident]] unsignedIntValue]; }
+/* lines run top to bottom in every language the system supports */
++ (NSLocaleLanguageDirection)lineDirectionForLanguage:(NSString *)code { return NSLocaleLanguageDirectionTopToBottom; }
+@end
