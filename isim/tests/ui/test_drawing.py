@@ -58,6 +58,9 @@ SHAPES = [   # (check, [(x, y, predicate on (r, g, b))])
 def test_drawing(launch):
     app = launch("HelloDrawing")
     app.wait_log(r"symbol size 20x20")
+    x868 = app.wait_log(r"^x868b .*").group(0)
+    assert x868 == "x868b spring 12 update 10 snappy true force 0.0 underline true dash true rr corner false capsule true", \
+        f"Spring value / update / snappy / force, Text.LineStyle(nsUnderlineStyle:), Shape.rect(cornerRadius:), Shape.capsule: {x868}"
     shapes = app.screenshot("shapes")
     failed = [(what, x, y, rgb(shapes, x, y)) for what, pts in SHAPES for x, y, pred in pts if not pred(rgb(shapes, x, y))]
     assert not failed, f"shape pixels: {failed}"
