@@ -39,6 +39,8 @@ public var CoreSpotlightAPIVersion: Int32 { 1 }
     var _updateListenerOptions: UInt = 0
     /// the app entity the item stands for (AppIntents' IndexedEntity, associateAppEntity): type and identifier
     public var _isimAppEntity: [String: String]?
+    /// an AppIntents EntityIdentifier (relatedAppEntityIdentifier)
+    public var _isimRelatedEntity: Any?
     /// a found item's rank (CSUserQuery's ranked results; higher first)
     var _rank: Double = 0
     public init(uniqueIdentifier: String?, domainIdentifier: String?, attributeSet: CSSearchableItemAttributeSet) {

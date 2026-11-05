@@ -97,3 +97,17 @@ def test_spotlight_delegate_and_extensions(launch, device_data):
     listing = isim(device_data, "spotlight", "list", APP)
     assert "note-coffee\tCoffee tasting\tdomain notes\tindex notes" in listing, listing
     assert dev.quit() == 0
+
+
+def test_spotlight_search_tool(launch):
+    # iOS 27 (issue #859): SpotlightSearchTool, the Foundation Models tool, run directly: its query over the app's index
+    # (with the fetched attributes), the reply on searchResults, its summary for the model, the guide and the contact in
+    # its description, and a custom stage (CountStage) turning the items into a count
+    dev = launch(None, install=["HelloSpotlight"], os_version="27")
+    dev.send(f"launch {APP}")
+    dev.wait_tap_id("index")
+    status(dev, r"indexed 3 notes")
+    dev.tap_id("tool")
+    status(dev, r"search tool: note-coffee 5,note-standup 3 status true; summary 2 result\(s\):; counted 1 result\(s\)\.")
+    dev.wait_log(r"sp tool name searchSpotlight me true domain true")
+    assert dev.quit() == 0

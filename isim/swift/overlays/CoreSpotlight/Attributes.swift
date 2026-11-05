@@ -8,6 +8,8 @@ import UniformTypeIdentifiers
     /// the attributes by name (Apple's property names), and the custom attributes by key name
     var _values: [String: Any] = [:]
     var _custom: [String: Any] = [:]
+    /// an AppIntents EntityIdentifier (relatedAppEntityIdentifier, associateAppEntity)
+    public var _isimRelatedEntity: Any?
 
     public init(contentType: UTType) { super.init(); self.contentType = contentType.identifier }
     public init(itemContentType: String) { super.init(); self.contentType = itemContentType }

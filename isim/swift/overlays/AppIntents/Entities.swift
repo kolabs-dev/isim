@@ -45,12 +45,6 @@ public protocol IndexedEntityQuery: EntityQuery {
     func reindexAllEntities(indexDescription: CSSearchableIndexDescription) async throws
     func reindexEntities(for identifiers: [Entity.ID], indexDescription: CSSearchableIndexDescription) async throws
 }
-/// describes the index a query reindexes (iOS 18)
-@available(iOS 18.0, *)
-public struct CSSearchableIndexDescription: Sendable {
-    public let name: String
-    init(name: String) { self.name = name }
-}
 @available(iOS 18.0, *)
 extension IndexedEntityQuery where Entity: IndexedEntity {
     /// suggested entities are indexed again (isim has no index maintenance of its own to call it)
@@ -82,6 +76,40 @@ extension CSSearchableItem {
     /// the item opens the entity (the app's OpenIntent for its type) when chosen in Spotlight
     public func associateAppEntity<T: IndexedEntity>(_ entity: T, priority: Int = 0) {
         _isimAppEntity = ["type": _isimTypeName(T.self), "id": "\(entity.id)"]
+    }
+}
+@available(iOS 18.0, *)
+extension CSSearchableItem {
+    /// an item for an entity: its attribute set, and the entity it opens
+    public convenience init(appEntity: some IndexedEntity) { self.init(_isimEntity: appEntity, priority: 0) }
+    public convenience init<Entity>(appEntity: Entity, priority: Int) where Entity: IndexedEntity { self.init(_isimEntity: appEntity, priority: priority) }
+    @available(iOS 27.0, *)
+    public convenience init(appEntity: some IndexedEntity) async { self.init(_isimEntity: appEntity, priority: 0) }
+    @available(iOS 27.0, *)
+    public convenience init<Entity>(appEntity: Entity, priority: Int) async where Entity: IndexedEntity { self.init(_isimEntity: appEntity, priority: priority) }
+    convenience init<Entity: IndexedEntity>(_isimEntity entity: Entity, priority: Int) {
+        let made = entity._isimSearchableItem
+        self.init(uniqueIdentifier: made.uniqueIdentifier, domainIdentifier: made.domainIdentifier, attributeSet: made.attributeSet)
+        _isimAppEntity = made._isimAppEntity
+        _isimRelatedEntity = EntityIdentifier(for: entity)
+    }
+    /// the entity the item is about (iOS 27)
+    @available(iOS 27.0, *)
+    public var relatedAppEntityIdentifier: EntityIdentifier? {
+        get { _isimRelatedEntity as? EntityIdentifier }
+        set { _isimRelatedEntity = newValue }
+    }
+}
+@available(iOS 18.0, *)
+extension CSSearchableItemAttributeSet {
+    /// the attributes describe the entity
+    public func associateAppEntity<Entity>(_ appEntity: Entity, priority: Int = 0) where Entity: IndexedEntity {
+        _isimRelatedEntity = EntityIdentifier(for: appEntity)
+    }
+    @available(iOS 27.0, *)
+    public var relatedAppEntityIdentifier: EntityIdentifier? {
+        get { _isimRelatedEntity as? EntityIdentifier }
+        set { _isimRelatedEntity = newValue }
     }
 }
 
