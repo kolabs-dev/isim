@@ -32,9 +32,13 @@ def test_table(launch, ios):
         "self-sizing multi-line row"
     app.tap_id("row-Fruit3")
     app.wait_log(r"selected Fruit 3")                                   # row selection
+    app.wait_log(r"highlighted Fruit 3")                                # didHighlightRowAt (#872)
+    assert app.has(r"^header view 0 UITableViewHeaderFooterView$"), "willDisplayHeaderView:forSection:"
     app.send("swipeid row-Fruit2 -150 0 0.3")
     app.wait_tap_id("swipe-Delete")
     app.wait_log(r"deleted Fruit 2, rows 30")                           # swipe reveals Delete, commits
+    app.wait_log(r"swipe editing Fruit 2")                              # willBeginEditingRowAt (#872)
+    app.wait_log(r"swipe editing ended")                                # didEndEditingRowAt
     app.wait_still()
     app.send("swipeid row-Fruit4 -360 0 0.25")
     app.wait_log(r"deleted Fruit 4, rows 29")                           # full swipe deletes
@@ -69,6 +73,7 @@ def test_table(launch, ios):
     app.wait_log(r"sound Glass, checked rows \[2\]")                    # checkmarks follow selection
     app.tap_id("set-name")
     app.wait_log(r"open name")
+    app.wait_log(r"primary action name, selected none")                 # performPrimaryActionForRowAt (#872)
     app.wait_still()
     app.tap(355, 262)
     app.wait_log(r"detail button row 1")                                # disclosure row + detail button
