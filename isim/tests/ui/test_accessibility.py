@@ -58,6 +58,9 @@ def test_voiceover_and_dynamic_type(launch):
     first = app.wait_view(r'id=body text=Dynamic Type body ax="Dynamic Type body"')   # dump shows ax descriptions
     assert swiftui_body_height(first) == 21, f"SwiftUI text at the default size: {swiftui_body_height(first)}"
     assert app.has(r"^swiftui env reduceMotion false dynamicType large bold false"), "SwiftUI environment defaults"
+    assert app.has(r"^x868 env size accessibilityLarge accessibility true lineSpacing 4\.0 fitted true scroll false shortcut true "
+                   r"noAutocorrect true gradient true leading true focusEffect false playImages true pixel true"), \
+        "SwiftUI environment values from their modifiers (issue #868)"
     app.wait_tap_id("bigger")
     app.wait_log(r"^changed to UICTContentSizeCategoryAccessibilityXL: category UICTContentSizeCategoryAccessibilityXL "
                  r"accessibility 1 body 40 pt scaled10 23\.5")                 # Dynamic Type change: UIKit font + metrics

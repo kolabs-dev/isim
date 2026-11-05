@@ -674,7 +674,7 @@ extension View {
     public func kerning(_ kerning: CGFloat) -> some View { _env { $0._textStyle.kerning = kerning } }
     public func tracking(_ tracking: CGFloat) -> some View { _env { $0._textStyle.kerning = tracking } }
     public func baselineOffset(_ offset: CGFloat) -> some View { _env { $0._textStyle.baseline = offset } }
-    public func lineSpacing(_ spacing: CGFloat) -> some View { self }
+    public func lineSpacing(_ spacing: CGFloat) -> some View { environment(\.lineSpacing, spacing) }
     public func textSelection<S>(_ selectability: S) -> some View { self }
     public func dynamicTypeSize(_ size: DynamicTypeSize) -> some View { _env { $0.dynamicTypeSize = size } }
     public func dynamicTypeSize<T: RangeExpression>(_ range: T) -> some View where T.Bound == DynamicTypeSize { self }

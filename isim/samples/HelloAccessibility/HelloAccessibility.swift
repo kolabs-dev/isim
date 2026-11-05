@@ -58,8 +58,35 @@ struct SwiftUIPart: View {
                 .accessibilityAdjustableAction { d in rating += d == .increment ? 1 : -1; print("rating \(rating)") }
             Text("Decoration").accessibilityHidden(true)
             Text("Body text").font(.body).accessibilityIdentifier("swiftui-body")
+            EnvProbe868()
+                .lineSpacing(4).buttonSizing(.fitted).scrollDisabled(true).keyboardShortcut("k")
+                .autocorrectionDisabled().symbolColorRenderingMode(.gradient).toolbarTitleAlignment(.leading)
+                .focusEffectDisabled().environment(\.sizeCategory, .accessibilityLarge)
         }
         .onAppear { print("swiftui env reduceMotion \(reduceMotion) dynamicType \(typeSize) bold \(weight == .bold)") }
+    }
+}
+
+/// Prints the environment values the #868 modifiers set (an invisible view: VoiceOver's reading order is unchanged)
+struct EnvProbe868: View {
+    @Environment(\.sizeCategory) var sizeCategory
+    @Environment(\.lineSpacing) var lineSpacing
+    @Environment(\.buttonSizing) var buttonSizing
+    @Environment(\.isScrollEnabled) var scrollEnabled
+    @Environment(\.keyboardShortcut) var shortcut
+    @Environment(\.autocorrectionDisabled) var noAutocorrect
+    @Environment(\.symbolColorRenderingMode) var symbolMode
+    @Environment(\.toolbarTitleAlignment) var titleAlignment
+    @Environment(\.isFocusEffectEnabled) var focusEffect
+    @Environment(\.accessibilityPlayAnimatedImages) var playImages
+    @Environment(\.pixelLength) var pixel
+    var body: some View {
+        Color.clear.frame(width: 0, height: 0).onAppear {
+            print("x868 env size \(sizeCategory) accessibility \(sizeCategory.isAccessibilityCategory) lineSpacing \(lineSpacing) " +
+                  "fitted \(buttonSizing == .fitted) scroll \(scrollEnabled) shortcut \(shortcut != nil) noAutocorrect \(noAutocorrect) " +
+                  "gradient \(symbolMode == .gradient) leading \(titleAlignment == .leading) focusEffect \(focusEffect) " +
+                  "playImages \(playImages) pixel \(pixel > 0 && pixel <= 1)")
+        }
     }
 }
 
