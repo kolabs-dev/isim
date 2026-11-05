@@ -18,11 +18,15 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 /* content configurations (iOS 14) */
+/* isim: UIListContentConfiguration.TextProperties.TextAlignment (natural, center, justified). The property used to be
+   an NSTextAlignment: setting its natural (4) or justified (3), as older binaries do, maps to the new cases */
+typedef NS_ENUM(NSInteger, UIListContentTextAlignment) { UIListContentTextAlignmentNatural, UIListContentTextAlignmentCenter,
+    UIListContentTextAlignmentJustified } API_AVAILABLE(ios(14.0));  /* Swift: UIListContentConfiguration.TextProperties.TextAlignment (a typealias in the overlay) */
 NS_SWIFT_UI_ACTOR
 @interface UIListContentTextProperties : NSObject <NSCopying>
 @property (nonatomic, strong) UIFont *font;
 @property (nonatomic, strong) UIColor *color;
-@property (nonatomic) NSTextAlignment alignment;
+@property (nonatomic) UIListContentTextAlignment alignment;
 @property (nonatomic) NSInteger numberOfLines;
 @end
 NS_SWIFT_UI_ACTOR

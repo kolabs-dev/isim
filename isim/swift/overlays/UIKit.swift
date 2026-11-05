@@ -1237,12 +1237,17 @@ extension UICalendarView.Decoration {
 
 // MARK: - Configuration colour transformers and states (Apple's Swift spellings)
 extension UIListContentConfiguration.TextProperties {
+    // ObjC enums cannot be imported two levels deep (NS_SWIFT_NAME(A.B.C)): Apple's nested names as typealiases
+    public typealias TextAlignment = UIListContentTextAlignment
+    public typealias TextTransform = UIListContentTextTransform
     public var colorTransformer: UIConfigurationColorTransformer? {
         get { __colorTransformer.map { UIConfigurationColorTransformer($0) } }
         set { __colorTransformer = newValue.map { t in { t($0) } } }
     }
 }
 extension UIListContentConfiguration.ImageProperties {
+    /// the image's standard size (pass it as reservedLayoutSize or maximumSize)
+    public static var standardDimension: CGFloat { UIListContentImageStandardDimension }
     public var tintColorTransformer: UIConfigurationColorTransformer? {
         get { __tintColorTransformer.map { UIConfigurationColorTransformer($0) } }
         set { __tintColorTransformer = newValue.map { t in { t($0) } } }

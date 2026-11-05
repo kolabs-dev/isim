@@ -6,16 +6,17 @@
 #import "UIKitPrivate.h"
 #import <UIKit/UIContentUnavailableConfiguration.h>
 #import <UIKit/UISearchBar.h>
+#import <UIKit/UIConfigurationExtras.h>
 
 @implementation UIContentUnavailableImageProperties
-- (id)copyWithZone:(NSZone *)z { UIContentUnavailableImageProperties *c = [[self class] new]; c.tintColor = _tintColor; c.cornerRadius = _cornerRadius; c.maximumSize = _maximumSize; return c; }
+- (id)copyWithZone:(NSZone *)z { UIContentUnavailableImageProperties *c = [[self class] new]; c.tintColor = _tintColor; c.cornerRadius = _cornerRadius; c.maximumSize = _maximumSize; isim_ui_copy_extras(self, c); return c; }
 @end
 @implementation UIContentUnavailableTextProperties
-- (id)copyWithZone:(NSZone *)z { UIContentUnavailableTextProperties *c = [[self class] new]; c.font = _font; c.color = _color; c.alignment = _alignment; c.numberOfLines = _numberOfLines; return c; }
+- (id)copyWithZone:(NSZone *)z { UIContentUnavailableTextProperties *c = [[self class] new]; c.font = _font; c.color = _color; c.alignment = _alignment; c.numberOfLines = _numberOfLines; isim_ui_copy_extras(self, c); return c; }
 @end
 @implementation UIContentUnavailableButtonProperties
 - (instancetype)init { if ((self = [super init])) _enabled = YES; return self; }
-- (id)copyWithZone:(NSZone *)z { UIContentUnavailableButtonProperties *c = [[self class] new]; c.primaryAction = _primaryAction; c.menu = _menu; c.enabled = _enabled; return c; }
+- (id)copyWithZone:(NSZone *)z { UIContentUnavailableButtonProperties *c = [[self class] new]; c.primaryAction = _primaryAction; c.menu = _menu; c.enabled = _enabled; isim_ui_copy_extras(self, c); return c; }
 @end
 
 @interface UIContentUnavailableConfiguration ()
@@ -79,21 +80,30 @@
     _configuration = [c copy];
     for (UIView *v in [self.subviews copy]) [v removeFromSuperview];
     _image = nil; _spinner = nil; _text = _secondary = nil; _button = _button2 = nil;
-    self.backgroundColor = _configuration.backgroundColor;
+    UIBackgroundConfiguration *bg = _configuration.background;
+    self.backgroundColor = bg.backgroundColor ?: _configuration.backgroundColor;
+    self.layer.cornerRadius = bg.cornerRadius; self.clipsToBounds = bg.cornerRadius > 0;
     if (_configuration._isim_loading) {
         _spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
         [_spinner startAnimating]; [self addSubview:_spinner];
     } else if (_configuration.image) {
         UIImage *img = _configuration.image;
-        if (img.isSymbolImage && !img.symbolConfiguration)                          /* UIKit shows symbols large (~48 pt) */
+        UIImageSymbolConfiguration *pref = _configuration.imageProperties.preferredSymbolConfiguration;
+        if (img.isSymbolImage && pref) img = [img imageByApplyingSymbolConfiguration:pref] ?: img;
+        else if (img.isSymbolImage && !img.symbolConfiguration)                     /* UIKit shows symbols large (~48 pt) */
             img = [img imageByApplyingSymbolConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:48]] ?: img;
         _image = [[UIImageView alloc] initWithImage:img];
         _image.tintColor = _configuration.imageProperties.tintColor; _image.contentMode = UIViewContentModeScaleAspectFit;
+        _image.accessibilityIgnoresInvertColors = _configuration.imageProperties.accessibilityIgnoresInvertColors;
+        if (_configuration.imageProperties.cornerRadius > 0) { _image.layer.cornerRadius = _configuration.imageProperties.cornerRadius; _image.clipsToBounds = YES; }
         [self addSubview:_image];
     }
+    BOOL natural = _configuration.alignment == UIContentUnavailableAlignmentNatural;
     UILabel *(^label)(NSString *, NSAttributedString *, UIContentUnavailableTextProperties *) = ^UILabel *(NSString *t, NSAttributedString *at, UIContentUnavailableTextProperties *p) {
         if (!t.length && !at.length) return nil;
-        UILabel *l = [UILabel new]; l.text = t; l.font = p.font; l.textColor = p.color; l.textAlignment = p.alignment; l.numberOfLines = p.numberOfLines;
+        UILabel *l = [UILabel new]; l.text = t; l.font = p.font; l.textColor = p.color; l.textAlignment = natural ? NSTextAlignmentNatural : p.alignment; l.numberOfLines = p.numberOfLines;
+        l.lineBreakMode = p.lineBreakMode; l.adjustsFontSizeToFitWidth = p.adjustsFontSizeToFitWidth; l.minimumScaleFactor = p.minimumScaleFactor;
+        l.allowsDefaultTighteningForTruncation = p.allowsDefaultTighteningForTruncation;
         if (at.length) l.attributedText = at;                   /* attributed texts win */
         [self addSubview:l];
         return l;
@@ -103,7 +113,7 @@
     UIButton *(^button)(UIButtonConfiguration *, UIContentUnavailableButtonProperties *) = ^UIButton *(UIButtonConfiguration *bc, UIContentUnavailableButtonProperties *p) {
         if (!bc) return nil;
         UIButton *b = [UIButton buttonWithConfiguration:bc primaryAction:p.primaryAction];
-        b.enabled = p.enabled; b.menu = p.menu; if (p.menu && !p.primaryAction) b.showsMenuAsPrimaryAction = YES;
+        b.enabled = p.enabled; b.menu = p.menu; b.role = p.role; if (p.menu && !p.primaryAction) b.showsMenuAsPrimaryAction = YES;
         b.accessibilityIdentifier = [@"unavailable-" stringByAppendingString:bc.title ?: @"button"];
         [self addSubview:b];
         return b;
@@ -136,7 +146,10 @@
         UIView *v = items[i][0]; CGSize s = [items[i][1] CGSizeValue];
         BOOL text = v == _text || v == _secondary;
         CGFloat w = text ? W : fmin(s.width, W);
-        v.frame = CGRectMake(floor(CGRectGetMidX(area) - w / 2), floor(y), ceil(w), ceil(s.height));
+        BOOL leading = c.alignment == UIContentUnavailableAlignmentNatural;
+        BOOL rtl = self.effectiveUserInterfaceLayoutDirection == UIUserInterfaceLayoutDirectionRightToLeft;
+        CGFloat x = !leading ? CGRectGetMidX(area) - w / 2 : rtl ? CGRectGetMaxX(area) - w : area.origin.x;
+        v.frame = CGRectMake(floor(x), floor(y), ceil(w), ceil(s.height));
         y += s.height + [items[i][2] doubleValue];
     }
 }

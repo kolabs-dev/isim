@@ -32,6 +32,34 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 }
 
+// MARK: - #872: trait collections, list and content-unavailable properties
+@MainActor func x872Checks() {
+    let dark = UITraitCollection(UITraitUserInterfaceStyle.self, value: .dark)
+    let compact = dark.replacing(UITraitHorizontalSizeClass.self, value: .compact)
+    let traits = dark.userInterfaceStyle == .dark && compact.horizontalSizeClass == .compact && compact.userInterfaceStyle == .dark
+    let c = UIListContentConfiguration.cell()   // a class in isim (a value on iOS: `var` there)
+    c.text = "Centered"; c.image = UIImage(systemName: "star")
+    let transform: UIListContentConfiguration.TextProperties.TextTransform = .none
+    let natural: UIListContentConfiguration.TextProperties.TextAlignment = .natural
+    let defaults = c.textProperties.alignment == natural && c.textProperties.transform == transform && c.textProperties.lineBreakMode == .byTruncatingTail
+        && c.alpha == 1 && UIListContentConfiguration.ImageProperties.standardDimension == -CGFloat.greatestFiniteMagnitude
+    c.textProperties.alignment = .center; c.textProperties.adjustsFontSizeToFitWidth = true; c.alpha = 0.5; c.imageToTextPadding = 4
+    let v = UIListContentView(configuration: c)
+    v.frame = CGRect(x: 0, y: 0, width: 320, height: 44); v.layoutIfNeeded()
+    let label = v.subviews.compactMap { $0 as? UILabel }.first
+    let image = v.subviews.compactMap { $0 as? UIImageView }.first
+    let list = label?.textAlignment == .center && label?.adjustsFontSizeToFitWidth == true && label?.alpha == 0.5
+        && Int((label?.frame.minX ?? 0) - (image.map { $0.frame.maxX } ?? 0)) < 16
+    let u = UIContentUnavailableConfiguration.empty()
+    u.text = "Nothing"; u.alignment = .natural
+    u.background.backgroundColor = .systemRed; u.background.cornerRadius = 12
+    u.buttonProperties.role = .destructive; u.textProperties.lineBreakMode = .byWordWrapping
+    let uv = UIContentUnavailableView(configuration: u)
+    let unavailable = uv.backgroundColor == .systemRed && uv.layer.cornerRadius == 12 && uv.configuration.buttonProperties.role == .destructive
+        && uv.configuration.textProperties.lineBreakMode == .byWordWrapping
+    log("x872 traits \(traits) defaults \(defaults) list \(list) unavailable \(unavailable)")
+}
+
 // MARK: - Table
 final class NameCell: UITableViewCell {
     override func willTransition(to state: UITableViewCell.StateMask) { super.willTransition(to: state); if textLabel?.text == "Ada" { log("cell will transition \(state.rawValue)") } }
@@ -42,6 +70,7 @@ final class TableViewController: UITableViewController {
     @objc final class Person: NSObject { @objc let name: String; init(_ n: String) { name = n } }
     override func viewDidLoad() {
         super.viewDidLoad()
+        x872Checks()
         title = "People"
         tableView.register(NameCell.self, forCellReuseIdentifier: "c")
         tableView.separatorInsetReference = .fromCellEdges; tableView.separatorInset = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)

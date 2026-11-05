@@ -23,6 +23,11 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
 
 /* ================= content configurations ================= */
 @implementation UIListContentTextProperties
+- (void)setAlignment:(UIListContentTextAlignment)a {
+    /* NSTextAlignment's natural / justified from older binaries; anything else that is not one of the three: natural */
+    _alignment = a == 4 ? UIListContentTextAlignmentNatural : a == 3 ? UIListContentTextAlignmentJustified
+        : (a >= UIListContentTextAlignmentNatural && a <= UIListContentTextAlignmentJustified) ? a : UIListContentTextAlignmentNatural;
+}
 - (id)copyWithZone:(NSZone *)z { UIListContentTextProperties *c = [[self class] new]; c.font = _font; c.color = _color; c.alignment = _alignment; c.numberOfLines = _numberOfLines; isim_ui_copy_extras(self, c); return c; }
 @end
 @implementation UIListContentImageProperties
@@ -240,7 +245,7 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
         CGFloat H = self.contentView.bounds.size.height, y = (H - h) / 2;
         UILabel *tl2 = text.length || _usedText ? self.textLabel : nil;
         tl2.text = text; tl2.font = tf; tl2.numberOfLines = tl;
-        if (cfg) { isim_ui_list_label(tl2, cfg.attributedText, text, cfg.textProperties); tl2.textAlignment = cfg.textProperties.alignment; }
+        if (cfg) { isim_ui_list_label(tl2, cfg.attributedText, text, cfg.textProperties); tl2.textAlignment = isim_ui_list_alignment(cfg.textProperties.alignment); }
         else if (!tl2.textColor) tl2.textColor = UIColor.labelColor;
         tl2.frame = CGRectMake(x, side ? (H - ts.height) / 2 : y, ts.width, ts.height);
         if (detail.length || _usedDetail) {

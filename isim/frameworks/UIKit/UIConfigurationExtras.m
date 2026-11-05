@@ -31,6 +31,19 @@ static UIColor *transformed(UIColor *c, UIConfigurationColorTransformer t) { ret
 - (UIConfigurationColorTransformer)colorTransformer { return ex(self, @"colorTransformer"); }
 - (void)setColorTransformer:(UIConfigurationColorTransformer)t { set_ex(self, @"colorTransformer", [t copy]); }
 - (UIColor *)resolvedColor { return transformed(self.color, self.colorTransformer) ?: UIColor.labelColor; }
+static BOOL bool_ex(id o, NSString *k, BOOL dflt) { NSNumber *n = ex(o, k); return n ? n.boolValue : dflt; }
+- (BOOL)adjustsFontForContentSizeCategory { return bool_ex(self, @"adjustsFontForCSC", YES); }
+- (void)setAdjustsFontForContentSizeCategory:(BOOL)b { set_ex(self, @"adjustsFontForCSC", @(b)); }
+- (BOOL)adjustsFontSizeToFitWidth { return bool_ex(self, @"fitWidth", NO); }
+- (void)setAdjustsFontSizeToFitWidth:(BOOL)b { set_ex(self, @"fitWidth", @(b)); }
+- (CGFloat)minimumScaleFactor { return [ex(self, @"minScale") doubleValue]; }
+- (void)setMinimumScaleFactor:(CGFloat)f { set_ex(self, @"minScale", @(f)); }
+- (BOOL)allowsDefaultTighteningForTruncation { return bool_ex(self, @"tightening", YES); }
+- (void)setAllowsDefaultTighteningForTruncation:(BOOL)b { set_ex(self, @"tightening", @(b)); }
+- (NSLineBreakMode)lineBreakMode { NSNumber *n = ex(self, @"lineBreak"); return n ? n.integerValue : NSLineBreakByTruncatingTail; }
+- (void)setLineBreakMode:(NSLineBreakMode)m { set_ex(self, @"lineBreak", @(m)); }
+- (BOOL)showsExpansionTextWhenTruncated { return bool_ex(self, @"expansion", NO); }
+- (void)setShowsExpansionTextWhenTruncated:(BOOL)b { set_ex(self, @"expansion", @(b)); }
 /* the text as shown (the transform applied) */
 - (NSString *)_isim_transformed:(NSString *)s {
     switch (self.transform) {
@@ -88,6 +101,10 @@ const CGFloat UIListContentImageStandardDimension = -CGFLOAT_MAX;
 - (void)setSecondaryAttributedText:(NSAttributedString *)a { set_ex(self, @"secondaryAttributedText", [a copy]); }
 - (CGFloat)textToSecondaryTextHorizontalPadding { NSNumber *n = ex(self, @"hPadding"); return n ? n.doubleValue : 8; }
 - (void)setTextToSecondaryTextHorizontalPadding:(CGFloat)p { set_ex(self, @"hPadding", @(p)); }
+- (CGFloat)imageToTextPadding { NSNumber *n = ex(self, @"imagePadding"); return n ? n.doubleValue : -CGFLOAT_MAX; }
+- (void)setImageToTextPadding:(CGFloat)p { set_ex(self, @"imagePadding", @(p)); }
+- (CGFloat)alpha { NSNumber *n = ex(self, @"alpha"); return n ? n.doubleValue : 1; }
+- (void)setAlpha:(CGFloat)a { set_ex(self, @"alpha", @(a)); }
 - (UIAxis)axesPreservingSuperviewLayoutMargins { NSNumber *n = ex(self, @"axes"); return n ? n.unsignedIntegerValue : UIAxisHorizontal; }
 - (void)setAxesPreservingSuperviewLayoutMargins:(UIAxis)a { set_ex(self, @"axes", @(a)); }
 /* the strings as shown: attributed text wins; the plain text has its transform */
@@ -97,6 +114,9 @@ const CGFloat UIListContentImageStandardDimension = -CGFLOAT_MAX;
 /* sets a label to a list content text (attributed when there is one) */
 void isim_ui_list_label(UILabel *l, NSAttributedString *attributed, NSString *shown, UIListContentTextProperties *p) {
     l.font = p.font; l.textColor = [p resolvedColor];
+    l.adjustsFontSizeToFitWidth = p.adjustsFontSizeToFitWidth; l.minimumScaleFactor = p.minimumScaleFactor;
+    l.allowsDefaultTighteningForTruncation = p.allowsDefaultTighteningForTruncation; l.lineBreakMode = p.lineBreakMode;
+    l.adjustsFontForContentSizeCategory = p.adjustsFontForContentSizeCategory;
     if (attributed) l.attributedText = attributed; else l.text = shown;
 }
 CGSize isim_ui_list_measure(NSAttributedString *attributed, NSString *shown, UIFont *font, CGFloat width, NSInteger lines) {
@@ -306,7 +326,36 @@ CGFloat isim_ui_separator_guide_x(UICollectionViewListCell *cell) {
 @end
 
 /* ================= content unavailable ================= */
+@implementation UIContentUnavailableTextProperties (UIContentUnavailableTextPropertiesExtras)
+- (NSLineBreakMode)lineBreakMode { NSNumber *n = ex(self, @"lineBreak"); return n ? n.integerValue : NSLineBreakByTruncatingTail; }
+- (void)setLineBreakMode:(NSLineBreakMode)l { set_ex(self, @"lineBreak", @(l)); }
+- (BOOL)adjustsFontSizeToFitWidth { return [ex(self, @"fitWidth") boolValue]; }
+- (void)setAdjustsFontSizeToFitWidth:(BOOL)b { set_ex(self, @"fitWidth", @(b)); }
+- (CGFloat)minimumScaleFactor { return [ex(self, @"minScale") doubleValue]; }
+- (void)setMinimumScaleFactor:(CGFloat)f { set_ex(self, @"minScale", @(f)); }
+- (BOOL)allowsDefaultTighteningForTruncation { NSNumber *n = ex(self, @"tightening"); return n ? n.boolValue : YES; }
+- (void)setAllowsDefaultTighteningForTruncation:(BOOL)b { set_ex(self, @"tightening", @(b)); }
+@end
+@implementation UIContentUnavailableImageProperties (UIContentUnavailableImagePropertiesExtras)
+- (UIImageSymbolConfiguration *)preferredSymbolConfiguration { return ex(self, @"symbolConfig"); }
+- (void)setPreferredSymbolConfiguration:(UIImageSymbolConfiguration *)c { set_ex(self, @"symbolConfig", [c copy]); }
+- (BOOL)accessibilityIgnoresInvertColors { return [ex(self, @"ignoresInvert") boolValue]; }
+- (void)setAccessibilityIgnoresInvertColors:(BOOL)b { set_ex(self, @"ignoresInvert", @(b)); }
+@end
+@implementation UIContentUnavailableButtonProperties (UIContentUnavailableButtonPropertiesExtras)
+- (UIButtonRole)role { return [ex(self, @"role") integerValue]; }
+- (void)setRole:(UIButtonRole)r { set_ex(self, @"role", @(r)); }
+@end
 @implementation UIContentUnavailableConfiguration (UIContentUnavailableConfigurationExtras)
+- (UIContentUnavailableAlignment)alignment { return [ex(self, @"alignment") integerValue]; }
+- (void)setAlignment:(UIContentUnavailableAlignment)a { set_ex(self, @"alignment", @(a)); }
+/* the background itself (configurations are classes in isim: `config.background.backgroundColor = …` changes it) */
+- (UIBackgroundConfiguration *)background {
+    UIBackgroundConfiguration *b = ex(self, @"background");
+    if (!b) { b = [UIBackgroundConfiguration clearConfiguration]; set_ex(self, @"background", b); }
+    return b;
+}
+- (void)setBackground:(UIBackgroundConfiguration *)b { set_ex(self, @"background", [b copy] ?: [UIBackgroundConfiguration clearConfiguration]); }
 - (NSAttributedString *)attributedText { return ex(self, @"attributedText"); }
 - (void)setAttributedText:(NSAttributedString *)a { set_ex(self, @"attributedText", [a copy]); }
 - (NSAttributedString *)secondaryAttributedText { return ex(self, @"secondaryAttributedText"); }
