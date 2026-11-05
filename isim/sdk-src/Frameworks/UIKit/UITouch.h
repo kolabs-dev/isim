@@ -9,7 +9,7 @@ typedef NS_ENUM(NSInteger, UITouchType) { UITouchTypeDirect, UITouchTypeIndirect
 typedef NS_OPTIONS(NSInteger, UITouchProperties) {
     UITouchPropertyForce = 1UL << 0, UITouchPropertyAzimuth = 1UL << 1, UITouchPropertyAltitude = 1UL << 2,
     UITouchPropertyLocation = 1UL << 3, UITouchPropertyRoll = 1UL << 4
-};
+} NS_SWIFT_NAME(UITouch.Properties);
 NS_SWIFT_UI_ACTOR
 @interface UITouch : NSObject
 @property (nonatomic, readonly) NSTimeInterval timestamp;

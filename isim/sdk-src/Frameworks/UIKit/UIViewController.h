@@ -44,10 +44,10 @@ UIKIT_EXTERN NSNotificationName const UIViewControllerShowDetailTargetDidChangeN
 @property (nonatomic, readonly) BOOL prefersStatusBarHidden;
 - (void)setNeedsStatusBarAppearanceUpdate;
 @property (nonatomic, readonly) BOOL prefersHomeIndicatorAutoHidden;            /* isim: the home indicator fades 2 s after the last touch */
-@property (nonatomic, readonly, nullable) UIViewController *childViewControllerForHomeIndicatorAutoHidden;
+@property (nonatomic, readonly, nullable) UIViewController *childViewControllerForHomeIndicatorAutoHidden NS_SWIFT_NAME(childForHomeIndicatorAutoHidden);
 - (void)setNeedsUpdateOfHomeIndicatorAutoHidden;
 @property (nonatomic, readonly) UIRectEdge preferredScreenEdgesDeferringSystemGestures;   /* isim: bottom: the home swipe needs a second swipe */
-@property (nonatomic, readonly, nullable) UIViewController *childViewControllerForScreenEdgesDeferringSystemGestures;
+@property (nonatomic, readonly, nullable) UIViewController *childViewControllerForScreenEdgesDeferringSystemGestures NS_SWIFT_NAME(childForScreenEdgesDeferringSystemGestures);
 - (void)setNeedsUpdateOfScreenEdgesDeferringSystemGestures;
 @property (nonatomic) UIUserInterfaceStyle overrideUserInterfaceStyle;
 /* iOS 17: traits this controller, its view, its children and the controllers it presents see */

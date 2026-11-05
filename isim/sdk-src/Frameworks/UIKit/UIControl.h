@@ -37,9 +37,13 @@ typedef NS_ENUM(NSInteger, UIControlContentVerticalAlignment) { UIControlContent
 - (nullable NSArray<NSString *> *)actionsForTarget:(nullable id)target forControlEvent:(UIControlEvents)controlEvent;
 - (void)sendAction:(SEL)action to:(nullable id)target forEvent:(nullable UIEvent *)event;
 - (void)sendActionsForControlEvents:(UIControlEvents)controlEvents;
-- (BOOL)beginTrackingWithTouch:(UITouch *)touch withEvent:(nullable UIEvent *)event;
-- (BOOL)continueTrackingWithTouch:(UITouch *)touch withEvent:(nullable UIEvent *)event;
-- (void)endTrackingWithTouch:(nullable UITouch *)touch withEvent:(nullable UIEvent *)event;
+- (BOOL)beginTrackingWithTouch:(UITouch *)touch withEvent:(nullable UIEvent *)event NS_SWIFT_NAME(beginTracking(_:with:));
+- (BOOL)continueTrackingWithTouch:(UITouch *)touch withEvent:(nullable UIEvent *)event NS_SWIFT_NAME(continueTracking(_:with:));
+- (void)endTrackingWithTouch:(nullable UITouch *)touch withEvent:(nullable UIEvent *)event NS_SWIFT_NAME(endTracking(_:with:));
+/* iOS 14: runs an action as the control's (its handler gets the control as sender) */
+- (void)sendAction:(UIAction *)action NS_SWIFT_NAME(sendAction(_:)) API_AVAILABLE(ios(14.0));
+/* iOS 17: whether the control's symbol images animate their effects (isim: stored) */
+@property (nonatomic, getter=isSymbolAnimationEnabled) BOOL symbolAnimationEnabled API_AVAILABLE(ios(17.0));
 - (void)cancelTrackingWithEvent:(nullable UIEvent *)event;
 @end
 typedef void (^UIActionHandler)(UIAction *action);

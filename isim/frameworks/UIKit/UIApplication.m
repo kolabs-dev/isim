@@ -162,6 +162,12 @@ NSNotificationName const UIDeviceBatteryStateDidChangeNotification = @"UIDeviceB
 /* the external display (UISceneAccessories.m: script `display connect WxH`) is a UIScreen of that size at scale 1; the
    CarPlay screen (the CarPlay overlay: `carplay connect`) one of its own size and scale. Neither is drawn on the device */
 @implementation UIScreen { BOOL _isimExternal; CGSize _isimSize; CGFloat _isimScale; }
+/* a snapshot of what the screen shows: its key window's contents */
+- (UIView *)snapshotViewAfterScreenUpdates:(BOOL)after {
+    UIWindow *key = nil;
+    for (UIWindow *w in UIApplication.sharedApplication.windows) if (w.isKeyWindow) key = w;
+    return [key snapshotViewAfterScreenUpdates:after] ?: [[UIView alloc] initWithFrame:self.bounds];
+}
 + (UIScreen *)mainScreen { static UIScreen *s; if (!s) s = [UIScreen new]; return s; }
 + (NSArray<UIScreen *> *)screens { extern UIScreen *isim_ui_external_screen(void); UIScreen *x = isim_ui_external_screen(); return x ? @[UIScreen.mainScreen, x] : @[UIScreen.mainScreen]; }
 + (UIScreen *)_isim_externalScreenWithSize:(CGSize)size { UIScreen *x = [UIScreen new]; x->_isimExternal = YES; x->_isimSize = size; return x; }

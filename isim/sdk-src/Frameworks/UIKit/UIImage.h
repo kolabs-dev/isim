@@ -42,7 +42,9 @@ UIKIT_EXTERN UIFontWeight UIFontWeightForImageSymbolWeight(UIImageSymbolWeight s
 + (instancetype)configurationWithScale:(UIImageSymbolScale)scale;
 + (instancetype)configurationWithWeight:(UIImageSymbolWeight)weight;
 + (instancetype)configurationWithTextStyle:(UIFontTextStyle)textStyle;
++ (instancetype)configurationWithTextStyle:(UIFontTextStyle)textStyle scale:(UIImageSymbolScale)scale;
 + (instancetype)configurationWithFont:(UIFont *)font;
++ (instancetype)configurationWithFont:(UIFont *)font scale:(UIImageSymbolScale)scale;
 /* rendering modes (isim: the glyph is the primary layer, its .circle / .square / ... enclosure the secondary one) */
 + (instancetype)configurationWithHierarchicalColor:(UIColor *)hierarchicalColor API_AVAILABLE(ios(15.0));
 + (instancetype)configurationWithPaletteColors:(NSArray<UIColor *> *)paletteColors API_AVAILABLE(ios(15.0));
@@ -91,6 +93,14 @@ typedef NS_ENUM(NSInteger, UIImageResizingMode) { UIImageResizingModeTile = 0, U
 @property (nullable, nonatomic, readonly) UIImageAsset *imageAsset;
 - (void)drawInRect:(CGRect)rect;
 - (void)drawAtPoint:(CGPoint)point;
+- (void)drawAtPoint:(CGPoint)point blendMode:(CGBlendMode)blendMode alpha:(CGFloat)alpha;
+/* the caps of a stretchable image (stretchableImageWithLeftCapWidth:topCapHeight:) */
+@property (nonatomic, readonly) NSInteger leftCapWidth;
+@property (nonatomic, readonly) NSInteger topCapHeight;
+/* the traits the image was made for (its configuration's) */
+@property (nonatomic, readonly, copy) UITraitCollection *traitCollection;
++ (nullable UIImage *)imageNamed:(NSString *)name inBundle:(nullable NSBundle *)bundle compatibleWithTraitCollection:(nullable UITraitCollection *)traitCollection;
++ (nullable UIImage *)systemImageNamed:(NSString *)name compatibleWithTraitCollection:(nullable UITraitCollection *)traitCollection NS_SWIFT_NAME(init(systemName:compatibleWith:));
 - (void)drawInRect:(CGRect)rect blendMode:(CGBlendMode)blendMode alpha:(CGFloat)alpha;
 /* orientation: drawing and size honour it (Left/Right swap width and height) */
 - (UIImage *)imageWithHorizontallyFlippedOrientation NS_SWIFT_NAME(withHorizontallyFlippedOrientation());

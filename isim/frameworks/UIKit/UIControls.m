@@ -206,6 +206,16 @@
     for (__IsimTargetAction *t in _ta) if (t.target == target && (t.events & ev) && t.action) [a addObject:NSStringFromSelector(t.action)];
     return a.count ? a : nil;
 }
+/* iOS 14: an action run as the control's: the control is its sender */
+- (void)sendAction:(UIAction *)action {
+    if (!action) return;
+    [action setSender:self];
+    UIActionHandler h = [action valueForKey:@"handler"];
+    if (h) h(action);
+}
+static char kControlSymbolAnimation;
+- (BOOL)isSymbolAnimationEnabled { NSNumber *n = objc_getAssociatedObject(self, &kControlSymbolAnimation); return n ? n.boolValue : YES; }
+- (void)setSymbolAnimationEnabled:(BOOL)e { objc_setAssociatedObject(self, &kControlSymbolAnimation, @(e), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
 - (void)sendAction:(SEL)action to:(id)target forEvent:(UIEvent *)event { [UIApplication.sharedApplication sendAction:action to:target from:self forEvent:event]; }
 - (void)_isim_sendEvents:(UIControlEvents)ev withEvent:(UIEvent *)event {
     for (__IsimTargetAction *t in [_ta copy]) {

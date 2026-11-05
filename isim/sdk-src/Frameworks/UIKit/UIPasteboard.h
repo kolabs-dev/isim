@@ -7,7 +7,7 @@
 #import <Foundation/Foundation.h>
 NS_ASSUME_NONNULL_BEGIN
 @class UIImage, UIColor;
-typedef NSString *UIPasteboardName NS_TYPED_EXTENSIBLE_ENUM;
+typedef NSString *UIPasteboardName NS_TYPED_EXTENSIBLE_ENUM NS_SWIFT_NAME(UIPasteboard.Name);
 UIKIT_EXTERN UIPasteboardName const UIPasteboardNameGeneral;
 UIKIT_EXTERN NSString *const UIPasteboardNameFind API_DEPRECATED("The Find pasteboard is no longer available.", ios(3.0, 10.0));
 UIKIT_EXTERN NSNotificationName const UIPasteboardChangedNotification NS_SWIFT_NAME(UIPasteboard.changedNotification);

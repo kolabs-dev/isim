@@ -1600,3 +1600,11 @@ extension CAFrameRateRange {
         self = __CAFrameRateRangeMake(minimum, maximum, preferred ?? 0)
     }
 }
+
+// MARK: - Zero-valued options under Apple's names (the importer leaves them unavailable)
+extension UIView.AnimationOptions {
+    public static var curveEaseInOut: UIView.AnimationOptions { [] }
+}
+extension UIView.KeyframeAnimationOptions {
+    public static var calculationModeLinear: UIView.KeyframeAnimationOptions { [] }
+}

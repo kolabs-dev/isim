@@ -48,7 +48,7 @@ UIKIT_EXTERN const CGFloat UIViewNoIntrinsicMetric NS_SWIFT_NAME(UIView.noIntrin
 UIKIT_EXTERN const CGSize UILayoutFittingCompressedSize NS_SWIFT_NAME(UIView.layoutFittingCompressedSize);
 UIKIT_EXTERN const CGSize UILayoutFittingExpandedSize NS_SWIFT_NAME(UIView.layoutFittingExpandedSize);
 
-typedef NS_ENUM(NSInteger, UIViewTintAdjustmentMode) { UIViewTintAdjustmentModeAutomatic, UIViewTintAdjustmentModeNormal, UIViewTintAdjustmentModeDimmed };
+typedef NS_ENUM(NSInteger, UIViewTintAdjustmentMode) { UIViewTintAdjustmentModeAutomatic, UIViewTintAdjustmentModeNormal, UIViewTintAdjustmentModeDimmed } NS_SWIFT_NAME(UIView.TintAdjustmentMode);
 NS_SWIFT_UI_ACTOR
 @protocol UICoordinateSpace <NSObject>
 - (CGPoint)convertPoint:(CGPoint)point toCoordinateSpace:(id<UICoordinateSpace>)coordinateSpace;
@@ -87,7 +87,7 @@ CGRect isim_ui_space_convert_rect(id<UICoordinateSpace> space, CGRect rect, id<U
 - (void)willRemoveSubview:(UIView *)subview;
 - (void)willMoveToSuperview:(nullable UIView *)newSuperview;
 - (void)didMoveToSuperview;
-- (void)willMoveToWindow:(nullable UIWindow *)newWindow;
+- (void)willMoveToWindow:(nullable UIWindow *)newWindow NS_SWIFT_NAME(willMove(toWindow:));
 - (void)didMoveToWindow;
 - (BOOL)isDescendantOfView:(UIView *)view;
 - (nullable __kindof UIView *)viewWithTag:(NSInteger)tag NS_SWIFT_NAME(viewWithTag(_:));
@@ -115,7 +115,7 @@ CGRect isim_ui_space_convert_rect(id<UICoordinateSpace> space, CGRect rect, id<U
 @property (nonatomic, getter=isExclusiveTouch) BOOL exclusiveTouch;
 - (void)drawRect:(CGRect)rect;
 - (void)setNeedsDisplay;
-- (void)setNeedsDisplayInRect:(CGRect)rect;
+- (void)setNeedsDisplayInRect:(CGRect)rect NS_SWIFT_NAME(setNeedsDisplay(_:));
 @property (nonatomic) BOOL clipsToBounds;
 @property (nonatomic, copy, nullable) UIColor *backgroundColor;
 @property (nonatomic) CGFloat alpha;
