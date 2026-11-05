@@ -18,7 +18,7 @@ typedef NS_OPTIONS(NSUInteger, NSLayoutFormatOptions) {
     NSLayoutFormatDirectionLeadingToTrailing = 0 << 16, NSLayoutFormatDirectionLeftToRight = 1 << 16, NSLayoutFormatDirectionRightToLeft = 2 << 16,
     NSLayoutFormatDirectionMask = 0x3 << 16,
     NSLayoutFormatSpacingEdgeToEdge = 0 << 19, NSLayoutFormatSpacingBaselineToBaseline API_AVAILABLE(ios(11.0)) = 1 << 19,
-    NSLayoutFormatSpacingMask API_AVAILABLE(ios(11.0)) = 0x1 << 19 };
+    NSLayoutFormatSpacingMask API_AVAILABLE(ios(11.0)) = 0x1 << 19 } NS_SWIFT_NAME(NSLayoutConstraint.FormatOptions);
 @interface NSLayoutConstraint (NSLayoutConstraintVisualFormat)
 + (NSArray<NSLayoutConstraint *> *)constraintsWithVisualFormat:(NSString *)format options:(NSLayoutFormatOptions)opts
                                                        metrics:(nullable NSDictionary<NSString *, id> *)metrics views:(NSDictionary<NSString *, id> *)views;

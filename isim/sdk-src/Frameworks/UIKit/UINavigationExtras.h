@@ -5,6 +5,7 @@
    compact height. UINavigation.m. Categories (no ivars: the classes' sizes must not change for apps' subclasses). */
 #import <UIKit/UINavigationController.h>
 #import <UIKit/UIActivityViewController.h>
+#import <UIKit/UIContextMenuInteraction.h>      /* UIContextMenuConfigurationElementOrder */
 NS_ASSUME_NONNULL_BEGIN
 @class UITapGestureRecognizer, UIPanGestureRecognizer, LPLinkMetadata;
 
@@ -32,6 +33,25 @@ typedef NS_ENUM(NSUInteger, UIBehavioralStyle) { UIBehavioralStyleAutomatic = 0,
 - (UIBarButtonItemGroup *)creatingMovableGroupWithCustomizationIdentifier:(NSString *)customizationIdentifier NS_SWIFT_NAME(creatingMovableGroup(customizationIdentifier:)) API_AVAILABLE(ios(16.0));
 - (UIBarButtonItemGroup *)creatingOptionalGroupWithCustomizationIdentifier:(NSString *)customizationIdentifier inDefaultCustomization:(BOOL)inDefaultCustomization
     NS_SWIFT_NAME(__creatingOptionalGroup(customizationIdentifier:isInDefaultCustomization:)) /* (overlay: defaults) */ API_AVAILABLE(ios(16.0));
+/* more initializers: an image for landscape on iPhone (isim: stored, the image is drawn), title and image with a target
+   and a menu (iOS 16) */
+- (instancetype)initWithImage:(nullable UIImage *)image landscapeImagePhone:(nullable UIImage *)landscapeImagePhone style:(UIBarButtonItemStyle)style
+                       target:(nullable id)target action:(nullable SEL)action;
+- (instancetype)initWithTitle:(nullable NSString *)title image:(nullable UIImage *)image target:(nullable id)target action:(nullable SEL)action
+                         menu:(nullable UIMenu *)menu API_AVAILABLE(ios(16.0));
+- (nullable instancetype)initWithCoder:(NSCoder *)coder;
+/* iOS 15: a selected state, toggled as the primary action (isim: stored) */
+@property (nonatomic, getter=isSelected) BOOL selected API_AVAILABLE(ios(15.0));
+@property (nonatomic) BOOL changesSelectionAsPrimaryAction API_AVAILABLE(ios(15.0));
+/* iOS 16: the order of the item's menu elements (isim: stored) */
+@property (nonatomic) UIContextMenuConfigurationElementOrder preferredMenuElementOrder API_AVAILABLE(ios(16.0));
+/* an identifier that names the item among a bar's items (iOS 26) */
+@property (nullable, nonatomic, copy) NSString *identifier API_AVAILABLE(ios(26.0));
+/* background images per state, optionally per style (legacy appearance; isim: stored) */
+- (void)setBackgroundImage:(nullable UIImage *)backgroundImage forState:(UIControlState)state barMetrics:(UIBarMetrics)barMetrics;
+- (nullable UIImage *)backgroundImageForState:(UIControlState)state barMetrics:(UIBarMetrics)barMetrics;
+- (void)setBackgroundImage:(nullable UIImage *)backgroundImage forState:(UIControlState)state style:(UIBarButtonItemStyle)style barMetrics:(UIBarMetrics)barMetrics;
+- (nullable UIImage *)backgroundImageForState:(UIControlState)state style:(UIBarButtonItemStyle)style barMetrics:(UIBarMetrics)barMetrics;
 /* the titles the item may show (UIKit sizes it for the widest; isim: stored) */
 @property (nullable, nonatomic, copy) NSSet<NSString *> *possibleTitles;
 /* legacy appearance metrics (stored) */

@@ -419,7 +419,7 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))
 - (nullable UITab *)tabForIdentifier:(NSString *)identifier;
 @end
 @class UITabBarControllerSidebar, UITabSidebarItem, UITabSidebarItemRequest, UIContextMenuConfiguration, UISwipeActionsConfiguration, UIAction, UIDragItem;
-@protocol UIDragSession, UIDropSession;
+@protocol UIDragSession, UIDropSession, UIViewControllerAnimatedTransitioning, UIViewControllerInteractiveTransitioning;
 typedef NS_ENUM(NSUInteger, UIDropOperation);     /* UIDragInteraction.h */
 @protocol UITabBarControllerSidebarDelegate;
 typedef NS_ENUM(NSInteger, UITabBarControllerMode) { UITabBarControllerModeAutomatic = 0, UITabBarControllerModeTabBar = 1,
@@ -472,6 +472,25 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))   /* Swift: UITabBarController.Sideba
 /* customizing (isim has no customization UI: not sent) */
 - (void)tabBarControllerWillBeginEditing:(UITabBarController *)tabBarController API_AVAILABLE(ios(18.0));
 - (void)tabBarControllerDidEndEditing:(UITabBarController *)tabBarController API_AVAILABLE(ios(18.0));
+- (void)tabBarController:(UITabBarController *)tabBarController willBeginCustomizingViewControllers:(NSArray<__kindof UIViewController *> *)viewControllers NS_SWIFT_NAME(tabBarController(_:willBeginCustomizing:));
+- (void)tabBarController:(UITabBarController *)tabBarController willEndCustomizingViewControllers:(NSArray<__kindof UIViewController *> *)viewControllers changed:(BOOL)changed NS_SWIFT_NAME(tabBarController(_:willEndCustomizing:changed:));
+- (void)tabBarController:(UITabBarController *)tabBarController didEndCustomizingViewControllers:(NSArray<__kindof UIViewController *> *)viewControllers changed:(BOOL)changed NS_SWIFT_NAME(tabBarController(_:didEndCustomizing:changed:));
+- (void)tabBarController:(UITabBarController *)tabBarController displayOrderDidChangeForGroup:(UITabGroup *)group NS_SWIFT_NAME(tabBarController(_:displayOrderDidChangeFor:)) API_AVAILABLE(ios(18.0));
+/* tabs shown or hidden (UITab.isHidden; isim sends it when a tab's hidden value changes) */
+- (void)tabBarController:(UITabBarController *)tabBarController visibilityDidChangeForTabs:(NSArray<UITab *> *)tabs NS_SWIFT_NAME(tabBarController(_:visibilityDidChangeFor:)) API_AVAILABLE(ios(18.0));
+/* the view controllers a tab's navigation shows (isim: not asked) */
+- (NSArray<UIViewController *> *)tabBarController:(UITabBarController *)tabBarController displayedViewControllersForTab:(UITab *)tab proposedViewControllers:(NSArray<UIViewController *> *)proposedViewControllers
+    NS_SWIFT_NAME(tabBarController(_:displayedViewControllersFor:proposedViewControllers:)) API_AVAILABLE(ios(18.0));
+/* drops onto a tab (isim: not sent) */
+- (UIDropOperation)tabBarController:(UITabBarController *)tabBarController tab:(UITab *)tab operationForAcceptingItemsFromDropSession:(id<UIDropSession>)session
+    NS_SWIFT_NAME(tabBarController(_:tab:operationForAcceptingItemsFrom:)) API_AVAILABLE(ios(18.0));
+- (void)tabBarController:(UITabBarController *)tabBarController tab:(UITab *)tab acceptItemsFromDropSession:(id<UIDropSession>)session
+    NS_SWIFT_NAME(tabBarController(_:tab:acceptItemsFrom:)) API_AVAILABLE(ios(18.0));
+/* custom transitions between tabs (isim switches tabs without them: not asked) */
+- (nullable id<UIViewControllerAnimatedTransitioning>)tabBarController:(UITabBarController *)tabBarController animationControllerForTransitionFromViewController:(UIViewController *)fromVC toViewController:(UIViewController *)toVC
+    NS_SWIFT_NAME(tabBarController(_:animationControllerForTransitionFrom:to:));
+- (nullable id<UIViewControllerInteractiveTransitioning>)tabBarController:(UITabBarController *)tabBarController interactionControllerForAnimationController:(id<UIViewControllerAnimatedTransitioning>)animationController
+    NS_SWIFT_NAME(tabBarController(_:interactionControllerFor:));
 @end
 /* iOS 26: the floating tab bar shrinks to the selected tab while the selected tab's content scrolls (iPhone), and an
    accessory (a glass capsule) sits above it, or beside it while it is minimized */
