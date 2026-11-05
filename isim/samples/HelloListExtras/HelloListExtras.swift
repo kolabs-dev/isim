@@ -60,6 +60,34 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     log("x872 traits \(traits) defaults \(defaults) list \(list) unavailable \(unavailable)")
 }
 
+// #872: UIShape(_:) and Resolved, the formatting panel's Swift helpers, writing tools coordinator members
+struct LXBlob: UIShapeProvider {
+    func resolve(in context: UIShapeProvider.Context) -> UIShapeProvider.Resolved { context.contentShape }
+}
+@MainActor func x872MoreChecks() {
+    let shape = UIShape(LXBlob())
+    var parts = ["shape \(shape == UIShape(LXBlob()))"]
+    if #available(iOS 18, *) {
+        typealias F = UITextFormattingViewController
+        let group = F.ComponentGroup.group([.component(.fontSize, .regular), .component(.textColor, .small)])
+        var s = AttributedString("hi"); s.underlineStyle = .single
+        let d = F.FormattingDescriptor(string: s)
+        let change: F.ChangeValue = .bold(true)
+        var bold = false
+        if case .bold(let b) = change { bold = b }
+        parts += ["group \(group.components.count)", "underline \(d.underlinePresent)",
+                  "align \(F.TextAlignment(nsTextAlignment: .center) == .center)", "bold \(bold)"]
+    }
+    if #available(iOS 26, *) {
+        let tv = UITextView()
+        let c = UIWritingToolsCoordinator(delegate: nil)
+        c.includesTextListMarkers = true
+        c.updateForReflowedTextInContextWithIdentifier(UUID())
+        parts += ["markers \(c.includesTextListMarkers)", "class \(tv.subclassForWritingToolsCoordinator == UIWritingToolsCoordinator.self)"]
+    }
+    log("x872 more " + parts.joined(separator: " "))
+}
+
 // #872: members that only Apple's Swift names reach (they imported under other names before)
 @MainActor func x872NameChecks() {
     let image = UIImage(systemName: "star")!.stretchableImage(withLeftCapWidth: 3, topCapHeight: 2)
@@ -114,7 +142,7 @@ final class TableViewController: UITableViewController {
     @objc final class Person: NSObject { @objc let name: String; init(_ n: String) { name = n } }
     override func viewDidLoad() {
         super.viewDidLoad()
-        x872Checks(); x872AccessoryChecks(); x872NameChecks()
+        x872Checks(); x872AccessoryChecks(); x872NameChecks(); x872MoreChecks()
         title = "People"
         tableView.register(NameCell.self, forCellReuseIdentifier: "c")
         tableView.separatorInsetReference = .fromCellEdges; tableView.separatorInset = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)

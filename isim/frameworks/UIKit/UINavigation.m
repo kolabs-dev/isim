@@ -3030,7 +3030,7 @@ static char kHiddenByDefault, kDefaultChild, kSidebarAppearance, kSidebarActions
 - (UITab *)tab { return _tab; }
 - (UIAction *)action { return _action; }
 @end
-@implementation UITabSidebarItem { UITab *_tab; UIAction *_action; }
+@implementation UITabSidebarItem { UITab *_tab; UIAction *_action; NSArray *_accessories; }
 + (instancetype)itemFromRequest:(UITabSidebarItemRequest *)request { UITabSidebarItem *i = [super new]; i->_tab = request.tab; i->_action = request.action; return i; }
 - (UITab *)tab { return _tab; }
 - (UIAction *)action { return _action; }
@@ -3041,8 +3041,16 @@ static char kHiddenByDefault, kDefaultChild, kSidebarAppearance, kSidebarActions
 }
 - (UIBackgroundConfiguration *)defaultBackgroundConfiguration { return [UIBackgroundConfiguration clearConfiguration]; }
 - (void)setNeedsUpdateConfiguration { [_tab.tabBarController _isim_tabsChanged]; }
+- (NSArray<UICellAccessory *> *)accessories { return _accessories ?: @[]; }
+- (void)setAccessories:(NSArray<UICellAccessory *> *)a { _accessories = [a copy]; }
+- (UICellConfigurationState *)configurationState {
+    UITabBarController *tbc = _tab.tabBarController;
+    UICellConfigurationState *s = [[UICellConfigurationState alloc] initWithTraitCollection:tbc ? tbc.traitCollection : UITraitCollection.currentTraitCollection];
+    s.selected = _tab && tbc.selectedTab == _tab;
+    return s;
+}
 - (id)copyWithZone:(NSZone *)z {
-    UITabSidebarItem *c = [UITabSidebarItem new]; c->_tab = _tab; c->_action = _action;
+    UITabSidebarItem *c = [UITabSidebarItem new]; c->_tab = _tab; c->_action = _action; c->_accessories = _accessories;
     c.contentConfiguration = self.contentConfiguration; c.backgroundConfiguration = self.backgroundConfiguration;
     return c;
 }

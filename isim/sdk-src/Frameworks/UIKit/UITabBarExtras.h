@@ -5,6 +5,7 @@
 #import <UIKit/UINavigationController.h>
 #import <UIKit/UITableView.h>
 #import <UIKit/UIDragInteraction.h>
+#import <UIKit/UIConfigurationState.h>
 NS_ASSUME_NONNULL_BEGIN
 
 /* ---- item appearances (iOS 13): per layout (stacked: iPhone portrait; inline: iPad; compact inline: iPhone
@@ -108,6 +109,10 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))
 - (UIListContentConfiguration *)defaultContentConfiguration;
 - (UIBackgroundConfiguration *)defaultBackgroundConfiguration;
 - (void)setNeedsUpdateConfiguration;
+/* accessories at the row's trailing edge (isim: stored, not drawn) */
+@property (nonatomic, copy) NSArray<UICellAccessory *> *accessories NS_REFINED_FOR_SWIFT API_AVAILABLE(ios(18.0));
+/* the row's state: selected when it is the selected tab */
+@property (nonatomic, readonly) UICellConfigurationState *configurationState API_AVAILABLE(ios(18.0));
 @end
 /* where the sidebar scrolls to (Swift: UITabBarController.Sidebar.ScrollTarget) */
 NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0)) NS_REFINED_FOR_SWIFT

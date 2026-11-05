@@ -759,6 +759,8 @@ extension NSAttributedString {
     for (k, v) in c._storage {
       if let conv = _attrConverters[k], let o = conv.toObjC(v) { d[NSAttributedString.Key(rawValue: k)] = o }
       else if let o = v.base as? NSObject { d[NSAttributedString.Key(rawValue: k)] = o }
+      // option sets and enums (NSUnderlineStyle ...): Objective-C reads their raw value (an NSNumber), not a boxed Swift value
+      else if let r = v.base as? any RawRepresentable, let o = r.rawValue as? NSObject { d[NSAttributedString.Key(rawValue: k)] = o }
       else { d[NSAttributedString.Key(rawValue: k)] = v.base as AnyObject }
     }
     return d

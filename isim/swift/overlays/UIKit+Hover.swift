@@ -17,7 +17,10 @@ public struct UIShape: Equatable, @unchecked Sendable {
         UIShape(__UIShape.fixedRectShape(with: rect, cornerRadius: cornerRadius, cornerCurve: cornerCurve, maskedCorners: maskedCorners))
     }
     public static func path(_ path: UIBezierPath) -> UIShape { UIShape(__UIShape(bezierPath: path)) }
-    public init(provider: some UIShapeProvider) { objc = __UIShape(provider: _IsimShapeProviderBox(provider)) }
+    public init(_ provider: some UIShapeProvider) { objc = __UIShape(provider: _IsimShapeProviderBox(provider)) }
+    public init(provider: some UIShapeProvider) { self.init(provider) }
+    /// a shape resolved against its content: its path and bounding rectangle
+    public typealias Resolved = UIResolvedShape
     public func inset(by inset: CGFloat) -> UIShape { UIShape(objc.__applyingInset(inset)) }
     public func inset(by insets: UIEdgeInsets) -> UIShape { UIShape(objc.__applyingInsets(insets)) }
     public func resolve(in context: ResolutionContext) -> UIResolvedShape { objc.__isimResolved(in: context.contentShape.boundingRect) }
@@ -36,6 +39,11 @@ extension UIResolvedShape {
 @available(iOS 17.0, *)
 public protocol UIShapeProvider: Equatable {
     func resolve(in context: UIShape.ResolutionContext) -> UIResolvedShape
+}
+@available(iOS 17.0, *)
+extension UIShapeProvider {
+    public typealias Context = UIShape.ResolutionContext
+    public typealias Resolved = UIShape.Resolved
 }
 @available(iOS 17.0, *)
 final class _IsimShapeProviderBox: NSObject, _UIShapeProviderObjC {

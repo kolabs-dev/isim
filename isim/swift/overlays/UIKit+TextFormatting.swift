@@ -14,6 +14,27 @@ extension UITextFormattingViewController.TextAlignment {
         default: return .natural
         }
     }
+    public init(nsTextAlignment: NSTextAlignment) {
+        switch nsTextAlignment {
+        case .left: self = .left
+        case .center: self = .center
+        case .right: self = .right
+        case .justified: self = .justified
+        default: self = .natural
+        }
+    }
+}
+@available(iOS 18.0, *)
+extension UITextFormattingViewController.Component {
+    public static func component(_ key: UITextFormattingViewController.ComponentKey, _ size: UITextFormattingViewController.ComponentSize) -> UITextFormattingViewController.Component {
+        UITextFormattingViewController.Component(componentKey: key, preferredSize: size)
+    }
+}
+@available(iOS 18.0, *)
+extension UITextFormattingViewController.ComponentGroup {
+    public static func group(_ components: [UITextFormattingViewController.Component]) -> UITextFormattingViewController.ComponentGroup {
+        UITextFormattingViewController.ComponentGroup(components: components)
+    }
 }
 
 @available(iOS 18.0, *)
@@ -46,6 +67,11 @@ extension UITextFormattingViewController {
         public init() {}
         public init(attributes: [NSAttributedString.Key: Any]) { self.init(__UITextFormattingViewControllerFormattingDescriptor(attributes: attributes)) }
         public init(string: NSAttributedString, range: NSRange) { self.init(__UITextFormattingViewControllerFormattingDescriptor(string: string, range: range)) }
+        /// the formatting of the whole string
+        public init(string: some AttributedStringProtocol) {
+            let s = NSAttributedString(AttributedString(string))
+            self.init(string: s, range: NSRange(location: 0, length: s.length))
+        }
         init(_ o: __UITextFormattingViewControllerFormattingDescriptor) {
             fonts = o.fonts; textColors = o.textColors; textAlignments = o.textAlignments; textLists = o.textLists; highlights = o.highlights
             underlinePresent = o.underlinePresent; strikethroughPresent = o.strikethroughPresent; lineHeight = o.lineHeight; formattingStyleKey = o.formattingStyleKey
@@ -73,6 +99,11 @@ extension UITextFormattingViewController {
         case decreaseFontSize
         case increaseIndentation
         case decreaseIndentation
+        case bold(Bool)
+        case italic(Bool)
+        case fontSize(Double)
+        /// a change of a kind this version does not know
+        case undefined
         init?(_ o: __UITextFormattingViewControllerChangeValue) {
             let v = o.value
             switch o.changeType.rawValue {
@@ -89,7 +120,10 @@ extension UITextFormattingViewController {
             case "decreaseFontSize": self = .decreaseFontSize
             case "increaseIndentation": self = .increaseIndentation
             case "decreaseIndentation": self = .decreaseIndentation
-            default: return nil
+            case "bold": self = .bold((v as? NSNumber)?.boolValue ?? false)
+            case "italic": self = .italic((v as? NSNumber)?.boolValue ?? false)
+            case "fontSize": self = .fontSize((v as? NSNumber)?.doubleValue ?? 0)
+            default: self = .undefined
             }
         }
     }

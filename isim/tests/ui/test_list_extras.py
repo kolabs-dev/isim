@@ -19,6 +19,13 @@ def test_list_extras(launch, ios):
         "UITraitCollection(_:value:) / replacing, list text properties, alpha, image padding, content-unavailable alignment / background / role"
     assert app.wait_log(r"^lx x872 names .*$").group(0) == ("lx x872 names caps 3,2 config true sent true dimmed true touch true moving false "
         "pasteboard true overscan true symbols true options true"), "Apple's Swift names of UIImage, UIControl, UIView, UIViewController, UITouch, UIPasteboard, UIScreen members (#872)"
+    more = "lx x872 more shape true"
+    if v >= 18:
+        more += " group 2 underline true align true bold true"
+    if v >= 26:
+        more += " markers true class true"
+    assert app.wait_log(r"^lx x872 more .*$").group(0) == more, \
+        "UIShape(_:), the panel's component(_:_:) / group(_:) / FormattingDescriptor(string:) / TextAlignment(nsTextAlignment:) / ChangeValue.bold, includesTextListMarkers"
     assert app.wait_log(r"^lx x872 accessories .*$").group(0) == "lx x872 accessories label,checkmark,badge,reorder defaults true", \
         "UICellAccessory options, AccessoryType.customView(view) and Placement.position(after:)"
     log = app.log

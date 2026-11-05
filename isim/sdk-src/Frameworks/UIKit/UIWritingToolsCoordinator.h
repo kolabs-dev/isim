@@ -61,7 +61,10 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.2)) NS_SWIFT_NAME(UIWritingToolsCoordinat
             animationParameters:(nullable UIWritingToolsCoordinatorAnimationParameters *)animationParameters
                      completion:(void (^)(NSAttributedString *_Nullable resultText))completion;
 - (void)writingToolsCoordinator:(UIWritingToolsCoordinator *)writingToolsCoordinator selectRanges:(NSArray<NSValue *> *)ranges
-                      inContext:(UIWritingToolsCoordinatorContext *)context completion:(void (^)(void))completion;
+                      inContext:(UIWritingToolsCoordinatorContext *)context completion:(void (^)(void))completion NS_SWIFT_NAME(writingToolsCoordinator(_:select:in:completion:));
+/* the range and context under a point (Writing Tools are never shown in isim: not asked) */
+- (void)writingToolsCoordinator:(UIWritingToolsCoordinator *)writingToolsCoordinator requestsRangeInContextWithIdentifierForPoint:(CGPoint)point
+                     completion:(void (^)(NSRange range, NSUUID *contextID))completion NS_SWIFT_NAME(writingToolsCoordinator(_:requestsRangeInContextWithIdentifierFor:completion:)) API_AVAILABLE(ios(18.4));
 - (void)writingToolsCoordinator:(UIWritingToolsCoordinator *)writingToolsCoordinator requestsBoundingBezierPathsForRange:(NSRange)range
                       inContext:(UIWritingToolsCoordinatorContext *)context completion:(void (^)(NSArray<UIBezierPath *> *boundingBezierPaths))completion;
 - (void)writingToolsCoordinator:(UIWritingToolsCoordinator *)writingToolsCoordinator requestsUnderlinePathsForRange:(NSRange)range
@@ -103,7 +106,9 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.2))
 - (void)stopWritingTools;
 - (void)updateRange:(NSRange)range withText:(NSAttributedString *)replacementText reason:(UIWritingToolsCoordinatorTextUpdateReason)reason
     forContextWithIdentifier:(NSUUID *)contextID NS_SWIFT_NAME(updateRange(_:with:reason:forContextWithIdentifier:));
-- (void)updateForReflowedTextInContextWithIdentifier:(NSUUID *)contextID;
+- (void)updateForReflowedTextInContextWithIdentifier:(NSUUID *)contextID NS_SWIFT_NAME(updateForReflowedTextInContextWithIdentifier(_:));
+/* whether contexts handed over include the list markers of text lists (iOS 26; isim: stored) */
+@property (nonatomic) BOOL includesTextListMarkers API_AVAILABLE(ios(26.0));
 - (BOOL)showGrammarPresentationForRange:(NSRange)range inContext:(UIWritingToolsCoordinatorContext *)context
     NS_SWIFT_NAME(showGrammarPresentation(for:in:)) API_AVAILABLE(ios(26.0));
 - (nullable NSUUID *)startTextAnimation:(UIWritingToolsCoordinatorTextAnimation)textAnimation forRange:(NSRange)range inContext:(UIWritingToolsCoordinatorContext *)context
@@ -117,6 +122,8 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.2))
 @property (nonatomic) UIWritingToolsResultOptions allowedWritingToolsResultOptions API_AVAILABLE(ios(18.0));
 @property (nonatomic, readonly, getter=isWritingToolsActive) BOOL writingToolsActive API_AVAILABLE(ios(18.0));
 @property (nonatomic, readonly, nullable) UIWritingToolsCoordinator *writingToolsCoordinator API_AVAILABLE(ios(18.2));
+/* the coordinator class a text view makes (a subclass may return its own) */
+@property (nonatomic, readonly) Class subclassForWritingToolsCoordinator API_AVAILABLE(ios(26.0));
 @end
 @interface UITextField (UIWritingTools)
 @property (nonatomic) UIWritingToolsBehavior writingToolsBehavior API_AVAILABLE(ios(18.0));

@@ -157,7 +157,7 @@ API_AVAILABLE(ios(13.0)) NS_SWIFT_UI_ACTOR
 @end
 API_AVAILABLE(ios(13.0)) NS_SWIFT_UI_ACTOR
 @interface UITextFormattingCoordinator : NSObject <UIFontPickerViewControllerDelegate>
-+ (instancetype)textFormattingCoordinatorForWindowScene:(UIWindowScene *)windowScene NS_SWIFT_NAME(init(for:));
++ (instancetype)textFormattingCoordinatorForWindowScene:(UIWindowScene *)windowScene NS_SWIFT_NAME(init(forWindowScene:));
 - (instancetype)initWithWindowScene:(UIWindowScene *)windowScene;
 @property (nullable, nonatomic, weak) id<UITextFormattingCoordinatorDelegate> delegate;
 - (void)setSelectedAttributes:(NSDictionary<NSAttributedStringKey, id> *)attributes isMultiple:(BOOL)flag;

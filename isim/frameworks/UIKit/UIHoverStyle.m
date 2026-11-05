@@ -72,7 +72,7 @@ typedef NS_ENUM(NSInteger, IsimShapeKind) { IsimShapeRect, IsimShapeCapsule, Isi
     if (o == self) return YES;
     if (![o isKindOfClass:[UIShape class]]) return NO;
     return o->_kind == _kind && o->_radius == _radius && o->_curve == _curve && o->_corners == _corners && CGRectEqualToRect(o->_rect, _rect)
-        && (o->_path == _path || [o->_path isEqual:_path]) && o->_provider == _provider && UIEdgeInsetsEqualToEdgeInsets(o->_insets, _insets);
+        && (o->_path == _path || [o->_path isEqual:_path]) && (o->_provider == _provider || [(NSObject *)o->_provider isEqual:_provider]) && UIEdgeInsetsEqualToEdgeInsets(o->_insets, _insets);
 }
 - (NSUInteger)hash { return (NSUInteger)_kind * 31 + (NSUInteger)_radius; }
 - (UIResolvedShape *)resolvedShapeInContext:(UIShapeResolutionContext *)context { return [self _isimResolvedInRect:context.contentShape.boundingRect]; }
