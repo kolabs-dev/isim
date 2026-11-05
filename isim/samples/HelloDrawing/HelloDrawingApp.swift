@@ -237,5 +237,16 @@ enum PathChecks {
         let sym = UIImage(systemName: "circle.fill", withConfiguration: UIImage.SymbolConfiguration(font: UIFont.systemFont(ofSize: 17)))?.size ?? .zero
         print("symbol size \(Int(sym.width.rounded()))x\(Int(sym.height.rounded()))")
         print("rect contains: \(Rectangle().path(in: CGRect(x: 0, y: 0, width: 10, height: 10)).contains(CGPoint(x: 5, y: 5)))")
+        // #868: shape statics, Spring arithmetic, Font sizes, LineStyle from NSUnderlineStyle
+        let spring = Spring(duration: 0.5, bounce: 0)
+        let settled = spring.value(fromValue: 2.0, toValue: 12.0, initialVelocity: 0.0, time: 5)
+        var v = 0.0, vel = 0.0
+        for _ in 0..<600 { spring.update(value: &v, velocity: &vel, target: 1.0, deltaTime: 1.0 / 120) }
+        func hit<S: Shape>(_ s: S, _ w: CGFloat, _ h: CGFloat, _ x: CGFloat, _ y: CGFloat) -> Bool { s.path(in: CGRect(x: 0, y: 0, width: w, height: h)).contains(CGPoint(x: x, y: y)) }
+        let rr = hit(.rect(cornerRadius: 4), 20, 20, 0.5, 0.5)
+        let cap = hit(.capsule, 40, 20, 20, 10)
+        print("x868b spring \(Int(settled.rounded())) update \(Int((v * 10).rounded())) snappy \(abs(Spring.snappy.bounce - 0.15) < 1e-9)"
+              + " force \(spring.force(target: 1.0, position: 1.0, velocity: 0.0)) underline \(Text.LineStyle(nsUnderlineStyle: []) == nil)"
+              + " dash \(Text.LineStyle(nsUnderlineStyle: [.single, .patternDash]) != nil) rr corner \(rr) capsule \(cap)")
     }
 }
