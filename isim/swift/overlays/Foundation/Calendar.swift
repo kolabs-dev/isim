@@ -22,6 +22,9 @@ public struct DateComponents: Hashable, Sendable, CustomStringConvertible {
     public var yearForWeekOfYear: Int?
     var _dayOfYear: Int?     // dayOfYear (iOS 18)
     public var isLeapMonth: Bool?
+    @available(iOS 26.0, *)
+    public var isRepeatedDay: Bool? { get { _isRepeatedDay } set { _isRepeatedDay = newValue } }
+    var _isRepeatedDay: Bool?
     @available(iOS 18.0, *)
     public var dayOfYear: Int? { get { _dayOfYear } set { _dayOfYear = newValue } }
 
@@ -113,12 +116,16 @@ public struct Calendar: Hashable, Sendable, CustomStringConvertible {
     public enum Identifier: String, Hashable, Sendable, Codable {
         case gregorian, buddhist, chinese, coptic, ethiopicAmeteMihret, ethiopicAmeteAlem, hebrew, iso8601, indian,
              islamic, islamicCivil, japanese, persian, republicOfChina, islamicTabular, islamicUmmAlQura
+        /// iOS 26: Dangi through ICU; the Indian lunisolar and solar calendars and Vietnamese are not in ICU and count as Gregorian (adapted)
+        @available(iOS 26.0, *) case bangla, dangi, gujarati, kannada, malayalam, marathi, odia, tamil, telugu, vietnamese, vikram
     }
     public enum Component: Hashable, Sendable {
         case era, year, month, day, hour, minute, second, weekday, weekdayOrdinal, quarter, weekOfMonth, weekOfYear,
              yearForWeekOfYear, nanosecond, calendar, timeZone
         @available(iOS 18.0, *) case dayOfYear
         case isLeapMonth
+        /// iOS 26: a day repeated by a calendar's correction (none in the Gregorian calendar)
+        @available(iOS 26.0, *) case isRepeatedDay
     }
     public enum SearchDirection: Sendable { case forward, backward }
     public enum RepeatedTimePolicy: Codable, Sendable { case first, last }
@@ -224,6 +231,7 @@ public struct Calendar: Hashable, Sendable, CustomStringConvertible {
             c.weekOfMonth = (f.d - 1 + lead) / 7 + (7 - lead >= minimumDaysInFirstWeek ? 1 : 0)
         }
         if components.contains(.isLeapMonth) { c.isLeapMonth = false }
+        if #available(iOS 26.0, *), components.contains(.isRepeatedDay) { c.isRepeatedDay = false }
         return c
     }
     public func dateComponents(in timeZone: TimeZone, from date: Date) -> DateComponents {

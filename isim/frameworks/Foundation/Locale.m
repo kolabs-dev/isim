@@ -668,9 +668,8 @@ static long tz_offset(NSString *name, time_t at, char *abbr, size_t abbrlen, int
 }
 + (instancetype)timeZoneWithName:(NSString *)name { return [[self alloc] initWithName:name]; }
 + (instancetype)timeZoneWithAbbreviation:(NSString *)abbr {
-    NSDictionary *m = @{ @"UTC": @"UTC", @"GMT": @"UTC", @"EST": @"America/New_York", @"PST": @"America/Los_Angeles",
-                         @"BRT": @"America/Sao_Paulo", @"CET": @"Europe/Paris", @"JST": @"Asia/Tokyo" };
-    return m[abbr] ? [self timeZoneWithName:m[abbr]] : nil;
+    NSString *name = [NSTimeZone abbreviationDictionary][abbr];
+    return name ? [self timeZoneWithName:name] : nil;
 }
 + (instancetype)timeZoneForSecondsFromGMT:(NSInteger)s {
     NSTimeZone *z = [NSTimeZone new]; z->_isFixed = YES; z->_fixed = s;

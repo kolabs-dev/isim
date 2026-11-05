@@ -1274,6 +1274,64 @@ static void legacy_checks(void) {
 
 /* CoreFoundation over the toll-free bridged Foundation classes (issue #216) */
 /* issue #864: the formatter properties (padding, grouping, always-shown decimal separator, behavior, ranges) */
+/* NSCalendar's arithmetic, NSDateComponents, NSTimeZone names and data, NSDate (issue #864, part 3): UTC, en_US */
+static void calendar864_checks(void) {
+    NSCalendar *cal = [NSCalendar calendarWithIdentifier:NSCalendarIdentifierGregorian];
+    cal.timeZone = [NSTimeZone timeZoneWithName:@"UTC"]; cal.locale = [NSLocale localeWithLocaleIdentifier:@"en_US"]; cal.firstWeekday = 1;
+    NSDate *d = [NSDate dateWithTimeIntervalSince1970:1791284645];   /* Tuesday 2026-10-06 11:04:05 UTC */
+    NSDate *start; NSTimeInterval len;
+    CHECK([cal rangeOfUnit:NSCalendarUnitMonth startDate:&start interval:&len forDate:d] && start.timeIntervalSince1970 == 1790812800 && len == 31 * 86400);
+    CHECK([cal rangeOfUnit:NSCalendarUnitWeekOfYear startDate:&start interval:&len forDate:d] && start.timeIntervalSince1970 == 1791072000 && len == 7 * 86400);
+    CHECK([cal ordinalityOfUnit:NSCalendarUnitDay inUnit:NSCalendarUnitYear forDate:d] == 279);
+    CHECK([cal ordinalityOfUnit:NSCalendarUnitWeekday inUnit:NSCalendarUnitWeekOfYear forDate:d] == 3);
+    CHECK(NSEqualRanges([cal minimumRangeOfUnit:NSCalendarUnitDay], NSMakeRange(1, 28)) && NSEqualRanges([cal maximumRangeOfUnit:NSCalendarUnitDay], NSMakeRange(1, 31)));
+    NSInteger era, year, month, day, hour, minute, second, ns;
+    [cal getEra:&era year:&year month:&month day:&day fromDate:d];
+    [cal getHour:&hour minute:&minute second:&second nanosecond:&ns fromDate:d];
+    CHECK(era == 1 && year == 2026 && month == 10 && day == 6 && hour == 11 && minute == 4 && second == 5);
+    CHECK([[cal dateWithEra:1 year:2026 month:10 day:6 hour:11 minute:4 second:5 nanosecond:0] isEqualToDate:d]);
+    NSDate *w = [cal dateWithEra:1 yearForWeekOfYear:2026 weekOfYear:41 weekday:3 hour:11 minute:4 second:5 nanosecond:0];
+    CHECK(w && [w isEqualToDate:d]);
+    CHECK([cal compareDate:d toDate:[d dateByAddingTimeInterval:3600] toUnitGranularity:NSCalendarUnitDay] == NSOrderedSame);
+    CHECK([cal compareDate:d toDate:[d dateByAddingTimeInterval:3600] toUnitGranularity:NSCalendarUnitHour] == NSOrderedAscending);
+    CHECK(![cal isDateInWeekend:d] && [cal isDateInWeekend:[d dateByAddingTimeInterval:4 * 86400]]);
+    CHECK([cal nextWeekendStartDate:&start interval:&len options:0 afterDate:d] && start.timeIntervalSince1970 == 1791590400 && len == 2 * 86400);
+    NSDateComponents *nine = [NSDateComponents new]; nine.hour = 9;
+    CHECK([[cal nextDateAfterDate:d matchingComponents:nine options:NSCalendarMatchNextTime] timeIntervalSince1970] == 1791363600);
+    NSDateComponents *first = [NSDateComponents new]; first.day = 1;
+    CHECK([[cal nextDateAfterDate:d matchingComponents:first options:0] timeIntervalSince1970] == 1793491200);
+    CHECK([[cal nextDateAfterDate:d matchingComponents:first options:NSCalendarSearchBackwards] timeIntervalSince1970] == 1790812800);
+    __block int count = 0; __block NSDate *last = nil;
+    [cal enumerateDatesStartingAfterDate:d matchingComponents:first options:0 usingBlock:^(NSDate *date, BOOL exact, BOOL *stop) { last = date; if (++count == 3) *stop = YES; }];
+    CHECK(count == 3 && [cal component:NSCalendarUnitMonth fromDate:last] == 1);
+    CHECK([[cal dateBySettingHour:8 minute:30 second:0 ofDate:d options:0] timeIntervalSince1970] == 1791275400);
+    CHECK([cal component:NSCalendarUnitMonth fromDate:[cal dateBySettingUnit:NSCalendarUnitMonth value:2 ofDate:[cal dateWithEra:1 year:2026 month:1 day:31 hour:0 minute:0 second:0 nanosecond:0] options:0]] == 2);
+    NSDateComponents *oct6 = [NSDateComponents new]; oct6.month = 10; oct6.day = 6;
+    CHECK([cal date:d matchesComponents:oct6]);
+    NSDateComponents *inTZ = [cal componentsInTimeZone:[NSTimeZone timeZoneWithName:@"Asia/Tokyo"] fromDate:d];
+    CHECK(inTZ.hour == 20 && [inTZ.timeZone.name isEqualToString:@"Asia/Tokyo"]);
+    if (@available(iOS 18.0, *)) CHECK(inTZ.dayOfYear == 279);
+    CHECK([cal.quarterSymbols.lastObject isEqualToString:@"4th quarter"] && [cal.eraSymbols.lastObject isEqualToString:@"AD"] && [cal.veryShortMonthSymbols.firstObject isEqualToString:@"J"]);
+    /* date components: date, validity, coding */
+    NSDateComponents *c = [NSDateComponents new]; c.calendar = cal; c.year = 2026; c.month = 2; c.day = 30;
+    CHECK(!c.isValidDate);
+    c.day = 28;
+    CHECK(c.isValidDate && c.date.timeIntervalSince1970 == 1772236800);
+    NSData *ar = [NSKeyedArchiver archivedDataWithRootObject:c requiringSecureCoding:YES error:NULL];
+    NSDateComponents *back = [NSKeyedUnarchiver unarchivedObjectOfClass:[NSDateComponents class] fromData:ar error:NULL];
+    CHECK(back.year == 2026 && back.day == 28 && [back.calendar.calendarIdentifier isEqualToString:NSCalendarIdentifierGregorian]);
+    /* time zones */
+    NSTimeZone *la = [NSTimeZone timeZoneWithName:@"America/Los_Angeles"];
+    NSLocale *us = [NSLocale localeWithLocaleIdentifier:@"en_US"];
+    CHECK_STR([la localizedName:NSTimeZoneNameStyleStandard locale:us], @"Pacific Standard Time");
+    CHECK_STR([la localizedName:NSTimeZoneNameStyleShortDaylightSaving locale:us], @"PDT");
+    CHECK_STR([NSTimeZone abbreviationDictionary][@"PST"], @"America/Los_Angeles");
+    CHECK([[NSTimeZone timeZoneWithAbbreviation:@"JST"] isEqualToTimeZone:[NSTimeZone timeZoneWithName:@"Asia/Tokyo"]]);
+    CHECK(la.data.length > 44 && memcmp(la.data.bytes, "TZif", 4) == 0 && NSTimeZone.timeZoneDataVersion.length >= 5);
+    CHECK([NSDate.now timeIntervalSinceNow] <= 0 && [[d descriptionWithLocale:us] hasPrefix:@"Tuesday, October 6, 2026"]);
+    if (@available(iOS 26.0, *)) CHECK([NSCalendarIdentifierVikram isEqualToString:@"vikram"]);
+}
+
 static void formatter864_checks(void) {
     NSLocale *us = [NSLocale localeWithLocaleIdentifier:@"en_US"];
     NSNumberFormatter *nf = [NSNumberFormatter new]; nf.locale = us; nf.numberStyle = NSNumberFormatterDecimalStyle;
@@ -2023,6 +2081,7 @@ int main(int argc, char *argv[]) {
         physical_formatter_checks();
         locale_checks();
         formatter864_checks();
+        calendar864_checks();
 
         collection_checks();
 

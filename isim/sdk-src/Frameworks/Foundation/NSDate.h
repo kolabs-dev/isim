@@ -23,4 +23,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSDate *)earlierDate:(NSDate *)anotherDate;
 - (NSDate *)laterDate:(NSDate *)anotherDate;
 @end
+@interface NSDate (NSDateCreation)
+@property (class, readonly, copy) NSDate *now API_AVAILABLE(ios(15.0));
+- (instancetype)initWithTimeInterval:(NSTimeInterval)secsToBeAdded sinceDate:(NSDate *)date;
++ (instancetype)dateWithTimeInterval:(NSTimeInterval)secsToBeAdded sinceDate:(NSDate *)date;
+- (instancetype)initWithTimeIntervalSinceNow:(NSTimeInterval)secs;
+- (instancetype)initWithTimeIntervalSince1970:(NSTimeInterval)secs;
+- (NSString *)descriptionWithLocale:(nullable id)locale;
+@end
 NS_ASSUME_NONNULL_END
