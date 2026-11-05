@@ -180,11 +180,25 @@ public final class SystemLanguageModel: Sendable, Observable {
 
 @available(iOS 26.0, macOS 26.0, *)
 public final class LanguageModelSession: @unchecked Sendable, Observable {
-    public private(set) var transcript: Transcript
+    public internal(set) var transcript: Transcript
     public private(set) var isResponding = false
     let _model: SystemLanguageModel
-    let _tools: [any Tool]
+    var _tools: [any Tool]
     private let lock = NSLock()
+    /// iOS 27 state, untyped: the custom LanguageModel, usage, the error policy, the request's context options and
+    /// metadata, session properties and the profile's hooks (LanguageModels.swift, DynamicInstructions.swift)
+    var _custom: Any?
+    var _usage: Any?
+    var _lastUsage: Any?
+    var _policy: Any?
+    var _context: Any?
+    var _metadata: [String: GeneratedContent] = [:]
+    var _properties: AnyObject?
+    var _attachments: [Transcript.Segment] = []
+    var _hooks: [String: [() async throws -> Void]] = [:]
+    var _source: Any?
+    var _profile: Any?
+    var _requestStart = 0
 
     public init(model: SystemLanguageModel = .default, tools: [any Tool] = [], instructions: Instructions? = nil) {
         _model = model; _tools = tools
@@ -214,9 +228,14 @@ public final class LanguageModelSession: @unchecked Sendable, Observable {
         public let content: Content
         public let rawContent: GeneratedContent
         public let transcriptEntries: ArraySlice<Transcript.Entry>
+        /// LanguageModelSession.Usage (iOS 27), kept untyped so the struct stays available on iOS 26
+        let _usage: Any?
+        init(content: Content, rawContent: GeneratedContent, transcriptEntries: ArraySlice<Transcript.Entry>, _usage: Any? = nil) {
+            self.content = content; self.rawContent = rawContent; self.transcriptEntries = transcriptEntries; self._usage = _usage
+        }
     }
 
-    public enum GenerationError: Error, LocalizedError {
+    public enum GenerationError: Swift.Error, LocalizedError {
         public struct Context: Sendable {
             public let debugDescription: String
             public init(debugDescription: String) { self.debugDescription = debugDescription }
@@ -252,10 +271,10 @@ public final class LanguageModelSession: @unchecked Sendable, Observable {
         public var failureReason: String? { _context.debugDescription }
         public var recoverySuggestion: String? { nil }
     }
-    public struct ToolCallError: Error, LocalizedError {
+    public struct ToolCallError: Swift.Error, LocalizedError {
         public var tool: any Tool
-        public var underlyingError: any Error
-        public init(tool: any Tool, underlyingError: any Error) { self.tool = tool; self.underlyingError = underlyingError }
+        public var underlyingError: any Swift.Error
+        public init(tool: any Tool, underlyingError: any Swift.Error) { self.tool = tool; self.underlyingError = underlyingError }
         public var errorDescription: String? { "\(tool.name) failed: \(underlyingError.localizedDescription)" }
     }
 
@@ -264,7 +283,7 @@ public final class LanguageModelSession: @unchecked Sendable, Observable {
     @discardableResult
     public func respond(to prompt: Prompt, options: GenerationOptions = GenerationOptions()) async throws -> Response<String> {
         let (text, entries) = try await _respond(prompt._text, schema: nil, includeSchema: false, options: options)
-        return Response(content: text, rawContent: GeneratedContent(text), transcriptEntries: entries)
+        return Response(content: text, rawContent: GeneratedContent(text), transcriptEntries: entries, _usage: _lastUsage)
     }
     @discardableResult
     public func respond(to prompt: String, options: GenerationOptions = GenerationOptions()) async throws -> Response<String> {
@@ -279,7 +298,7 @@ public final class LanguageModelSession: @unchecked Sendable, Observable {
                         options: GenerationOptions = GenerationOptions()) async throws -> Response<GeneratedContent> {
         let (text, entries) = try await _respond(prompt._text, schema: schema, includeSchema: includeSchemaInPrompt, options: options)
         let content = try GeneratedContent(json: text)
-        return Response(content: content, rawContent: content, transcriptEntries: entries)
+        return Response(content: content, rawContent: content, transcriptEntries: entries, _usage: _lastUsage)
     }
     @discardableResult
     public func respond(to prompt: String, schema: GenerationSchema, includeSchemaInPrompt: Bool = true,
@@ -290,7 +309,7 @@ public final class LanguageModelSession: @unchecked Sendable, Observable {
     public func respond<Content: Generable>(to prompt: Prompt, generating type: Content.Type = Content.self, includeSchemaInPrompt: Bool = true,
                                             options: GenerationOptions = GenerationOptions()) async throws -> Response<Content> {
         let r = try await respond(to: prompt, schema: Content.generationSchema, includeSchemaInPrompt: includeSchemaInPrompt, options: options)
-        return Response(content: try Content(r.rawContent), rawContent: r.rawContent, transcriptEntries: r.transcriptEntries)
+        return Response(content: try Content(r.rawContent), rawContent: r.rawContent, transcriptEntries: r.transcriptEntries, _usage: r._usage)
     }
     @discardableResult
     public func respond<Content: Generable>(to prompt: String, generating type: Content.Type = Content.self, includeSchemaInPrompt: Bool = true,
@@ -310,12 +329,17 @@ public final class LanguageModelSession: @unchecked Sendable, Observable {
         public struct Snapshot: @unchecked Sendable {
             public var content: Content.PartiallyGenerated
             public var rawContent: GeneratedContent
+            var _entries: ArraySlice<Transcript.Entry> = []
+            var _usage: Any? = nil
+            init(content: Content.PartiallyGenerated, rawContent: GeneratedContent, _entries: ArraySlice<Transcript.Entry> = [], _usage: Any? = nil) {
+                self.content = content; self.rawContent = rawContent; self._entries = _entries; self._usage = _usage
+            }
         }
         public typealias Element = Snapshot
-        let _make: () -> AsyncThrowingStream<Snapshot, Error>
+        let _make: () -> AsyncThrowingStream<Snapshot, Swift.Error>
         let _final: () async throws -> Response<Content>
         public struct AsyncIterator: AsyncIteratorProtocol {
-            var _it: AsyncThrowingStream<Snapshot, Error>.AsyncIterator
+            var _it: AsyncThrowingStream<Snapshot, Swift.Error>.AsyncIterator
             public mutating func next() async throws -> Snapshot? { try await _it.next() }
         }
         public func makeAsyncIterator() -> AsyncIterator { AsyncIterator(_it: _make().makeAsyncIterator()) }
@@ -355,25 +379,37 @@ public final class LanguageModelSession: @unchecked Sendable, Observable {
 
     /// records the prompt and returns what to send: the conversation so far and the backend
     func _begin(_ prompt: String, schema: GenerationSchema?, includeSchema: Bool, options: GenerationOptions) throws -> ([_ChatMessage], any _LanguageModelBackend, Int) {
+        _isimPreRequest()
         lock.lock()
         defer { lock.unlock() }
         if isResponding {
             throw GenerationError.concurrentRequests(.init(debugDescription: "a session answers one request at a time; this one is still responding"))
         }
-        /* the conversation before this prompt */
+        /* the conversation before this prompt (through the profile's history transform) */
         var messages: [_ChatMessage] = []
-        for e in transcript._entries {
+        for e in _isimHistoryForModel(transcript._entries) {
             switch e {
             case .instructions(let i): messages.append(_ChatMessage(role: "system", content: i.segments.map(\._text).joined(separator: "\n")))
             case .prompt(let p): messages.append(_ChatMessage(role: "user", content: p.segments.map(\._text).joined(separator: "\n")))
             case .response(let r): messages.append(_ChatMessage(role: "assistant", content: r.segments.map(\._text).joined(separator: "\n")))
             case .toolCalls(let c): messages.append(_ChatMessage(role: "assistant", content: nil, toolCalls: c.map { (id: $0.id, name: $0.toolName, arguments: $0.arguments.jsonString) }))
             case .toolOutput(let o): messages.append(_ChatMessage(role: "tool", content: o.segments.map(\._text).joined(separator: "\n"), toolCallID: o.id))
+            default: break   // reasoning and data entries stay out of a chat-completions conversation
             }
         }
         let start = transcript._entries.count
-        transcript._entries.append(.prompt(Transcript.Prompt(segments: [.text(.init(content: prompt))], options: options,
-                                                             responseFormat: schema.map { Transcript.ResponseFormat(schema: $0) })))
+        _requestStart = start
+        var promptEntry = Transcript.Prompt(segments: [.text(.init(content: prompt))], options: options,
+                                            responseFormat: schema.map { Transcript.ResponseFormat(schema: $0) })
+        promptEntry._metadata = _metadata
+        promptEntry._context = _context
+        transcript._entries.append(.prompt(promptEntry))
+        if let custom = _isimCustomBackend() {
+            isResponding = true
+            _attachments = []
+            messages.append(_ChatMessage(role: "user", content: prompt))
+            return (messages, custom, start)
+        }
         guard _model.isAvailable, let backend = _LanguageModelHost.backend else {
             let why: String
             switch _model.availability {
@@ -409,6 +445,7 @@ public final class LanguageModelSession: @unchecked Sendable, Observable {
                                     arguments: (try? GeneratedContent(json: $0.arguments)) ?? GeneratedContent(kind: .structure(properties: [:], orderedKeys: [])))
             }
             _append(.toolCalls(Transcript.ToolCalls(recorded)))
+            await _isimRunHooks("toolCall")
             msgs.append(_ChatMessage(role: "assistant", content: nil, toolCalls: calls))
             for call in recorded {
                 guard let tool = _tools.first(where: { $0.name == call.toolName }) else {
@@ -417,6 +454,7 @@ public final class LanguageModelSession: @unchecked Sendable, Observable {
                 let output: String
                 do { output = try await _callTool(tool, call.arguments) } catch { throw ToolCallError(tool: tool, underlyingError: error) }
                 _append(.toolOutput(Transcript.ToolOutput(id: call.id, toolName: call.toolName, segments: [.text(.init(content: output))])))
+                await _isimRunHooks("toolOutput")
                 msgs.append(_ChatMessage(role: "tool", content: output, toolCallID: call.id))
             }
         }
@@ -431,14 +469,23 @@ public final class LanguageModelSession: @unchecked Sendable, Observable {
         lock.lock()
         defer { lock.unlock() }
         isResponding = false
-        guard let result else { return [] }
+        _context = nil; _metadata = [:]
+        guard let result else {
+            if _isimRevertsOnError, _requestStart <= transcript._entries.count { transcript._entries.removeSubrange(_requestStart...) }
+            _attachments = []
+            return []
+        }
         let segment: Transcript.Segment = result.structured
             ? .structure(.init(source: "", content: (try? GeneratedContent(json: result.text)) ?? GeneratedContent(result.text)))
             : .text(.init(content: result.text))
-        transcript._entries.append(.response(Transcript.Response(assetIDs: [], segments: [segment])))
+        transcript._entries.append(.response(Transcript.Response(assetIDs: [], segments: [segment] + _attachments)))
+        _attachments = []
         return transcript._entries[result.start...]
     }
     func _respond(_ prompt: String, schema: GenerationSchema?, includeSchema: Bool, options: GenerationOptions) async throws -> (String, ArraySlice<Transcript.Entry>) {
+        let options = _isimEffective(options)
+        await _isimRunHooks("prompt")
+        defer { Task { await self._isimRunHooks("response") } }
         let (messages, backend, start) = try _begin(prompt, schema: schema, includeSchema: includeSchema, options: options)
         let text: String
         do { text = try await _generate(messages, backend, schema: schema, options: options) { _ in } } catch { _end(nil); throw error }
@@ -446,10 +493,11 @@ public final class LanguageModelSession: @unchecked Sendable, Observable {
     }
     func _stream<Content: Generable>(_ prompt: String, schema: GenerationSchema?, includeSchema: Bool, options: GenerationOptions,
                                      _ content: @escaping @Sendable (String, GeneratedContent) -> GeneratedContent) -> ResponseStream<Content> {
+        let options = _isimEffective(options)
         let run = _StreamRun<Content>(), lock = NSLock()
         do { run.started = try _begin(prompt, schema: schema, includeSchema: includeSchema, options: options) } catch { run.error = error }
         let structured = schema != nil
-        let stream = AsyncThrowingStream<ResponseStream<Content>.Snapshot, Error> { cont in
+        let stream = AsyncThrowingStream<ResponseStream<Content>.Snapshot, Swift.Error> { cont in
             Task {
                 do {
                     if let e = run.error { throw e }
@@ -460,7 +508,7 @@ public final class LanguageModelSession: @unchecked Sendable, Observable {
                     }
                     let entries = self._end((last, structured, start))
                     let raw = structured ? try GeneratedContent(json: last) : GeneratedContent(last)
-                    lock.lock(); run.final = Response(content: try Content(content(last, raw)), rawContent: raw, transcriptEntries: entries); lock.unlock()
+                    lock.lock(); run.final = Response(content: try Content(content(last, raw)), rawContent: raw, transcriptEntries: entries, _usage: self._lastUsage); lock.unlock()
                     cont.finish()
                 } catch {
                     if run.started != nil && run.final == nil { self._end(nil) }
@@ -510,6 +558,10 @@ public struct Transcript: Sendable, Equatable, RandomAccessCollection {
         case toolCalls(ToolCalls)
         case toolOutput(ToolOutput)
         case response(Response)
+        /// the model's reasoning before it answered (iOS 27)
+        case reasoning(Reasoning)
+        /// data the model produced as an entry of its own (iOS 27.2)
+        case data(DataEntry)
         public var id: String {
             switch self {
             case .instructions(let x): return x.id
@@ -517,6 +569,8 @@ public struct Transcript: Sendable, Equatable, RandomAccessCollection {
             case .toolCalls(let x): return x.id
             case .toolOutput(let x): return x.id
             case .response(let x): return x.id
+            case .reasoning(let x): return x.id
+            case .data(let x): return x.id
             }
         }
         public var description: String {
@@ -526,6 +580,8 @@ public struct Transcript: Sendable, Equatable, RandomAccessCollection {
             case .toolCalls(let x): return "(Tool calls) " + x.map { "\($0.toolName)(\($0.arguments.jsonString))" }.joined(separator: ", ")
             case .toolOutput(let x): return "(Tool output: \(x.toolName)) " + x.segments.map(\._text).joined()
             case .response(let x): return "(Response) " + x.segments.map(\._text).joined()
+            case .reasoning(let x): return "(Reasoning) " + x.segments.map(\._text).joined()
+            case .data(let x): return "(Data: \(x.contentType.identifier)) \(x.content.count) bytes"
             }
         }
         public static func == (a: Entry, b: Entry) -> Bool { a.id == b.id }
@@ -533,8 +589,18 @@ public struct Transcript: Sendable, Equatable, RandomAccessCollection {
     public enum Segment: Sendable, Identifiable, CustomStringConvertible, Equatable {
         case text(TextSegment)
         case structure(StructuredSegment)
-        public var id: String { switch self { case .text(let t): return t.id; case .structure(let s): return s.id } }
-        var _text: String { switch self { case .text(let t): return t.content; case .structure(let s): return s.content.jsonString } }
+        /// an image or data the entry carries (iOS 27)
+        case attachment(AttachmentSegment)
+        public var id: String {
+            switch self { case .text(let t): return t.id; case .structure(let s): return s.id; case .attachment(let a): return a.id }
+        }
+        var _text: String {
+            switch self {
+            case .text(let t): return t.content
+            case .structure(let s): return s.content.jsonString
+            case .attachment(let a): return "[attachment \(a.label ?? a.id)]"
+            }
+        }
         public var description: String { _text }
         public static func == (a: Segment, b: Segment) -> Bool { a.id == b.id }
     }
@@ -548,6 +614,9 @@ public struct Transcript: Sendable, Equatable, RandomAccessCollection {
         public var source: String
         public var content: GeneratedContent
         public init(id: String = UUID().uuidString, source: String, content: GeneratedContent) { self.id = id; self.source = source; self.content = content }
+        /// the schema the content follows (the same as `source`)
+        public var schemaName: String { get { source } set { source = newValue } }
+        public init(id: String = UUID().uuidString, schemaName: String, content: GeneratedContent) { self.init(id: id, source: schemaName, content: content) }
     }
     public struct Instructions: Sendable, Identifiable, Equatable {
         public var id: String
@@ -561,7 +630,7 @@ public struct Transcript: Sendable, Equatable, RandomAccessCollection {
     public struct ToolDefinition: Sendable, Equatable {
         public var name: String
         public var description: String
-        let _parameters: GenerationSchema
+        var _parameters: GenerationSchema
         public init(name: String, description: String, parameters: GenerationSchema) { self.name = name; self.description = description; _parameters = parameters }
         public init(tool: some Tool) { self.init(name: tool.name, description: tool.description, parameters: tool.parameters) }
         public static func == (a: ToolDefinition, b: ToolDefinition) -> Bool { a.name == b.name && a.description == b.description }
@@ -571,6 +640,9 @@ public struct Transcript: Sendable, Equatable, RandomAccessCollection {
         public var segments: [Segment]
         public var options: GenerationOptions
         public var responseFormat: ResponseFormat?
+        var _metadata: [String: GeneratedContent] = [:]
+        /// ContextOptions (iOS 27)
+        var _context: (any Sendable)?
         public init(id: String = UUID().uuidString, segments: [Segment], options: GenerationOptions = GenerationOptions(), responseFormat: ResponseFormat? = nil) {
             self.id = id; self.segments = segments; self.options = options; self.responseFormat = responseFormat
         }
@@ -602,6 +674,7 @@ public struct Transcript: Sendable, Equatable, RandomAccessCollection {
         public var id: String
         public var toolName: String
         public var arguments: GeneratedContent
+        var _metadata: [String: GeneratedContent] = [:]
         public init(id: String, toolName: String, arguments: GeneratedContent) { self.id = id; self.toolName = toolName; self.arguments = arguments }
     }
     public struct ToolOutput: Sendable, Identifiable, Equatable {
@@ -615,6 +688,7 @@ public struct Transcript: Sendable, Equatable, RandomAccessCollection {
         public var id: String
         public var assetIDs: [String]
         public var segments: [Segment]
+        var _metadata: [String: GeneratedContent] = [:]
         public init(id: String = UUID().uuidString, assetIDs: [String], segments: [Segment]) { self.id = id; self.assetIDs = assetIDs; self.segments = segments }
         public static func == (a: Response, b: Response) -> Bool { a.id == b.id }
     }
@@ -628,6 +702,16 @@ public struct Transcript: Sendable, Equatable, RandomAccessCollection {
 @attached(extension, conformances: Generable, names: named(init(_:)), named(generatedContent))
 @attached(member, names: named(generationSchema), named(PartiallyGenerated))
 public macro Generable(description: String? = nil) = #externalMacro(module: "FoundationModelsMacros", type: "GenerableMacro")
+/// `@Generable` with how nil properties appear in generated content (iOS 26.4; isim: nil properties are left out)
+@available(iOS 26.4, macOS 26.4, *)
+@attached(extension, conformances: Generable, names: named(init(_:)), named(generatedContent))
+@attached(member, names: arbitrary)
+public macro Generable(description: String? = nil, representNilExplicitlyInGeneratedContent: Bool) = #externalMacro(module: "FoundationModelsMacros", type: "GenerableMacro")
+/// `@Generable` with the schema's name (iOS 27)
+@available(iOS 27.0, macOS 27.0, *)
+@attached(extension, conformances: Generable, names: named(init(_:)), named(generatedContent))
+@attached(member, names: arbitrary)
+public macro Generable(name: String, description: String? = nil, representNilExplicitlyInGeneratedContent: Bool = false) = #externalMacro(module: "FoundationModelsMacros", type: "GenerableMacro")
 
 /// Describes a Generable type's property for the model (read by `@Generable`).
 @available(iOS 26.0, macOS 26.0, *)

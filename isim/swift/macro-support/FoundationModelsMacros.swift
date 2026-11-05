@@ -181,6 +181,36 @@ public struct GuideMacro: PeerMacro {
                                  in context: some MacroExpansionContext) throws -> [DeclSyntax] { [] }
 }
 
+/// `@SessionPropertyEntry var name: Type = default` in `extension SessionPropertyValues`: a key type
+/// (`__Key_name: SessionPropertyKey`) and accessors through the values' subscript (iOS 27, issue #859)
+public struct SessionPropertyEntryMacro: AccessorMacro, PeerMacro {
+    static func binding(_ decl: some DeclSyntaxProtocol) throws -> (name: String, type: TypeSyntax?, value: ExprSyntax?) {
+        guard let v = decl.as(VariableDeclSyntax.self), let b = v.bindings.first, let id = b.pattern.as(IdentifierPatternSyntax.self) else {
+            throw GenerableMessage(description: "@SessionPropertyEntry applies to a stored `var name: Type = default`")
+        }
+        return (id.identifier.text, b.typeAnnotation?.type, b.initializer?.value)
+    }
+    public static func expansion(of node: AttributeSyntax, providingAccessorsOf declaration: some DeclSyntaxProtocol,
+                                 in context: some MacroExpansionContext) throws -> [AccessorDeclSyntax] {
+        let (name, _, _) = try binding(declaration)
+        return ["get { self[__Key_\(raw: name).self] }", "set { self[__Key_\(raw: name).self] = newValue }"]
+    }
+    public static func expansion(of node: AttributeSyntax, providingPeersOf declaration: some DeclSyntaxProtocol,
+                                 in context: some MacroExpansionContext) throws -> [DeclSyntax] {
+        let (name, type, value) = try binding(declaration)
+        guard let valueType = type?.trimmedDescription else {
+            throw GenerableMessage(description: "@SessionPropertyEntry needs a type annotation (var \(name): Type = ...)")
+        }
+        let def = value?.trimmedDescription ?? (valueType.hasSuffix("?") || valueType.hasPrefix("Optional<") ? "nil" : nil)
+        guard let def else { throw GenerableMessage(description: "@SessionPropertyEntry needs a default value (var \(name): \(valueType) = ...)") }
+        return ["""
+            private struct __Key_\(raw: name): FoundationModels.SessionPropertyKey {
+                static var defaultValue: \(raw: valueType) { \(raw: def) }
+            }
+            """]
+    }
+}
+
 @main struct FoundationModelsMacrosPlugin: CompilerPlugin {
-    let providingMacros: [Macro.Type] = [GenerableMacro.self, GuideMacro.self]
+    let providingMacros: [Macro.Type] = [GenerableMacro.self, GuideMacro.self, SessionPropertyEntryMacro.self]
 }
