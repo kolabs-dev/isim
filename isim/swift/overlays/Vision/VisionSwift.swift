@@ -3,10 +3,12 @@
 // DetectBarcodesRequest (libzbar / zxing-cpp), DetectFaceRectanglesRequest (Core Image's Haar cascades) and
 // RecognizeDocumentsRequest (text lines grouped into paragraphs, with the barcodes). Without an engine a request
 // throws VisionError.unsupportedRequest with a message saying what is missing.
-// Not in isim: compute devices (MLComputeDevice), the other requests and their VisionResult cases, NormalizedRegion
-// (iOS 26) and document lists, tables and data detection (always empty).
+// The other requests and observations are in VisionSwiftRequests.swift and VisionSwiftObservations.swift (issue #852).
+// Not in isim: document lists, tables and data detection (always empty).
 import UIKit
 import CoreImage
+import CoreML
+import AVFoundation
 
 // MARK: - geometry
 
@@ -149,12 +151,72 @@ public enum RequestDescriptor: Hashable, Sendable, CustomStringConvertible {
     case detectBarcodesRequest(DetectBarcodesRequest.Revision)
     case detectFaceRectanglesRequest(DetectFaceRectanglesRequest.Revision)
     case recognizeDocumentsRequest(RecognizeDocumentsRequest.Revision)
+    case calculateImageAestheticsScoresRequest(CalculateImageAestheticsScoresRequest.Revision)
+    case classifyImageRequest(ClassifyImageRequest.Revision)
+    case coreMLRequest(CoreMLRequest.Revision)
+    case detectAnimalBodyPoseRequest(DetectAnimalBodyPoseRequest.Revision)
+    case detectContoursRequest(DetectContoursRequest.Revision)
+    case detectDocumentSegmentationRequest(DetectDocumentSegmentationRequest.Revision)
+    case detectFaceCaptureQualityRequest(DetectFaceCaptureQualityRequest.Revision)
+    case detectFaceLandmarksRequest(DetectFaceLandmarksRequest.Revision)
+    case detectHorizonRequest(DetectHorizonRequest.Revision)
+    case detectHumanBodyPoseRequest(DetectHumanBodyPoseRequest.Revision)
+    case detectHumanHandPoseRequest(DetectHumanHandPoseRequest.Revision)
+    case detectHumanRectanglesRequest(DetectHumanRectanglesRequest.Revision)
+    case detectLensSmudgeRequest(DetectLensSmudgeRequest.Revision)
+    case detectRectanglesRequest(DetectRectanglesRequest.Revision)
+    case detectTextRectanglesRequest(DetectTextRectanglesRequest.Revision)
+    case generateAttentionBasedSaliencyImageRequest(GenerateAttentionBasedSaliencyImageRequest.Revision)
+    case generateObjectnessBasedSaliencyImageRequest(GenerateObjectnessBasedSaliencyImageRequest.Revision)
+    case generateForegroundInstanceMaskRequest(GenerateForegroundInstanceMaskRequest.Revision)
+    case generatePersonInstanceMaskRequest(GeneratePersonInstanceMaskRequest.Revision)
+    case generateImageFeaturePrintRequest(GenerateImageFeaturePrintRequest.Revision)
+    case recognizeAnimalsRequest(RecognizeAnimalsRequest.Revision)
+    case detectHumanBodyPose3DRequest(DetectHumanBodyPose3DRequest.Revision)
+    case detectTrajectoriesRequest(DetectTrajectoriesRequest.Revision)
+    case generatePersonSegmentationRequest(GeneratePersonSegmentationRequest.Revision)
+    case trackObjectRequest(TrackObjectRequest.Revision)
+    case trackRectangleRequest(TrackRectangleRequest.Revision)
+    case trackOpticalFlowRequest(TrackOpticalFlowRequest.Revision)
+    case trackTranslationalImageRegistrationRequest(TrackTranslationalImageRegistrationRequest.Revision)
+    case trackHomographicImageRegistrationRequest(TrackHomographicImageRegistrationRequest.Revision)
+    case generateIterativeSegmentationRequest(GenerateIterativeSegmentationRequest.Revision)
     public var description: String {
         switch self {
         case .recognizeTextRequest(let r): return "RecognizeTextRequest(\(r))"
         case .detectBarcodesRequest(let r): return "DetectBarcodesRequest(\(r))"
         case .detectFaceRectanglesRequest(let r): return "DetectFaceRectanglesRequest(\(r))"
         case .recognizeDocumentsRequest(let r): return "RecognizeDocumentsRequest(\(r))"
+        case .calculateImageAestheticsScoresRequest(let r): return "CalculateImageAestheticsScoresRequest(\(r))"
+        case .classifyImageRequest(let r): return "ClassifyImageRequest(\(r))"
+        case .coreMLRequest(let r): return "CoreMLRequest(\(r))"
+        case .detectAnimalBodyPoseRequest(let r): return "DetectAnimalBodyPoseRequest(\(r))"
+        case .detectContoursRequest(let r): return "DetectContoursRequest(\(r))"
+        case .detectDocumentSegmentationRequest(let r): return "DetectDocumentSegmentationRequest(\(r))"
+        case .detectFaceCaptureQualityRequest(let r): return "DetectFaceCaptureQualityRequest(\(r))"
+        case .detectFaceLandmarksRequest(let r): return "DetectFaceLandmarksRequest(\(r))"
+        case .detectHorizonRequest(let r): return "DetectHorizonRequest(\(r))"
+        case .detectHumanBodyPoseRequest(let r): return "DetectHumanBodyPoseRequest(\(r))"
+        case .detectHumanHandPoseRequest(let r): return "DetectHumanHandPoseRequest(\(r))"
+        case .detectHumanRectanglesRequest(let r): return "DetectHumanRectanglesRequest(\(r))"
+        case .detectLensSmudgeRequest(let r): return "DetectLensSmudgeRequest(\(r))"
+        case .detectRectanglesRequest(let r): return "DetectRectanglesRequest(\(r))"
+        case .detectTextRectanglesRequest(let r): return "DetectTextRectanglesRequest(\(r))"
+        case .generateAttentionBasedSaliencyImageRequest(let r): return "GenerateAttentionBasedSaliencyImageRequest(\(r))"
+        case .generateObjectnessBasedSaliencyImageRequest(let r): return "GenerateObjectnessBasedSaliencyImageRequest(\(r))"
+        case .generateForegroundInstanceMaskRequest(let r): return "GenerateForegroundInstanceMaskRequest(\(r))"
+        case .generatePersonInstanceMaskRequest(let r): return "GeneratePersonInstanceMaskRequest(\(r))"
+        case .generateImageFeaturePrintRequest(let r): return "GenerateImageFeaturePrintRequest(\(r))"
+        case .recognizeAnimalsRequest(let r): return "RecognizeAnimalsRequest(\(r))"
+        case .detectHumanBodyPose3DRequest(let r): return "DetectHumanBodyPose3DRequest(\(r))"
+        case .detectTrajectoriesRequest(let r): return "DetectTrajectoriesRequest(\(r))"
+        case .generatePersonSegmentationRequest(let r): return "GeneratePersonSegmentationRequest(\(r))"
+        case .trackObjectRequest(let r): return "TrackObjectRequest(\(r))"
+        case .trackRectangleRequest(let r): return "TrackRectangleRequest(\(r))"
+        case .trackOpticalFlowRequest(let r): return "TrackOpticalFlowRequest(\(r))"
+        case .trackTranslationalImageRegistrationRequest(let r): return "TrackTranslationalImageRegistrationRequest(\(r))"
+        case .trackHomographicImageRegistrationRequest(let r): return "TrackHomographicImageRegistrationRequest(\(r))"
+        case .generateIterativeSegmentationRequest(let r): return "GenerateIterativeSegmentationRequest(\(r))"
         }
     }
 }
@@ -171,6 +233,10 @@ public protocol VisionObservation: Hashable, Sendable, CustomStringConvertible {
 public protocol VisionRequest: Hashable, Sendable, CustomStringConvertible {
     associatedtype Result
     var descriptor: RequestDescriptor { get }
+    /// isim: the CPU for every stage
+    var supportedComputeStageDevices: [ComputeStage: [MLComputeDevice]] { get }
+    func computeDevice(for computeStage: ComputeStage) -> MLComputeDevice?
+    mutating func setComputeDevice(_ computeDevice: MLComputeDevice?, for computeStage: ComputeStage)
 }
 
 /// Requests that analyse one image; `perform(on:)` makes the handler.
@@ -218,6 +284,36 @@ public enum VisionResult: Sendable {
     case detectBarcodes(DetectBarcodesRequest, [BarcodeObservation])
     case detectFaceRectangles(DetectFaceRectanglesRequest, [FaceObservation])
     case recognizeDocuments(RecognizeDocumentsRequest, [DocumentObservation])
+    case calculateImageAestheticsScores(CalculateImageAestheticsScoresRequest, ImageAestheticsScoresObservation)
+    case classifyImage(ClassifyImageRequest, [ClassificationObservation])
+    case coreML(CoreMLRequest, [any VisionObservation])
+    case detectAnimalBodyPose(DetectAnimalBodyPoseRequest, [AnimalBodyPoseObservation])
+    case detectContours(DetectContoursRequest, ContoursObservation)
+    case detectDocumentSegmentation(DetectDocumentSegmentationRequest, DetectedDocumentObservation?)
+    case detectFaceCaptureQuality(DetectFaceCaptureQualityRequest, [FaceObservation])
+    case detectFaceLandmarks(DetectFaceLandmarksRequest, [FaceObservation])
+    case detectHorizon(DetectHorizonRequest, HorizonObservation?)
+    case detectHumanBodyPose(DetectHumanBodyPoseRequest, [HumanBodyPoseObservation])
+    case detectHumanHandPose(DetectHumanHandPoseRequest, [HumanHandPoseObservation])
+    case detectHumanRectangles(DetectHumanRectanglesRequest, [HumanObservation])
+    case detectLensSmudge(DetectLensSmudgeRequest, SmudgeObservation)
+    case detectRectangles(DetectRectanglesRequest, [RectangleObservation])
+    case detectTextRectangles(DetectTextRectanglesRequest, [TextObservation])
+    case generateAttentionBasedSaliencyImage(GenerateAttentionBasedSaliencyImageRequest, SaliencyImageObservation)
+    case generateObjectnessBasedSaliencyImage(GenerateObjectnessBasedSaliencyImageRequest, SaliencyImageObservation)
+    case generateForegroundInstanceMask(GenerateForegroundInstanceMaskRequest, InstanceMaskObservation?)
+    case generatePersonInstanceMask(GeneratePersonInstanceMaskRequest, InstanceMaskObservation?)
+    case generateImageFeaturePrint(GenerateImageFeaturePrintRequest, FeaturePrintObservation)
+    case recognizeAnimals(RecognizeAnimalsRequest, [RecognizedObjectObservation])
+    case detectHumanBodyPose3D(DetectHumanBodyPose3DRequest, [HumanBodyPose3DObservation])
+    case detectTrajectories(DetectTrajectoriesRequest, [TrajectoryObservation])
+    case generatePersonSegmentation(GeneratePersonSegmentationRequest, PixelBufferObservation)
+    case trackObject(TrackObjectRequest, DetectedObjectObservation?)
+    case trackRectangle(TrackRectangleRequest, RectangleObservation?)
+    case trackOpticalFlow(TrackOpticalFlowRequest, OpticalFlowObservation?)
+    case trackTranslationalImageRegistration(TrackTranslationalImageRegistrationRequest, ImageTranslationAlignmentObservation)
+    case trackHomographicImageRegistration(TrackHomographicImageRegistrationRequest, ImageHomographicAlignmentObservation)
+    case generateIterativeSegmentation(GenerateIterativeSegmentationRequest, PixelBufferObservation?)
     case error(any VisionRequest, any Error)
 }
 
@@ -231,8 +327,9 @@ public struct RectangleObservation: VisionObservation, QuadrilateralProviding {
         uuid = UUID(); confidence = 1; timeRange = nil; originatingRequestDescriptor = nil
         self.topLeft = topLeft; self.topRight = topRight; self.bottomRight = bottomRight; self.bottomLeft = bottomLeft
     }
-    public init(_ o: VNRectangleObservation) {
-        uuid = o.uuid; confidence = o.confidence; timeRange = nil; originatingRequestDescriptor = nil
+    public init(_ o: VNRectangleObservation) { self.init(o, descriptor: nil) }
+    init(_ o: VNRectangleObservation, descriptor: RequestDescriptor?) {
+        uuid = o.uuid; confidence = o.confidence; timeRange = nil; originatingRequestDescriptor = descriptor
         topLeft = NormalizedPoint(normalizedPoint: o.topLeft); topRight = NormalizedPoint(normalizedPoint: o.topRight)
         bottomRight = NormalizedPoint(normalizedPoint: o.bottomRight); bottomLeft = NormalizedPoint(normalizedPoint: o.bottomLeft)
     }
@@ -286,7 +383,8 @@ public struct RecognizedTextObservation: VisionObservation, QuadrilateralProvidi
     public var description: String { "RecognizedTextObservation(\"\(transcript)\" \(boundingBox))" }
 }
 
-public struct RecognizeTextRequest: ImageProcessingRequest, _VNSwiftRequest {
+public struct RecognizeTextRequest: ImageProcessingRequest, _VNSwiftRequest, _VNComputeDevices {
+    var _devices = _VNDevices()
     public enum Revision: Hashable, Sendable, Comparable { case revision3 }
     public enum RecognitionLevel: Hashable, Sendable { case accurate, fast }
     public typealias Result = [RecognizedTextObservation]
@@ -376,7 +474,8 @@ public struct BarcodeObservation: VisionObservation, QuadrilateralProviding {
     public var description: String { "BarcodeObservation(\(symbology) \"\(payloadString ?? "")\" \(boundingBox))" }
 }
 
-public struct DetectBarcodesRequest: ImageProcessingRequest, _VNSwiftRequest {
+public struct DetectBarcodesRequest: ImageProcessingRequest, _VNSwiftRequest, _VNComputeDevices {
+    var _devices = _VNDevices()
     public enum Revision: Hashable, Sendable, Comparable { case revision4 }
     public typealias Result = [BarcodeObservation]
     public let revision: Revision
@@ -416,6 +515,10 @@ public struct FaceObservation: VisionObservation, BoundingBoxProviding {
     public let roll: Measurement<UnitAngle>
     public let yaw: Measurement<UnitAngle>
     public let pitch: Measurement<UnitAngle>
+    /// from DetectFaceLandmarksRequest (nil otherwise)
+    public var landmarks: FaceObservation.Landmarks2D?
+    /// from DetectFaceCaptureQualityRequest (nil otherwise)
+    public var captureQuality: FaceObservation.CaptureQuality?
     public init(boundingBox: NormalizedRect, revision: DetectFaceRectanglesRequest.Revision? = nil) {
         uuid = UUID(); confidence = 1; timeRange = nil
         originatingRequestDescriptor = .detectFaceRectanglesRequest(revision ?? .revision3)
@@ -429,11 +532,19 @@ public struct FaceObservation: VisionObservation, BoundingBoxProviding {
         roll = Measurement(value: o.roll?.doubleValue ?? 0, unit: .radians)
         yaw = Measurement(value: o.yaw?.doubleValue ?? 0, unit: .radians)
         pitch = Measurement(value: o.pitch?.doubleValue ?? 0, unit: .radians)
+        landmarks = o.landmarks.map { Landmarks2D($0, face: o.boundingBox, descriptor: descriptor) }
+        captureQuality = o.faceCaptureQuality.map { CaptureQuality(originatingRequestDescriptor: descriptor, score: $0.floatValue) }
+    }
+    /// the face as a VN observation, for the landmark and capture-quality requests
+    var _vn: VNFaceObservation {
+        VNFaceObservation(requestRevision: 3, boundingBox: boundingBox.cgRect, roll: NSNumber(value: roll.converted(to: .radians).value),
+                          yaw: NSNumber(value: yaw.converted(to: .radians).value), pitch: NSNumber(value: pitch.converted(to: .radians).value))
     }
     public var description: String { "FaceObservation(\(boundingBox))" }
 }
 
-public struct DetectFaceRectanglesRequest: ImageProcessingRequest, _VNSwiftRequest {
+public struct DetectFaceRectanglesRequest: ImageProcessingRequest, _VNSwiftRequest, _VNComputeDevices {
+    var _devices = _VNDevices()
     public enum Revision: Hashable, Sendable, Comparable { case revision3, revision4 }
     public typealias Result = [FaceObservation]
     public let revision: Revision
@@ -526,7 +637,8 @@ public struct DocumentObservation: VisionObservation {
     }
 }
 
-public struct RecognizeDocumentsRequest: ImageProcessingRequest, _VNSwiftRequest {
+public struct RecognizeDocumentsRequest: ImageProcessingRequest, _VNSwiftRequest, _VNComputeDevices {
+    var _devices = _VNDevices()
     public enum Revision: Hashable, Sendable, Comparable { case revision1 }
     public typealias Result = [DocumentObservation]
     public struct TextRecognitionOptions: Hashable, Sendable {
@@ -605,11 +717,20 @@ public final class ImageRequestHandler: @unchecked Sendable {
     public convenience init(_ image: CIImage, orientation: CGImagePropertyOrientation? = nil) {
         self.init { VNImageRequestHandler(ciImage: image, orientation: orientation ?? .up) }
     }
-    public convenience init(_ pixelBuffer: CVPixelBuffer, orientation: CGImagePropertyOrientation? = nil) {
-        self.init { VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: orientation ?? .up) }
+    @usableFromInline convenience init(_ pixelBuffer: CVPixelBuffer, orientation: CGImagePropertyOrientation? = nil) {
+        self.init(pixelBuffer, depthData: nil, orientation: orientation)
     }
-    public convenience init(_ sampleBuffer: CMSampleBuffer, orientation: CGImagePropertyOrientation? = nil) {
-        self.init { VNImageRequestHandler(cmSampleBuffer: sampleBuffer, orientation: orientation ?? .up) }
+    @usableFromInline convenience init(_ sampleBuffer: CMSampleBuffer, orientation: CGImagePropertyOrientation? = nil) {
+        self.init(sampleBuffer, depthData: nil, orientation: orientation)
+    }
+    /// the depth data is kept with the image (no isim request reads it)
+    public convenience init(_ pixelBuffer: CVPixelBuffer, depthData: AVDepthData? = nil, orientation: CGImagePropertyOrientation? = nil) {
+        self.init { depthData.map { VNImageRequestHandler(cvPixelBuffer: pixelBuffer, depthData: $0, orientation: orientation ?? .up) }
+            ?? VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: orientation ?? .up) }
+    }
+    public convenience init(_ sampleBuffer: CMSampleBuffer, depthData: AVDepthData? = nil, orientation: CGImagePropertyOrientation? = nil) {
+        self.init { depthData.map { VNImageRequestHandler(cmSampleBuffer: sampleBuffer, depthData: $0, orientation: orientation ?? .up) }
+            ?? VNImageRequestHandler(cmSampleBuffer: sampleBuffer, orientation: orientation ?? .up) }
     }
     public convenience init(_ url: URL, orientation: CGImagePropertyOrientation? = nil) {
         self.init { VNImageRequestHandler(url: url, orientation: orientation ?? .up) }

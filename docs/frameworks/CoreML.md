@@ -24,8 +24,9 @@
 | `MLTensor`, `MLTensorScalar`, `MLTensorRangeExpression` | ✅ | 18.0 | adapted: an eager CPU tensor (Double storage): creation, broadcasting arithmetic, comparisons, reductions, matmul, shape operations, gather / replacing, padding, resizing, top-k, subscripts, seeded random; `shapedArray(of:)` materialises it. Tested (CoreMLTest) |
 | `MLComputeDevice`, `MLCPUComputeDevice`, `MLGPUComputeDevice`, `MLNeuralEngineComputeDevice`, `MLComputePlan`, `MLModelStructure` | ✅ | ≤17 | adapted: isim computes on the CPU only, so `MLModel.availableComputeDevices` and `MLComputeDevice.allComputeDevices` list the CPU; `MLComputePlan.load` describes the model's structure (neural network layers, program or pipeline) with every layer on the CPU and no cost estimate. Tested (CoreMLTest) |
 | `MLUpdateTask`, `MLUpdateContext`, `MLUpdateProgressHandlers`, `MLParameterKey`, `MLMetricKey` | 🟡 | ≤17 | stub: the types exist so apps compile; on-device training is not implemented and creating an `MLUpdateTask` throws an `.update` error. Tested (CoreMLTest) |
+| `MLSendableFeatureValue` (`init(_:)` from values, shaped arrays and an `MLFeatureValue`, `init(undefined:)`, `type`, `isUndefined`, `isScalar`, `isShapedArray`, the typed values, `shapedArrayValue(of:)`), `MLFeatureValue(_:)` from one | ✅ | 18.0 | adapted: a value over isim's immutable `MLFeatureValue` (issue #852, for Vision's `CoreMLFeatureValueObservation`). Unverified (no test yet) |
 | Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `MLCustomModel`, `MLModelAsset`, `MLTask` (3 types; with their members under "Not yet in isim") |
-| Types not yet in isim (iOS 18) | ❌ | 18.0 | not implemented, found by the 2026-10 sweep: `MLComputePolicy`, `MLSendableFeatureValue`, `MLStateConstraint` (3 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 18) | ❌ | 18.0 | not implemented, found by the 2026-10 sweep: `MLComputePolicy`, `MLStateConstraint` (2 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 
