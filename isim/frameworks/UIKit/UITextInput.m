@@ -688,9 +688,14 @@ void isim_ui_show_text_menu(id<IsimEditableText> v) {
     NSArray *items = suggested;
     /* UITextViewDelegate / UITextFieldDelegate textView(_:editMenuForTextIn:suggestedActions:) */
     id d = [view respondsToSelector:@selector(delegate)] ? [(id)view delegate] : nil;
-    SEL tv = NSSelectorFromString(@"textView:editMenuForTextInRange:suggestedActions:"), tf = NSSelectorFromString(@"textField:editMenuForCharactersInRange:suggestedActions:");
+    SEL tv = @selector(textView:editMenuForTextInRange:suggestedActions:), tf = @selector(textField:editMenuForCharactersInRange:suggestedActions:);
+    SEL tvs = @selector(textView:editMenuForTextInRanges:suggestedActions:), tfs = @selector(textField:editMenuForCharactersInRanges:suggestedActions:);
+    SEL rsel = [d respondsToSelector:tvs] ? tvs : [d respondsToSelector:tfs] ? tfs : NULL;      /* iOS 26: the ranges form first */
     SEL dsel = [d respondsToSelector:tv] ? tv : [d respondsToSelector:tf] ? tf : NULL;
-    if (dsel) {
+    if (rsel) {
+        UIMenu *m = ((UIMenu *(*)(id, SEL, id, id, id))objc_msgSend)(d, rsel, view, @[[NSValue valueWithRange:sel]], suggested);
+        if (m) items = m.children;
+    } else if (dsel) {
         UIMenu *m = ((UIMenu *(*)(id, SEL, id, NSRange, id))objc_msgSend)(d, dsel, view, sel, suggested);
         if (m) items = m.children;
     }
@@ -717,12 +722,26 @@ void isim_ui_show_text_menu(id<IsimEditableText> v) {
         id a = [NSClassFromString(@"__IsimEditMenuAnimator") new];
         [ti willPresentEditMenuWithAnimator:a]; [a performSelector:@selector(_run)];
     }
-    __weak UIView *wv = view;
-    isim_ui_show_edit_menu(r, items, ^{
-        UIView *v2 = wv;
-        if (![v2 respondsToSelector:@selector(willDismissEditMenuWithAnimator:)]) return;
+    /* the text view's / text field's delegate hears of it too */
+    SEL dpresent = [d respondsToSelector:@selector(textView:willPresentEditMenuWithAnimator:)] ? @selector(textView:willPresentEditMenuWithAnimator:)
+        : [d respondsToSelector:@selector(textField:willPresentEditMenuWithAnimator:)] ? @selector(textField:willPresentEditMenuWithAnimator:) : NULL;
+    if (dpresent) {
         id a = [NSClassFromString(@"__IsimEditMenuAnimator") new];
-        [(id<UITextInput>)v2 willDismissEditMenuWithAnimator:a]; [a performSelector:@selector(_run)];
+        ((void (*)(id, SEL, id, id))objc_msgSend)(d, dpresent, view, a); [a performSelector:@selector(_run)];
+    }
+    __weak UIView *wv = view; __weak id wd = d;
+    isim_ui_show_edit_menu(r, items, ^{
+        UIView *v2 = wv; id d2 = wd;
+        if ([v2 respondsToSelector:@selector(willDismissEditMenuWithAnimator:)]) {
+            id a = [NSClassFromString(@"__IsimEditMenuAnimator") new];
+            [(id<UITextInput>)v2 willDismissEditMenuWithAnimator:a]; [a performSelector:@selector(_run)];
+        }
+        SEL ddismiss = [d2 respondsToSelector:@selector(textView:willDismissEditMenuWithAnimator:)] ? @selector(textView:willDismissEditMenuWithAnimator:)
+            : [d2 respondsToSelector:@selector(textField:willDismissEditMenuWithAnimator:)] ? @selector(textField:willDismissEditMenuWithAnimator:) : NULL;
+        if (v2 && ddismiss) {
+            id a = [NSClassFromString(@"__IsimEditMenuAnimator") new];
+            ((void (*)(id, SEL, id, id))objc_msgSend)(d2, ddismiss, v2, a); [a performSelector:@selector(_run)];
+        }
     });
 }
 

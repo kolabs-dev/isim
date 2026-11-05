@@ -47,6 +47,10 @@ def test_text_formatting(launch, ios):
     select_all(app)
     app.wait_tap_id("isim-menu-Format")
     app.wait_log(r"isim: text formatting panel shown")
+    app.wait_log(r"^fm edit menu for 0,\d+ items true$")                 # editMenuForTextIn (#872)
+    app.wait_log(r"^fm edit menu will present$")
+    app.wait_log(r"^fm formatting will begin$")                        # willBegin / didBeginFormattingWith
+    app.wait_log(r"^fm formatting did begin$")
     app.wait_tap_id("isim-format-bold")
     app.wait_log(r"isim: text formatting font .* 17 bold")
     app.wait_tap_id("isim-format-list-decimal")
@@ -55,6 +59,8 @@ def test_text_formatting(launch, ios):
     app.wait_log(r"isim: text formatting textAlignment center")
     app.wait_tap_id("isim-format-close")
     app.wait_log(r"isim: text formatting panel dismissed")
+    app.wait_log(r"^fm formatting will end$")                          # willEnd / didEndFormattingWith (#872)
+    app.wait_log(r"^fm formatting did end$")
     app.wait_tap_id("check")
     app.wait_log(r"^fm notes bold true lists 1 centered true$")
 

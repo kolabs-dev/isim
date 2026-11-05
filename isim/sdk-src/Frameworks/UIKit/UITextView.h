@@ -8,7 +8,8 @@
 #import <UIKit/UITextInput.h>
 #import <UIKit/NSTextLayoutManager.h>
 NS_ASSUME_NONNULL_BEGIN
-@class UITextView, UIFont, UIColor, UIAction, UIMenu, UIMenuElement;
+@class UITextView, UIFont, UIColor, UIAction, UIMenu, UIMenuElement, UIInputSuggestion, UITextFormattingViewController;
+@protocol UIEditMenuInteractionAnimating, UIContextMenuInteractionAnimating;
 
 typedef NS_OPTIONS(NSUInteger, UIDataDetectorTypes) {
     UIDataDetectorTypePhoneNumber = 1 << 0, UIDataDetectorTypeLink = 1 << 1, UIDataDetectorTypeAddress = 1 << 2,
@@ -57,6 +58,30 @@ NS_SWIFT_UI_ACTOR
 /* Writing Tools (isim: never shown, so never called) */
 - (void)textViewWritingToolsWillBegin:(UITextView *)textView API_AVAILABLE(ios(18.0));
 - (void)textViewWritingToolsDidEnd:(UITextView *)textView API_AVAILABLE(ios(18.0));
+- (NSArray<NSValue *> *)textView:(UITextView *)textView writingToolsIgnoredRangesInEnclosingRange:(NSRange)enclosingRange
+    NS_SWIFT_NAME(textView(_:writingToolsIgnoredRangesInEnclosingRange:)) API_AVAILABLE(ios(18.0));
+/* iOS 26: the edit as ranges (isim edits one range); asked instead of shouldChangeTextInRange: when implemented */
+- (BOOL)textView:(UITextView *)textView shouldChangeTextInRanges:(NSArray<NSValue *> *)ranges replacementText:(NSString *)text
+    NS_SWIFT_NAME(textView(_:shouldChangeTextInRanges:replacementText:)) API_AVAILABLE(ios(26.0));
+/* the edit menu: its items for the selection, and its presentation */
+- (nullable UIMenu *)textView:(UITextView *)textView editMenuForTextInRange:(NSRange)range suggestedActions:(NSArray<UIMenuElement *> *)suggestedActions
+    NS_SWIFT_NAME(textView(_:editMenuForTextIn:suggestedActions:)) API_AVAILABLE(ios(16.0));
+- (nullable UIMenu *)textView:(UITextView *)textView editMenuForTextInRanges:(NSArray<NSValue *> *)ranges suggestedActions:(NSArray<UIMenuElement *> *)suggestedActions
+    NS_SWIFT_NAME(textView(_:editMenuForTextInRanges:suggestedActions:)) API_AVAILABLE(ios(26.0));
+- (void)textView:(UITextView *)textView willPresentEditMenuWithAnimator:(id<UIEditMenuInteractionAnimating>)animator NS_SWIFT_NAME(textView(_:willPresentEditMenuWith:)) API_AVAILABLE(ios(16.0));
+- (void)textView:(UITextView *)textView willDismissEditMenuWithAnimator:(id<UIEditMenuInteractionAnimating>)animator NS_SWIFT_NAME(textView(_:willDismissEditMenuWith:)) API_AVAILABLE(ios(16.0));
+/* a detected item's menu coming up and going away */
+- (void)textView:(UITextView *)textView textItemMenuWillDisplayForTextItem:(UITextItem *)textItem animator:(id<UIContextMenuInteractionAnimating>)animator
+    NS_SWIFT_NAME(textView(_:textItemMenuWillDisplayFor:animator:)) API_AVAILABLE(ios(17.0));
+- (void)textView:(UITextView *)textView textItemMenuWillEndForTextItem:(UITextItem *)textItem animator:(id<UIContextMenuInteractionAnimating>)animator
+    NS_SWIFT_NAME(textView(_:textItemMenuWillEndFor:animator:)) API_AVAILABLE(ios(17.0));
+/* the formatting panel (the edit menu's Format) coming up and going away */
+- (void)textView:(UITextView *)textView willBeginFormattingWithViewController:(UITextFormattingViewController *)viewController NS_SWIFT_NAME(textView(_:willBeginFormattingWith:)) API_AVAILABLE(ios(18.0));
+- (void)textView:(UITextView *)textView didBeginFormattingWithViewController:(UITextFormattingViewController *)viewController NS_SWIFT_NAME(textView(_:didBeginFormattingWith:)) API_AVAILABLE(ios(18.0));
+- (void)textView:(UITextView *)textView willEndFormattingWithViewController:(UITextFormattingViewController *)viewController NS_SWIFT_NAME(textView(_:willEndFormattingWith:)) API_AVAILABLE(ios(18.0));
+- (void)textView:(UITextView *)textView didEndFormattingWithViewController:(UITextFormattingViewController *)viewController NS_SWIFT_NAME(textView(_:didEndFormattingWith:)) API_AVAILABLE(ios(18.0));
+/* a keyboard suggestion chosen (isim's keyboard offers none: not sent) */
+- (void)textView:(UITextView *)textView insertInputSuggestion:(UIInputSuggestion *)inputSuggestion NS_SWIFT_NAME(textView(_:insertInputSuggestion:)) API_AVAILABLE(ios(17.4));
 @end
 
 typedef NS_ENUM(NSInteger, UITextViewBorderStyle) { UITextViewBorderStyleNone = 0, UITextViewBorderStyleRoundedRect } NS_SWIFT_NAME(UITextView.BorderStyle) API_AVAILABLE(ios(17.0));

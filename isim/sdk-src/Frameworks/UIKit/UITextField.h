@@ -4,7 +4,8 @@
 #import <UIKit/UIControl.h>
 #import <UIKit/UITextInput.h>
 NS_ASSUME_NONNULL_BEGIN
-@class UITextField, UIFont, UIColor;
+@class UITextField, UIFont, UIColor, UIMenu, UIMenuElement, UIInputSuggestion;
+@protocol UIEditMenuInteractionAnimating;
 typedef NS_ENUM(NSInteger, UITextBorderStyle) { UITextBorderStyleNone, UITextBorderStyleLine, UITextBorderStyleBezel, UITextBorderStyleRoundedRect };
 typedef NS_ENUM(NSInteger, UITextFieldViewMode) { UITextFieldViewModeNever, UITextFieldViewModeWhileEditing, UITextFieldViewModeUnlessEditing, UITextFieldViewModeAlways };
 typedef NS_ENUM(NSInteger, UITextFieldDidEndEditingReason) { UITextFieldDidEndEditingReasonCommitted };
@@ -21,6 +22,20 @@ NS_SWIFT_UI_ACTOR
 - (void)textFieldDidChangeSelection:(UITextField *)textField;
 - (BOOL)textFieldShouldClear:(UITextField *)textField;
 - (BOOL)textFieldShouldReturn:(UITextField *)textField;
+/* sent instead of textFieldDidEndEditing: when implemented */
+- (void)textFieldDidEndEditing:(UITextField *)textField reason:(UITextFieldDidEndEditingReason)reason NS_SWIFT_NAME(textFieldDidEndEditing(_:reason:)) API_AVAILABLE(ios(10.0));
+/* iOS 26: the edit as ranges (isim edits one range); asked instead of shouldChangeCharactersInRange: when implemented */
+- (BOOL)textField:(UITextField *)textField shouldChangeCharactersInRanges:(NSArray<NSValue *> *)ranges replacementString:(NSString *)string
+    NS_SWIFT_NAME(textField(_:shouldChangeCharactersInRanges:replacementString:)) API_AVAILABLE(ios(26.0));
+/* the edit menu: its items for the selection, and its presentation */
+- (nullable UIMenu *)textField:(UITextField *)textField editMenuForCharactersInRange:(NSRange)range suggestedActions:(NSArray<UIMenuElement *> *)suggestedActions
+    NS_SWIFT_NAME(textField(_:editMenuForCharactersIn:suggestedActions:)) API_AVAILABLE(ios(16.0));
+- (nullable UIMenu *)textField:(UITextField *)textField editMenuForCharactersInRanges:(NSArray<NSValue *> *)ranges suggestedActions:(NSArray<UIMenuElement *> *)suggestedActions
+    NS_SWIFT_NAME(textField(_:editMenuForCharactersInRanges:suggestedActions:)) API_AVAILABLE(ios(26.0));
+- (void)textField:(UITextField *)textField willPresentEditMenuWithAnimator:(id<UIEditMenuInteractionAnimating>)animator NS_SWIFT_NAME(textField(_:willPresentEditMenuWith:)) API_AVAILABLE(ios(16.0));
+- (void)textField:(UITextField *)textField willDismissEditMenuWithAnimator:(id<UIEditMenuInteractionAnimating>)animator NS_SWIFT_NAME(textField(_:willDismissEditMenuWith:)) API_AVAILABLE(ios(16.0));
+/* a keyboard suggestion chosen (isim's keyboard offers none: not sent) */
+- (void)textField:(UITextField *)textField insertInputSuggestion:(UIInputSuggestion *)inputSuggestion NS_SWIFT_NAME(textField(_:insertInputSuggestion:)) API_AVAILABLE(ios(17.4));
 @end
 @interface UITextField : UIControl <UITextInput, UILetterformAwareAdjusting>
 @property (nullable, nonatomic, copy) NSString *text;

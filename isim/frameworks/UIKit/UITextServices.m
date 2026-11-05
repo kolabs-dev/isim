@@ -66,6 +66,18 @@ UITextContentType const UITextContentTypeName = @"name", UITextContentTypeNamePr
     UITextContentTypeCreditCardType = @"cc-type", UITextContentTypeCellularEID = @"cellular-eid", UITextContentTypeCellularIMEI = @"cellular-imei",
     UITextContentTypeCellularIMEI1 = @"cellular-imei1", UITextContentTypeCellularIMEI2 = @"cellular-imei2", UITextContentTypeCellularNAL = @"cellular-nal";
 
+/* the animator a text item menu's delegate calls get: its animations and completions run at once */
+@interface __IsimTextItemAnimator : NSObject <UIContextMenuInteractionAnimating>
+@property (nonatomic, strong) NSMutableArray *blocks;
+@end
+@implementation __IsimTextItemAnimator
+- (instancetype)init { if ((self = [super init])) _blocks = [NSMutableArray array]; return self; }
+- (UIViewController *)previewViewController { return nil; }
+- (void)addAnimations:(void (^)(void))a { if (a) [_blocks addObject:[a copy]]; }
+- (void)addCompletion:(void (^)(void))c { if (c) [_blocks addObject:[c copy]]; }
+- (void)_isim_run { for (void (^b)(void) in [_blocks copy]) b(); [_blocks removeAllObjects]; }
+@end
+
 @implementation UITextInputPasswordRules
 + (instancetype)passwordRulesWithDescriptor:(NSString *)d {
     UITextInputPasswordRules *r = [super new];
@@ -831,6 +843,15 @@ BOOL isim_ui_text_item_menu(UITextView *tv, NSTextCheckingResult *r, CGRect wind
     } else if ([d respondsToSelector:@selector(textView:shouldInteractWithURL:inRange:interaction:)] &&
                ![d textView:tv shouldInteractWithURL:u inRange:r.range interaction:UITextItemInteractionPresentActions]) return YES;
     NSLog(@"isim: text item menu: %@", s);
-    isim_ui_show_edit_menu(windowRect, menu.children, nil);
+    /* textItemMenuWillDisplayFor / WillEndFor (iOS 17) with an animator whose blocks run with the menu */
+    if ([d respondsToSelector:@selector(textView:textItemMenuWillDisplayForTextItem:animator:)]) {
+        __IsimTextItemAnimator *a = [__IsimTextItemAnimator new]; [d textView:tv textItemMenuWillDisplayForTextItem:item animator:a]; [a _isim_run];
+    }
+    __weak UITextView *wtv = tv;
+    isim_ui_show_edit_menu(windowRect, menu.children, ^{
+        UITextView *t = wtv; id<UITextViewDelegate> d2 = t.delegate;
+        if (!t || ![d2 respondsToSelector:@selector(textView:textItemMenuWillEndForTextItem:animator:)]) return;
+        __IsimTextItemAnimator *a = [__IsimTextItemAnimator new]; [d2 textView:t textItemMenuWillEndForTextItem:item animator:a]; [a _isim_run];
+    });
     return YES;
 }

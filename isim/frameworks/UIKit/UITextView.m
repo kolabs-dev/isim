@@ -364,7 +364,9 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
 - (void)_isim_tvReplace:(NSRange)r with:(NSString *)s {
     id<UITextViewDelegate> d = self.delegate;
     BOOL composing = isim_ui_marked_range(self).location != NSNotFound;
-    if (!composing && [d respondsToSelector:@selector(textView:shouldChangeTextInRange:replacementText:)] && ![d textView:self shouldChangeTextInRange:r replacementText:s]) return;
+    if (!composing && [d respondsToSelector:@selector(textView:shouldChangeTextInRanges:replacementText:)]) {
+        if (![d textView:self shouldChangeTextInRanges:@[[NSValue valueWithRange:r]] replacementText:s]) return;
+    } else if (!composing && [d respondsToSelector:@selector(textView:shouldChangeTextInRange:replacementText:)] && ![d textView:self shouldChangeTextInRange:r replacementText:s]) return;
     NSString *old = [_ts.string substringWithRange:r];
     _updatingStorage = YES;
     [_ts replaceCharactersInRange:r withAttributedString:[[NSAttributedString alloc] initWithString:s attributes:_typing]];
