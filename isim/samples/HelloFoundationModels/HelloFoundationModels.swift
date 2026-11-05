@@ -80,6 +80,108 @@ struct CountingTool: Tool {
     }
 }
 
+// MARK: - a custom model (iOS 27, issue #859): a LanguageModel with its own executor
+
+/// an adding tool the custom model calls
+@available(iOS 27.0, *)
+struct AddTool: Tool {
+    let name = "add"
+    let description = "Adds two numbers"
+    @Generable
+    struct Arguments { var a: Int; var b: Int }
+    func call(arguments: Arguments) async throws -> String { "\(arguments.a + arguments.b)" }
+}
+/// a model without weights: it reasons, asks for `add` until it has its output, then answers with it
+@available(iOS 27.0, *)
+final class AdderModel: LanguageModel, @unchecked Sendable {
+    struct Executor: LanguageModelExecutor {
+        struct Configuration: Hashable, Sendable { var greeting: String }
+        typealias Model = AdderModel
+        let configuration: Configuration
+        init(configuration: Configuration) throws { self.configuration = configuration }
+        func respond(to request: LanguageModelExecutorGenerationRequest, model: AdderModel,
+                     streamingInto channel: LanguageModelExecutorGenerationChannel) async throws {
+            var instructions = "", output: String?
+            for e in request.transcript {
+                if case .instructions(let i) = e { instructions = i.segments.map(\.description).joined(separator: " ") }
+                if case .toolOutput(let o) = e { output = o.segments.map(\.description).joined() }
+            }
+            let level = request.contextOptions.reasoningLevel.map { "\($0)" } ?? "none"
+            log("custom request instructions '\(instructions)' tools \(request.enabledToolDefinitions.map(\.name)) level \(level) " +
+                "metadata \(request.metadata["topic"]?.jsonString ?? "-") temperature \(request.generationOptions.temperature.map { "\($0)" } ?? "nil")")
+            await channel.send(.reasoning(action: .appendText("Two plus three", tokenCount: 3)))
+            await channel.send(.reasoning(action: .appendText(" needs the tool.", tokenCount: 4)))
+            if let output {
+                await channel.send(.response(action: .appendText("\(configuration.greeting), the sum is ", tokenCount: 5)))
+                await channel.send(.response(action: .appendText(output, tokenCount: 1)))
+                await channel.send(.response(action: .updateUsage(input: .init(totalTokenCount: 40, cachedTokenCount: 10), output: .init(totalTokenCount: 6, reasoningTokenCount: 7))))
+            } else {
+                await channel.send(.toolCalls(action: .toolCall(id: "call-1", name: "add", action: .appendArguments(#"{"a": 2, "#, tokenCount: 4))))
+                await channel.send(.toolCalls(action: .toolCall(id: "call-1", name: "add", action: .appendArguments(#""b": 3}"#, tokenCount: 3))))
+                await channel.send(.toolCalls(action: .updateUsage(input: .init(totalTokenCount: 30, cachedTokenCount: 0), output: .init(totalTokenCount: 7, reasoningTokenCount: 7))))
+            }
+        }
+    }
+    var capabilities: LanguageModelCapabilities { LanguageModelCapabilities([.toolCalling, .reasoning]) }
+    var executorConfiguration: Executor.Configuration { Executor.Configuration(greeting: "Done") }
+}
+@available(iOS 27.0, *)
+extension SessionPropertyValues {
+    @SessionPropertyEntry var userName: String = "Ana"
+}
+/// instructions that follow a session property
+@available(iOS 27.0, *)
+struct HelperInstructions: DynamicInstructions {
+    @SessionProperty(\.userName) var userName
+    var body: some DynamicInstructions {
+        "Help \(userName) with sums."
+        [AddTool()]
+    }
+}
+/// a profile: the custom model, a temperature, the instructions
+@available(iOS 27.0, *)
+struct AdderProfile: LanguageModelSession.DynamicProfile {
+    var body: some LanguageModelSession.DynamicProfile {
+        Profile { HelperInstructions() }
+            .model(AdderModel())
+            .temperature(0.25)
+    }
+}
+@available(iOS 27.0, *)
+enum Custom27 {
+    static func run() async {
+        let session = LanguageModelSession(model: AdderModel(), dynamicInstructions: HelperInstructions())
+        session.properties.userName = "Bo"
+        do {
+            let r = try await session.respond(to: Prompt("What is 2 + 3?"), contextOptions: ContextOptions(reasoningLevel: .light), metadata: ["topic": "math"])
+            let kinds = session.transcript.map { e -> String in
+                switch e {
+                case .instructions: return "instructions"; case .prompt: return "prompt"; case .reasoning: return "reasoning"
+                case .toolCalls: return "toolCalls"; case .toolOutput: return "toolOutput"; case .response: return "response"; default: return "other"
+                }
+            }
+            log("custom answer '\(r.content)' entries \(kinds.joined(separator: ","))")
+            var reasoning = ""
+            for e in session.transcript { if case .reasoning(let x) = e { reasoning = x.description } }
+            log("custom reasoning '\(reasoning)' usage \(r.usage.input.totalTokenCount)+\(r.usage.output.totalTokenCount) reasoning \(r.usage.output.reasoningTokenCount) session \(session.usage.totalTokenCount)")
+            var prompt: Transcript.Prompt?
+            for e in session.transcript { if case .prompt(let p) = e { prompt = p } }
+            log("custom prompt metadata \(prompt?.metadata["topic"]?.jsonString ?? "-") level \(prompt?.contextOptions.reasoningLevel == .light) history \(session.transcript.history.count)")
+        } catch { log("custom error \(error)") }
+        let profiled = LanguageModelSession(profile: AdderProfile())
+        do {
+            let r = try await profiled.respond(to: "And again?")
+            log("profile answer '\(r.content)'")
+        } catch { log("profile error \(error)") }
+        let pcc = PrivateCloudComputeLanguageModel()
+        log("pcc available \(pcc.isAvailable) \(pcc.availability == .unavailable(.deviceNotEligible)) limit \(pcc.quotaUsage.isLimitReached)")
+        let caps = AdderModel().capabilities
+        log("capabilities reasoning \(caps.contains(.reasoning)) vision \(caps.contains(.vision)) system \(SystemLanguageModel.default.capabilities.contains(.guidedGeneration)) variant \(SystemLanguageModel.default.variant.displayName)")
+        let err = LanguageModelError.contextSizeExceeded(.init(contextSize: 4096, tokenCount: 5000, debugDescription: "too long"))
+        log("error \(err.localizedDescription) policy \(TranscriptErrorHandlingPolicy.revertTranscript == .revertTranscript)")
+    }
+}
+
 @available(iOS 27.0, *)
 enum Demo27 {
     /// the checks that need no model: the options' kinds, ParsingError, the Vision tools' names and parameters
@@ -181,7 +283,7 @@ enum Demo {
                 case .toolOutput(let o): return "output(\(o.segments.map(\.description).joined()))"
                 case .response: return "response"
                 case .instructions: return "instructions"
-                @unknown default: return "?"
+                default: return "?"
                 }
             }
             log("live tool '\(weather.content)' entries \(kinds)")
@@ -217,7 +319,7 @@ enum Demo {
             log("properties \(made.jsonString)")
         } catch { log("content error \(error)") }
 
-        if #available(iOS 27.0, *) { Demo27.run() }
+        if #available(iOS 27.0, *) { Demo27.run(); await Custom27.run() }
         if model.isAvailable {
             await live()
             if #available(iOS 27.0, *) { await Demo27.live() }

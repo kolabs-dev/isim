@@ -178,3 +178,25 @@ def test_foundation_models_ios27(launch):
     vision = [q for q in r if any(t["function"]["name"] == "BarcodeReaderTool" for t in q.get("tools", []))]
     assert vision and vision[0]["tools"][1]["function"]["name"] == "OCRTool"
     assert "image" in vision[0]["tools"][0]["function"]["parameters"]["properties"]
+
+
+def test_foundation_models_custom_model(launch):
+    """iOS 27 (issue #859): a session with a custom LanguageModel (its own executor, no host model needed): reasoning,
+    a tool call streamed in fragments, the session's tool loop, usage, context options and metadata in the request
+    and the transcript, dynamic instructions that follow a @SessionPropertyEntry property, a profile with the model and
+    a temperature, Private Cloud Compute unavailable, capabilities and LanguageModelError"""
+    app = launch("HelloFoundationModels", device="iphone17", os_version="27")
+    app.wait_log(r"HelloFoundationModels: done", timeout=60)
+    log = app.log
+    assert "custom request instructions 'Help Bo with sums.' tools [\"add\"] level light metadata \"math\" temperature nil" in log, \
+        re.findall(r"custom request.*", log)
+    assert "custom answer 'Done, the sum is 5' entries instructions,prompt,reasoning,toolCalls,toolOutput,reasoning,response" in log, \
+        re.findall(r"custom answer.*", log)
+    assert "custom reasoning 'Two plus three needs the tool.' usage 70+13 reasoning 14 session 83" in log, re.findall(r"custom reasoning.*", log)
+    assert "custom prompt metadata \"math\" level true history 6" in log, re.findall(r"custom prompt.*", log)
+    assert "custom request instructions 'Help Ana with sums.' tools [\"add\"] level none metadata - temperature 0.25" in log
+    assert "profile answer 'Done, the sum is 5'" in log
+    assert "pcc available false true limit false" in log
+    assert "capabilities reasoning true vision false system true variant Core 3" in log
+    assert "error too long policy true" in log
+    assert app.quit() == 0
