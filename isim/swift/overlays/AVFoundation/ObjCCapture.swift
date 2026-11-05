@@ -198,6 +198,70 @@ extension AVCaptureDevice.Format {
     @objc(_isim_width) var _isimWidth: Int32 { formatDescription.dimensions.width }
     @objc(_isim_height) var _isimHeight: Int32 { formatDescription.dimensions.height }
 }
+// issue #876 (CaptureDeviceExtras.swift)
+extension AVCaptureDevice.Format {
+    @objc(isGlobalToneMappingSupported) var _objc_toneMapping: Bool { isGlobalToneMappingSupported }
+    @objc(isHighPhotoQualitySupported) var _objc_highQuality: Bool { isHighPhotoQualitySupported }
+    @objc(isStudioLightSupported) var _objc_studioLight: Bool { isStudioLightSupported }
+    @objc(reactionEffectsSupported) var _objc_reactions: Bool { reactionEffectsSupported }
+    @available(iOS 18.0, *) @objc(isAutoVideoFrameRateSupported) var _objc_autoFrameRate: Bool { isAutoVideoFrameRateSupported }
+    @available(iOS 18.0, *) @objc(isBackgroundReplacementSupported) var _objc_background: Bool { isBackgroundReplacementSupported }
+    @available(iOS 18.0, *) @objc(isSpatialVideoCaptureSupported) var _objc_spatial: Bool { isSpatialVideoCaptureSupported }
+    @objc(videoZoomFactorUpscaleThreshold) var _objc_upscale: CGFloat { videoZoomFactorUpscaleThreshold }
+    @objc(secondaryNativeResolutionZoomFactors) var _objc_secondaryZooms: [NSNumber] { secondaryNativeResolutionZoomFactors.map { NSNumber(value: Double($0)) } }
+    @objc(supportedColorSpaces) var _objc_colorSpaces: [NSNumber] { supportedColorSpaces.map { NSNumber(value: $0.rawValue) } }
+    @objc(isVideoStabilizationModeSupported:) func _objc_stabilization(_ m: Int) -> Bool {
+        AVCaptureVideoStabilizationMode(rawValue: m).map(isVideoStabilizationModeSupported) ?? false
+    }
+    @available(iOS 26.0, *) @objc(isCameraLensSmudgeDetectionSupported) var _objc_smudge: Bool { isCameraLensSmudgeDetectionSupported }
+    @available(iOS 26.0, *) @objc(isSmartFramingSupported) var _objc_smartFraming: Bool { isSmartFramingSupported }
+    @available(iOS 26.0, *) @objc(isCinematicVideoCaptureSupported) var _objc_cinematic: Bool { isCinematicVideoCaptureSupported }
+}
+extension AVCaptureReactionEffectState {
+    @objc(reactionType) var _objc_reactionType: String { reactionType.rawValue }
+}
+extension AVCaptureDevice {
+    @objc(supportsAVCaptureSessionPreset:) func _objc_supportsPreset(_ p: String) -> Bool { supportsSessionPreset(AVCaptureSession.Preset(rawValue: p)) }
+    @objc(extrinsicMatrixFromDevice:toDevice:) class func _objc_extrinsic(_ a: AVCaptureDevice, _ b: AVCaptureDevice) -> Data? { extrinsicMatrix(from: a, to: b) }
+    @objc(showSystemUserInterface:) class func _objc_showUI(_ ui: SystemUserInterface) { showSystemUserInterface(ui) }
+    @objc(isContinuityCamera) var _objc_continuity: Bool { isContinuityCamera }
+    @objc(companionDeskViewCamera) var _objc_deskView: AVCaptureDevice? { companionDeskViewCamera }
+    @available(iOS 26.0, *) @objc(centerStageRectOfInterest) var _objc_centerStageRect: CGRect { get { centerStageRectOfInterest } set { centerStageRectOfInterest = newValue } }
+    @objc(isFaceDrivenAutoExposureEnabled) var _objc_faceAE: Bool { get { isFaceDrivenAutoExposureEnabled } set { isFaceDrivenAutoExposureEnabled = newValue } }
+    @objc(setFaceDrivenAutoExposureEnabled:) func _objc_setFaceAE(_ v: Bool) { isFaceDrivenAutoExposureEnabled = v }
+    @objc(automaticallyAdjustsFaceDrivenAutoExposureEnabled) var _objc_adjustsFaceAE: Bool {
+        get { automaticallyAdjustsFaceDrivenAutoExposureEnabled } set { automaticallyAdjustsFaceDrivenAutoExposureEnabled = newValue }
+    }
+    @objc(isGlobalToneMappingEnabled) var _objc_toneMapping: Bool { isGlobalToneMappingEnabled }
+    @objc(setGlobalToneMappingEnabled:) func _objc_setToneMapping(_ v: Bool) { isGlobalToneMappingEnabled = v }
+    @available(iOS 18.0, *) @objc(isAutoVideoFrameRateEnabled) var _objc_autoFrameRate: Bool { isAutoVideoFrameRateEnabled }
+    @available(iOS 18.0, *) @objc(setAutoVideoFrameRateEnabled:) func _objc_setAutoFrameRate(_ v: Bool) { isAutoVideoFrameRateEnabled = v }
+    @objc(reactionEffectsEnabled) class var _objc_reactionsEnabled: Bool { reactionEffectsEnabled }
+    @objc(reactionEffectGesturesEnabled) class var _objc_gesturesEnabled: Bool { reactionEffectGesturesEnabled }
+    @objc(canPerformReactionEffects) var _objc_canReact: Bool { canPerformReactionEffects }
+    @objc(availableReactionTypes) var _objc_reactionTypes: Set<String> { Set(availableReactionTypes.map(\.rawValue)) }
+    @objc(performEffectForReaction:) func _objc_perform(_ t: String) { performEffect(for: AVCaptureReactionType(rawValue: t)) }
+    @objc(reactionEffectsInProgress) var _objc_inProgress: [AVCaptureReactionEffectState] { reactionEffectsInProgress }
+    @objc(isStudioLightEnabled) class var _objc_studioLightEnabled: Bool { isStudioLightEnabled }
+    @objc(isStudioLightActive) var _objc_studioLightActive: Bool { isStudioLightActive }
+    @available(iOS 18.0, *) @objc(isBackgroundReplacementEnabled) class var _objc_backgroundEnabled: Bool { isBackgroundReplacementEnabled }
+    @available(iOS 18.0, *) @objc(isBackgroundReplacementActive) var _objc_backgroundActive: Bool { isBackgroundReplacementActive }
+    @objc(primaryConstituentDeviceRestrictedSwitchingBehaviorConditions) var _objc_restricted: UInt { primaryConstituentDeviceRestrictedSwitchingBehaviorConditions.rawValue }
+    @objc(fallbackPrimaryConstituentDevices) var _objc_fallbacks: [AVCaptureDevice] { fallbackPrimaryConstituentDevices }
+    @objc(setFallbackPrimaryConstituentDevices:) func _objc_setFallbacks(_ v: [AVCaptureDevice]) { fallbackPrimaryConstituentDevices = v }
+    @objc(supportedFallbackPrimaryConstituentDevices) var _objc_supportedFallbacks: [AVCaptureDevice] { supportedFallbackPrimaryConstituentDevices }
+    @available(iOS 26.0, *) @objc(isFocusRectOfInterestSupported) var _objc_focusRectSupported: Bool { isFocusRectOfInterestSupported }
+    @available(iOS 26.0, *) @objc(isExposureRectOfInterestSupported) var _objc_exposureRectSupported: Bool { isExposureRectOfInterestSupported }
+    @available(iOS 26.0, *) @objc(minFocusRectOfInterestSize) var _objc_minFocusRect: CGSize { minFocusRectOfInterestSize }
+    @available(iOS 26.0, *) @objc(minExposureRectOfInterestSize) var _objc_minExposureRect: CGSize { minExposureRectOfInterestSize }
+    @available(iOS 26.0, *) @objc(focusRectOfInterest) var _objc_focusRect: CGRect { get { focusRectOfInterest } set { focusRectOfInterest = newValue } }
+    @available(iOS 26.0, *) @objc(exposureRectOfInterest) var _objc_exposureRect: CGRect { get { exposureRectOfInterest } set { exposureRectOfInterest = newValue } }
+    @available(iOS 26.0, *) @objc(defaultRectForFocusPointOfInterest:) func _objc_defaultFocusRect(_ p: CGPoint) -> CGRect { defaultRectForFocusPoint(ofInterest: p) }
+    @available(iOS 26.0, *) @objc(defaultRectForExposurePointOfInterest:) func _objc_defaultExposureRect(_ p: CGPoint) -> CGRect { defaultRectForExposurePoint(ofInterest: p) }
+    @available(iOS 26.0, *) @objc(isCameraLensSmudgeDetectionEnabled) var _objc_smudgeEnabled: Bool { isCameraLensSmudgeDetectionEnabled }
+    @available(iOS 26.0, *) @objc(cameraLensSmudgeDetectionStatus) var _objc_smudgeStatus: AVCaptureCameraLensSmudgeDetectionStatus { cameraLensSmudgeDetectionStatus }
+    @available(iOS 26.0, *) @objc(nominalFocalLengthIn35mmFilm) var _objc_focalLength: Float { nominalFocalLengthIn35mmFilm }
+}
 extension AVCaptureDevice.DiscoverySession {
     @objc(discoverySessionWithDeviceTypes:mediaType:position:) class func _objc_make(_ types: [String], _ media: String?, _ pos: AVCaptureDevice.Position)
         -> AVCaptureDevice.DiscoverySession {

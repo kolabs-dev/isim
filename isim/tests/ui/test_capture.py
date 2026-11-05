@@ -262,3 +262,29 @@ def test_capture_directions_duo(launch, media):
     app.wait_log(r"directions changed forward=Front Camera,Inner Ultra Wide Camera backward=Back Camera,Outer Ultra Wide Camera$")
     app.send("fold closed")
     app.wait_log(r"directions changed forward=Front Camera,Outer Ultra Wide Camera backward=Back Camera$", count=2)
+
+
+def major(ios):
+    return int(str(ios[0] or "18").split(".")[0])
+
+
+@pytest.mark.os_matrix
+def test_capture_device_extras(launch, media, ios):
+    """#876: session presets per device, extrinsics, reaction effects, restricted switching, fallback constituents; iOS 26
+    focus rectangles, lens smudge detection, dynamic aspect ratios; iOS 27 lens aperture, exposure signals; and the
+    `videoeffect` script command (Control Center's video effects)"""
+    v = major(ios)
+    app = launch("HelloCapture", env=media)
+    want = ("x876 presets ynn matrix 48 reactions true 8 confetti symbol party.popper.fill restricted 3 fallbacks 2 autofocus true")
+    if v >= 26:
+        want += " focus 0.2,0.2 smudge true aspect 480x480 narrower true focal 24.0"
+    if v >= 27:
+        want += " aperture true signals 5 rotation 90"
+    assert app.wait_log(r"x876 .*$").group(0) == want
+    app.tap_id("effects")
+    app.wait_log(r"effects reactions true studio false")
+    app.send("videoeffect reactions off")
+    app.send("videoeffect studioLight on")
+    app.wait_log(r"isim: videoeffect studioLight on")
+    app.tap_id("effects")
+    app.wait_log(r"effects reactions false studio true")

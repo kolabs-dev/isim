@@ -106,7 +106,8 @@ final class CaptureViewController: UIViewController, AVCaptureVideoDataOutputSam
             ("Live", "photo-live", #selector(photoLive)), ("Depth", "photo-depth", #selector(photoDepth)), ("Bracket", "photo-bracket", #selector(photoBracket)),
             ("Record", "record", #selector(record)), ("Zoom", "zoom", #selector(zoom)), ("Torch", "torch", #selector(torch)),
             ("Sync", "sync", #selector(sync)), ("Multi-cam", "multicam", #selector(multicam)), ("Stop", "stop", #selector(stop)),
-            ("Matte", "photo-matte", #selector(photoMatte)), ("SwiftUI events", "swiftui-events", #selector(swiftUIEvents))]
+            ("Matte", "photo-matte", #selector(photoMatte)), ("SwiftUI events", "swiftui-events", #selector(swiftUIEvents)),
+            ("Effects", "effects", #selector(effects))]
         for (i, (t, id, sel)) in buttons.enumerated() {
             let b = UIButton(type: .system); b.setTitle(t, for: .normal); b.accessibilityIdentifier = id
             b.frame = CGRect(x: 20 + CGFloat(i % 3) * 122, y: 310 + CGFloat(i / 3) * 44, width: 110, height: 40)
@@ -124,6 +125,7 @@ final class CaptureViewController: UIViewController, AVCaptureVideoDataOutputSam
         log("multicam supported=\(AVCaptureMultiCamSession.isMultiCamSupported) sets=\(all.supportedMultiCamDeviceSets.count)")
         camera = AVCaptureDevice.default(.builtInDualWideCamera, for: .video, position: .back)
         if let c = camera { log("camera \(c.localizedName) virtual=\(c.isVirtualDevice) constituents=\(c.constituentDevices.map(\.localizedName).joined(separator: "+")) depthFormats=\(c.activeFormat.supportedDepthDataFormats.count)") }
+        deviceChecks()
         let nc = NotificationCenter.default
         nc.addObserver(forName: AVCaptureSession.wasInterruptedNotification, object: nil, queue: .main) { n in
             log("interrupted reason=\(n.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int ?? 0)")
@@ -289,6 +291,39 @@ final class CaptureViewController: UIViewController, AVCaptureVideoDataOutputSam
         capture(s, "live")
     }
     @objc func photoDepth() { let s = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.jpeg]); s.isDepthDataDeliveryEnabled = true; capture(s, "depth") }
+    // #876: the rest of AVCaptureDevice on the back wide camera (640x480 feed) and the dual wide camera
+    func deviceChecks() {
+        guard let wide = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+              let ultra = AVCaptureDevice.default(.builtInUltraWideCamera, for: .video, position: .back), let dual = camera else { return }
+        let presets = [AVCaptureSession.Preset.vga640x480, .hd1920x1080, .hd4K3840x2160].map { wide.supportsSessionPreset($0) ? "y" : "n" }.joined()
+        let matrix = AVCaptureDevice.extrinsicMatrix(from: ultra, to: wide)?.count ?? 0
+        wide.performEffect(for: .confetti)
+        let reacting = wide.reactionEffectsInProgress.map(\.reactionType.rawValue).joined(separator: ",")
+        dual.setPrimaryConstituentDeviceSwitchingBehavior(.restricted, restrictedSwitchingBehaviorConditions: [.videoZoomChanged, .focusModeChanged])
+        dual.fallbackPrimaryConstituentDevices = [ultra, wide]
+        var parts = ["presets \(presets)", "matrix \(matrix)", "reactions \(wide.canPerformReactionEffects) \(wide.availableReactionTypes.count) \(reacting)",
+                     "symbol \(AVCaptureReactionType.confetti.systemImageName)", "restricted \(dual.primaryConstituentDeviceRestrictedSwitchingBehaviorConditions.rawValue)",
+                     "fallbacks \(dual.fallbackPrimaryConstituentDevices.count)", "autofocus \(wide.activeFormat.autoFocusSystem == AVCaptureDevice.Format.AutoFocusSystem.phaseDetection)"]
+        if #available(iOS 26, *) {
+            wide.focusRectOfInterest = CGRect(x: 0.1, y: 0.1, width: 0.2, height: 0.2)
+            wide.setCameraLensSmudgeDetectionEnabled(true, detectionInterval: CMTime(value: 1, timescale: 1))
+            wide.setDynamicAspectRatio(.ratio1x1)
+            let f = wide.activeFormat
+            let narrower = f.videoFieldOfView(for: .ratio1x1, geometricDistortionCorrected: false) < f.videoFieldOfView(for: .ratio4x3, geometricDistortionCorrected: false)
+            parts += ["focus \(wide.focusPointOfInterest.x),\(wide.focusPointOfInterest.y)", "smudge \(wide.cameraLensSmudgeDetectionStatus == .smudgeNotDetected)",
+                      "aspect \(wide.dynamicDimensions.width)x\(wide.dynamicDimensions.height) narrower \(narrower)", "focal \(wide.nominalFocalLengthIn35mmFilm)"]
+        }
+        if #available(iOS 27, *) {
+            let f = wide.activeFormat
+            let rotation = AVCaptureDevice.RotationCoordinator(device: wide, previewLayer: nil).videoRotationAngleRelative(toDeviceOrientation: .landscapeLeft)
+            parts += ["aperture \(f.supportsExposureModeCustom(lensAperture: AVCaptureDevice.autoLensAperture, duration: AVCaptureDevice.autoExposureDuration, iso: AVCaptureDevice.autoISO))",
+                      "signals \(wide.enabledExposureSignals.count)", "rotation \(Int(rotation))"]
+        }
+        log("x876 " + parts.joined(separator: " "))
+    }
+    @objc func effects() {
+        log("effects reactions \(AVCaptureDevice.reactionEffectsEnabled) studio \(AVCaptureDevice.isStudioLightEnabled)")
+    }
     @objc func swiftUIEvents() { swiftUICapture.enabled = true; log("swiftui events on") }
     @objc func photoMatte() {
         let s = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.jpeg])

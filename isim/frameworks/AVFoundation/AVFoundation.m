@@ -337,6 +337,16 @@ const MusicDeviceInstrumentID AVExtendedNoteOnEventDefaultInstrument = 0;
    with a CMTime / CMTimeRange (passed as a pointer to the struct), CMVideoDimensions, CVPixelBufferRef or
    CMSampleBufferRef (the overlay's Swift objects), over the `_isim_` entry points of ObjCCapture.swift and
    ObjCComposition.swift. */
+/* issue #876: the reaction types (the same strings as the overlay's AVCaptureReactionType) */
+AVCaptureReactionType const AVCaptureReactionTypeThumbsUp = @"thumbsUp.fill", AVCaptureReactionTypeThumbsDown = @"thumbsDown.fill",
+    AVCaptureReactionTypeBalloons = @"balloons", AVCaptureReactionTypeHeart = @"heart", AVCaptureReactionTypeFireworks = @"fireworks",
+    AVCaptureReactionTypeRain = @"rain", AVCaptureReactionTypeConfetti = @"confetti", AVCaptureReactionTypeLasers = @"lasers";
+NSString *AVCaptureReactionSystemImageNameForType(AVCaptureReactionType t) {
+    NSDictionary *names = @{ AVCaptureReactionTypeThumbsUp: @"hand.thumbsup.fill", AVCaptureReactionTypeThumbsDown: @"hand.thumbsdown.fill",
+        AVCaptureReactionTypeBalloons: @"balloon.2.fill", AVCaptureReactionTypeHeart: @"heart.fill", AVCaptureReactionTypeFireworks: @"fireworks",
+        AVCaptureReactionTypeRain: @"cloud.rain.fill", AVCaptureReactionTypeConfetti: @"party.popper.fill", AVCaptureReactionTypeLasers: @"laser.burst" };
+    return names[t] ?: @"questionmark";
+}
 AVCaptureDeviceType const AVCaptureDeviceTypeBuiltInWideAngleCamera = @"AVCaptureDeviceTypeBuiltInWideAngleCamera";
 AVCaptureDeviceType const AVCaptureDeviceTypeBuiltInUltraWideCamera = @"AVCaptureDeviceTypeBuiltInUltraWideCamera";
 AVCaptureDeviceType const AVCaptureDeviceTypeBuiltInInnerUltraWideCamera = @"AVCaptureDeviceTypeBuiltInInnerUltraWideCamera";

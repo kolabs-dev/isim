@@ -221,6 +221,7 @@ func _transformBGRA(_ px: [UInt8], _ w: Int, _ h: Int, angle: CGFloat, mirror: B
     @objc(AVCaptureDeviceFormat) public final class Format: NSObject, @unchecked Sendable {
         public let formatDescription: CMFormatDescription
         public let videoSupportedFrameRateRanges: [FrameRateRange]
+        public typealias AutoFocusSystem = AVCaptureDevice.AutoFocusSystem
         let _depthFormats: [Format]
         public var highResolutionStillImageDimensions: CMVideoDimensions { formatDescription.dimensions }
         public var supportedMaxPhotoDimensions: [CMVideoDimensions] { [formatDescription.dimensions] }
@@ -408,7 +409,11 @@ func _transformBGRA(_ px: [UInt8], _ w: Int, _ h: Int, angle: CGFloat, mirror: B
     open var virtualDeviceSwitchOverVideoZoomFactors: [NSNumber] { _type == .builtInDualWideCamera ? [2] : [] }
     open var activePrimaryConstituent: AVCaptureDevice? { constituentDevices.last }
     open var primaryConstituentDeviceSwitchingBehavior: PrimaryConstituentDeviceSwitchingBehavior { isVirtualDevice && _type != .builtInTrueDepthCamera ? .auto : .unsupported }
-    open func setPrimaryConstituentDeviceSwitchingBehavior(_ b: PrimaryConstituentDeviceSwitchingBehavior, restrictedSwitchingBehaviorConditions: UInt) {}
+    open func setPrimaryConstituentDeviceSwitchingBehavior(_ b: PrimaryConstituentDeviceSwitchingBehavior, restrictedSwitchingBehaviorConditions: UInt) {
+        _ex.restrictedConditions = b == .restricted ? restrictedSwitchingBehaviorConditions : 0
+    }
+    /// the settings of CaptureDeviceExtras.swift (issue #876)
+    let _ex = _AVCaptureDeviceExtras()
     open var displayVideoZoomFactorMultiplier: CGFloat { _type == .builtInDualWideCamera ? 0.5 : 1 }
     @objc open dynamic var systemPressureState: SystemPressureState { _isMicrophone ? SystemPressureState() : _CameraPressure.state }
     open var hasTorch: Bool { _position == .back }

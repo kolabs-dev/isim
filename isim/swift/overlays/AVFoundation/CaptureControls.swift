@@ -358,6 +358,7 @@ enum _AVCaptureEvents {
                 let verb = t.prefix { $0 != " " }, args = t.dropFirst(verb.count).trimmingCharacters(in: .whitespaces)
                 if verb == "cameracontrol" { _CameraControl.command(args) }
                 else if verb == "camerapressure" { _CameraPressure.command(args) }
+                else if verb == "videoeffect" { _VideoEffects.command(args) }
             }
         }
     }
