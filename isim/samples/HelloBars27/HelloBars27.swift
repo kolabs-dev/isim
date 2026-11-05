@@ -64,6 +64,17 @@ final class TabsController: UITabBarController, UITabBarController.Sidebar.Deleg
     func tabBarController(_ tabBarController: UITabBarController, sidebar: UITabBarController.Sidebar, didEndDisplaying tab: UITab) {
         if tab.identifier == "home" { print("hb27 sidebar ended home") }
     }
+    // #872: the sidebar row of a tab, with its content, accessories and state
+    func tabBarController(_ tabBarController: UITabBarController, sidebar: UITabBarController.Sidebar, itemFor request: UITabSidebarItem.Request) -> UITabSidebarItem {
+        let item = UITabSidebarItem(request: request)
+        if case .tab(let t) = request.content, t.identifier == "home" {
+            item.accessories = [.disclosureIndicator()]
+            var tab = false
+            if case .tab = item.content { tab = true }
+            print("hb27 sidebar item home tab \(tab) accessories \(item.accessories.count) selected \(item.configurationState.isSelected)")
+        }
+        return item
+    }
     func tabBarController(_ tabBarController: UITabBarController, sidebarAvailabilityDidChange sidebar: UITabBarController.Sidebar) {
         if #available(iOS 27, *) { print("hb27 sidebar availability changed \(sidebar.isAvailable)") }
     }

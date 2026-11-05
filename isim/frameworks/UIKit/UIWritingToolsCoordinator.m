@@ -53,6 +53,7 @@ static char kBehavior, kResults;
 ISIM_WRITING_TOOLS_TRAITS
 - (BOOL)isWritingToolsActive { return NO; }
 - (UIWritingToolsCoordinator *)writingToolsCoordinator { return nil; }
+- (Class)subclassForWritingToolsCoordinator { return UIWritingToolsCoordinator.class; }
 @end
 @implementation UITextField (UIWritingTools)
 ISIM_WRITING_TOOLS_TRAITS

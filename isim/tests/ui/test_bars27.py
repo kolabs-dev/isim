@@ -87,6 +87,7 @@ def test_sidebar_delegate_ipad(launch, ios):
     app = launch("HelloBars27", device="ipadpro11", os_version=ipad_os(ios), args=["sidebar"])
     app.wait_log(r"^hb27 sidebar availability changed true$")
     app.wait_log(r"^hb27 sidebar displaying home$")                     # willBeginDisplaying (#872)
+    app.wait_log(r"^hb27 sidebar item home tab true accessories 1 selected true$")   # Content, accessories, configurationState
     app.wait_still()
     app.tap_id("toggle-sidebar")
     app.wait_log(r"^hb27 sidebar visibility will change hidden false$")

@@ -1165,6 +1165,23 @@ extension UITabBarController.Sidebar {
     /// scrolls the sidebar to its header, its footer or a tab's row (isim's sidebar lists every row without scrolling)
     public func scroll(to target: ScrollTarget, animated: Bool) { __scroll(to: target._object, animated: animated) }
 }
+@available(iOS 18.0, *)
+extension UITabSidebarItem {
+    /// what a sidebar row shows: a tab or an action
+    public enum Content {
+        case tab(UITab)
+        case action(UIAction)
+    }
+    public var content: Content { if let t = tab { return .tab(t) }; return .action(action!) }
+    public var accessories: [UICellAccessory] {
+        get { __accessories.map { UICellAccessory(object: $0) } }
+        set { __accessories = UICellAccessory._arranged(newValue).map(\.object) }
+    }
+}
+@available(iOS 18.0, *)
+extension UITabSidebarItem.Request {
+    public var content: UITabSidebarItem.Content { if let t = tab { return .tab(t) }; return .action(action!) }
+}
 // MARK: - iOS 27 scene display links with a closure (Apple's Swift API)
 private final class _IsimDisplayLinkAction: NSObject {
     let action: @Sendable (CADisplayLink) -> Void

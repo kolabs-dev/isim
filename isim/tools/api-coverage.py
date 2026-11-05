@@ -284,7 +284,10 @@ def norm_component(c):
     """a documentation path component without DocC's disambiguation suffix (-swift.struct, -1a2b3, -6qo3n; after a
     signature any hash, -ibzs too)"""
     c = re.sub(r'-swift\.[a-z.]+$', '', c)
-    c = re.sub(r'\)-[0-9a-z]{4,6}$', ')', c)
+    c = re.sub(r'\)-[0-9a-z]{3,6}$', ')', c)
+    # identifiers have no '-': after a plain name it can only start DocC's hash (uiindirectscribbleinteractiondelegate-hdh)
+    if re.match(r'[a-z_]', c) and '(' not in c and '-' in c:
+        c = c.split('-', 1)[0]
     c = re.sub(r'-[0-9a-z]{4,6}$', '', c) if re.search(r'-[0-9a-z]{4,6}$', c) and re.search(r'\d', c.rsplit('-', 1)[1]) else c
     return c
 
