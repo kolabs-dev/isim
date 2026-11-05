@@ -105,3 +105,13 @@ def test_foundation_extras(runs):
         f"DateComponents.ISO8601FormatStyle / HTTPFormatStyle, isValidDate(in:): {x864b}"
     assert "x864b calendar [6, 13, 20] [11, 12] range 1..<29 1..<32 matches true" in us, \
         f"Calendar.dates(byAdding:) / dates(byMatching:), minimumRange / maximumRange, date(_:matchesComponents:): {x864b}"
+    x864c = "\n".join(l for l in us.splitlines() if "x864c" in l)
+    assert "x864c index  world runs 2 utf8 9 utf16 11" in us, f"AttributedStringProtocol index(afterRun:), offsetByCharacters, utf8 / utf16: {x864c}"
+    assert "x864c scoped example.com nil" in us, f"ScopedAttributeContainer (string[range].foundation): {x864c}"
+    assert 'x864c transform links 0 langs ["fr", "en"]' in us, f"transformingAttributes, SingleAttributeTransformer.replace(with:value:): {x864c}"
+    assert "x864c slices 2" in us, f"Runs.AttributesSlice3: {x864c}"
+    assert 'x864c filter rightToLeft keys ["CoreText.LineHeight", "CoreText.TextAlignment"]' in us, \
+        f"AttributeContainer.filter(runBoundaries:), AttributeScope.attributeKeys, writingDirection: {x864c}"
+    assert "x864c discontiguous 1267 removed 034589" in us, f"DiscontiguousAttributedSubstring, removeSubranges: {x864c}"
+    assert "x864c tracked two" in us or "x864c tracked" not in us, f"transform(updating:) keeps the range on its text (iOS 26): {x864c}"
+    assert "x864c valid true heading 2 line multiple(factor: 1.5)" in us, f"Index(_:within:), AccessibilityAttributes, LineHeight: {x864c}"

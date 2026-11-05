@@ -95,6 +95,13 @@ extension AttributeScopes {
     public let durationField: DurationFieldAttribute
     public let personNameComponent: PersonNameComponentAttribute
     public let listItemDelimiter: ListItemDelimiterAttribute
+    /// grammar agreement with arguments and concepts, localized arguments, writing direction (AttributedStringExtras.swift)
+    public let agreementArgument: AgreementArgumentAttribute
+    public let agreementConcept: AgreementConceptAttribute
+    public let referentConcept: ReferentConceptAttribute
+    public let replacementIndex: ReplacementIndexAttribute
+    public let writingDirection: WritingDirectionAttribute
+    public let localizedStringArgumentAttributes: LocalizedStringArgumentAttributes
 
     /// where a run's text came from in the Markdown source (MarkdownParsingOptions.appliesSourcePositionAttributes)
     public enum MarkdownSourcePositionAttribute: AttributedStringKey {
@@ -281,6 +288,7 @@ public struct AttributeContainer: Hashable, CustomStringConvertible, @unchecked 
 }
 
 // MARK: - AttributedString
+@dynamicMemberLookup
 public protocol AttributedStringProtocol: CustomStringConvertible, Hashable {
   var startIndex: AttributedString.Index { get }
   var endIndex: AttributedString.Index { get }

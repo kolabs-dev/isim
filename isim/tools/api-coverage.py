@@ -343,6 +343,7 @@ def extract_symbol_graphs(sdk, modules, outdir):
     sdk = os.path.abspath(sdk)
     out_root = os.path.dirname(sdk)                          # isim/out
     keys = {}
+    extended = {}        # module -> keys other modules' extensions add to it
     for m in sorted(modules):
         d = os.path.join(outdir, m)
         os.makedirs(d, exist_ok=True)
@@ -355,6 +356,10 @@ def extract_symbol_graphs(sdk, modules, outdir):
                 print(f'symbol graph of {m} failed: {r.stderr.strip()[:300]}', file=sys.stderr)
         s = set()
         for f in glob.glob(f'{d}/*.symbols.json'):
+            # `UIKit@Foundation.symbols.json`: what this module adds to another one (AttributeScopes.uiKit), which
+            # Apple documents under the extended module
+            ext = re.match(r'.*@(\w+)\.symbols\.json$', f)
+            into = extended.setdefault(ext[1], set()) if ext else s
             g = json.load(open(f))
             usr = {}
             for sym in g.get('symbols', []):
@@ -362,8 +367,8 @@ def extract_symbol_graphs(sdk, modules, outdir):
                 if pc:
                     path = '/'.join(pc).lower()
                     usr[sym['identifier']['precise']] = path
-                    s.add(path)
-                    s.add('~' + '/'.join([*pc[:-1], re.split(r'[(<]', pc[-1])[0]]).lower())   # without signature
+                    into.add(path)
+                    into.add('~' + '/'.join([*pc[:-1], re.split(r'[(<]', pc[-1])[0]]).lower())   # without signature
                     if len(pc) > 1:
                         MEMBERS_OF.setdefault('/'.join(pc[:-1]).lower(), set()).add(member_key(pc[-1]))
             for r in g.get('relationships', []):
@@ -373,6 +378,9 @@ def extract_symbol_graphs(sdk, modules, outdir):
                     if src and dst:
                         PARENTS.setdefault(src, set()).add(dst)
         keys[m] = s
+    for m, s in extended.items():
+        if m in keys:
+            keys[m] |= s
     return keys
 
 

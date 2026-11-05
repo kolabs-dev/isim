@@ -150,6 +150,58 @@ func formatStyles864b() {
           "\(cal.maximumRange(of: .day).map { "\($0)" } ?? "-") matches \(cal.date(date, matchesComponents: DateComponents(month: 10, day: 6)))")
 }
 
+/// AttributedString's shared protocol API, scopes and newer attributes (issue #864, part 2)
+func attributed864() {
+    var a = AttributedString("Hello")
+    a.link = URL(string: "https://example.com")
+    var b = AttributedString(" world")
+    b.languageIdentifier = "en"
+    a += b
+    // index navigation over characters and runs, from the protocol
+    let sub = a[a.index(a.startIndex, offsetByCharacters: 2)...]
+    let second = a.index(afterRun: a.startIndex)
+    print("x864c index \(String(a.characters[second...])) runs \(a.runs.count) utf8 \(sub.utf8.count) utf16 \(a.utf16.count)")
+    // a scoped container
+    let scoped = a[..<second].foundation
+    print("x864c scoped \(scoped.link?.host ?? "-") \(scoped.languageIdentifier ?? "nil")")
+    // transformingAttributes: the link becomes a language identifier
+    let t = a.transformingAttributes(\.link) { tr in
+        if tr.value != nil { tr.replace(with: \.languageIdentifier, value: "fr") }
+    }
+    print("x864c transform links \(t.runs[\.link].filter { $0.0 != nil }.count) langs \(t.runs[\.languageIdentifier].map { $0.0 ?? "-" })")
+    // three attributes at once
+    var c = AttributedString("abc")
+    c[c.index(afterCharacter: c.startIndex)...].alternateDescription = "x"
+    print("x864c slices \(c.runs[\.link, \.languageIdentifier, \.alternateDescription].count)")
+    // filters and keys
+    var cont = AttributeContainer()
+    cont.writingDirection = .rightToLeft
+    cont.link = URL(string: "https://a.b")
+    print("x864c filter \(cont.filter(runBoundaries: .paragraph).writingDirection.map { "\($0)" } ?? "nil") " +
+          "keys \(AttributeScopes.CoreTextAttributes.attributeKeys.map { $0.name }.sorted())")
+    if #available(iOS 18.0, *) {
+        // a discontiguous substring and removing subranges
+        var d = AttributedString("0123456789")
+        let i = { (n: Int) in d.index(d.startIndex, offsetByCharacters: n) }
+        let set = RangeSet([i(1)..<i(3), i(6)..<i(8)])
+        d[set].languageIdentifier = "de"
+        let picked = String(d[set].characters)
+        d.removeSubranges(set)
+        print("x864c discontiguous \(picked) removed \(String(d.characters))")
+    }
+    if #available(iOS 26.0, *) {
+        // ranges tracked through a change
+        var e = AttributedString("one two three")
+        let two = e.range(of: "two")!
+        let moved = e.transform(updating: two) { $0.insert(AttributedString(">> "), at: $0.startIndex) }
+        print("x864c tracked \(moved.map { String(e[$0].characters) } ?? "nil")")
+    }
+    // index validity and attributes
+    print("x864c valid \(AttributedString.Index("ab".startIndex, within: AttributedString("ab")) != nil) " +
+          "heading \(AttributeScopes.AccessibilityAttributes.HeadingLevelAttribute.HeadingLevel.h2.rawValue) " +
+          "line \(AttributedString.LineHeight.multiple(factor: 1.5))")
+}
+
 let sampleText = "Order 66 shipped 2026-10-05 to 12 Main St; order 7 on 1999-01-02."
 
 @main
@@ -162,6 +214,7 @@ struct HelloFormattingApp: App {
         foundationExtras()
         formatStyles864()
         formatStyles864b()
+        attributed864()
     }
     var body: some Scene { WindowGroup { FormattingView() } }
 }

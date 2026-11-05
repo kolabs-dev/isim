@@ -135,3 +135,27 @@ extension UIColor {
 extension NSAdaptiveImageGlyph {
     public class var contentType: UTType { .heic }
 }
+
+/// An adaptive image glyph as an AttributedString value (iOS 18): its image data, identifier and description.
+@available(iOS 18.0, *)
+extension AttributedString {
+    public struct AdaptiveImageGlyph: Hashable, Codable, Sendable {
+        public let imageContent: Data
+        public let contentIdentifier: String
+        public let contentDescription: String
+        public static var contentType: UTType { NSAdaptiveImageGlyph.contentType }
+        /// reads the identifier and description from the image data, like NSAdaptiveImageGlyph
+        public init(imageContent: Data) { self.init(NSAdaptiveImageGlyph(imageContent: imageContent)) }
+        public init(_ glyph: NSAdaptiveImageGlyph) {
+            imageContent = glyph.imageContent; contentIdentifier = glyph.contentIdentifier; contentDescription = glyph.contentDescription
+        }
+    }
+}
+@available(iOS 18.0, *)
+extension NSAttributedString {
+    public convenience init(adaptiveImageGlyph: NSAdaptiveImageGlyph, attributes: [NSAttributedString.Key: Any] = [:]) {
+        var a = attributes
+        a[NSAttributedString.Key(rawValue: "CTAdaptiveImageProvider")] = adaptiveImageGlyph
+        self.init(string: "\u{FFFC}", attributes: a)
+    }
+}

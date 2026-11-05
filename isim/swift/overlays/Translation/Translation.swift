@@ -325,6 +325,15 @@ public final class TranslationSession: @unchecked Sendable {
         return BatchResponse(_stream: stream)
     }
 
+    @available(iOS 26.0, *)
+    static func _pieces(_ a: AttributedString) -> [(text: String, skip: Bool)] {
+        var out: [(text: String, skip: Bool)] = []
+        for (skip, range) in a.runs[AttributeScopes.TranslationAttributes.SkipTranslationAttribute.self] {
+            let t = String(a[range].characters), sk = skip == true
+            if let last = out.last, last.skip == sk { out[out.count - 1].text += t } else { out.append((t, sk)) }
+        }
+        return out.isEmpty ? [("", false)] : out
+    }
     var _target: String { _TranslationHost.code(targetLanguage ?? _TranslationHost.preferred) }
     func _checkCancelled() throws {
         lock.lock(); defer { lock.unlock() }
@@ -332,12 +341,20 @@ public final class TranslationSession: @unchecked Sendable {
     }
     func _translate(_ requests: [Request]) async throws -> [Response] {
         try _checkCancelled()
+        // runs marked skipsTranslation stay as they are: only the text between them is translated
+        let pieces: [[(text: String, skip: Bool)]] = requests.map { r in
+            if #available(iOS 26.0, *), let a = r.attributedSourceText { return Self._pieces(a) }
+            return [(r.sourceText, false)]
+        }
+        let sent = pieces.flatMap { $0.filter { !$0.skip }.map(\.text) }
         let run: (source: String, target: String, texts: [String])
-        do { run = try await _TranslationHost.run(requests.map(\.sourceText), source: sourceLanguage.map(_TranslationHost.code), target: _target) }
+        do { run = try await _TranslationHost.run(sent, source: sourceLanguage.map(_TranslationHost.code), target: _target) }
         catch let f as _TranslationFailure { throw TranslationError(f) }
         try _checkCancelled()
+        var back = run.texts.makeIterator()
+        let joined = pieces.map { ps in ps.map { $0.skip ? $0.text : (back.next() ?? $0.text) }.joined() }
         let source = _TranslationHost.language(run.source), target = _TranslationHost.language(run.target)
-        return zip(requests, run.texts).map { r, text in
+        return zip(requests, joined).map { r, text in
             if let a = r.attributedSourceText {
                 return Response(sourceLanguage: source, targetLanguage: target, sourceAttributedText: a,
                                 targetAttributedText: AttributedString(text), clientIdentifier: r.clientIdentifier)
@@ -346,4 +363,24 @@ public final class TranslationSession: @unchecked Sendable {
                             clientIdentifier: r.clientIdentifier)
         }
     }
+}
+
+// MARK: - attributes
+
+/// Text a translation leaves as it is (iOS 26): names, code, terms.
+@available(iOS 26.0, *)
+extension AttributeScopes {
+    public var translation: TranslationAttributes.Type { TranslationAttributes.self }
+    public struct TranslationAttributes: AttributeScope {
+        public let skipsTranslation: SkipTranslationAttribute
+        public enum SkipTranslationAttribute: CodableAttributedStringKey, MarkdownDecodableAttributedStringKey {
+            public typealias Value = Bool
+            public static let name = "TranslationSkipsTranslation"
+            public static let markdownName = "skipsTranslation"
+        }
+    }
+}
+@available(iOS 26.0, *)
+extension AttributeDynamicLookup {
+    public subscript<T: AttributedStringKey>(dynamicMember keyPath: KeyPath<AttributeScopes.TranslationAttributes, T>) -> T { self[T.self] }
 }

@@ -915,6 +915,9 @@ extension UINavigationItem {
     }
 }
 
+/// as in Apple's SDK, an option set that can be an attribute value
+extension NSUnderlineStyle: Hashable {}
+
 // MARK: - The UIKit attribute scope for AttributedString (NSAttributedString keys: NSColor, NSFont, ...)
 extension AttributeScopes {
     public var uiKit: UIKitAttributes.Type { UIKitAttributes.self }
@@ -925,7 +928,36 @@ extension AttributeScopes {
         public let kern: KernAttribute
         public let baselineOffset: BaselineOffsetAttribute
         public let paragraphStyle: ParagraphStyleAttribute
+        public let attachment: AttachmentAttribute
+        public let expansion: ExpansionAttribute
+        public let ligature: LigatureAttribute
+        public let obliqueness: ObliquenessAttribute
+        public let shadow: ShadowAttribute
+        public let strikethroughColor: StrikethroughColorAttribute
+        public let strikethroughStyle: StrikethroughStyleAttribute
+        public let strokeColor: StrokeColorAttribute
+        public let strokeWidth: StrokeWidthAttribute
+        public let tracking: TrackingAttribute
+        public let underlineColor: UnderlineColorAttribute
+        public let underlineStyle: UnderlineStyleAttribute
+        @available(iOS 18.0, *)
+        public var adaptiveImageGlyph: AdaptiveImageGlyphAttribute { fatalError("only used in key paths") }
+        public let accessibility: AttributeScopes.AccessibilityAttributes
         public let foundation: AttributeScopes.FoundationAttributes
+        public enum AttachmentAttribute: AttributedStringKey { public typealias Value = NSTextAttachment; public static let name = "NSAttachment" }
+        public enum ExpansionAttribute: AttributedStringKey { public typealias Value = CGFloat; public static let name = "NSExpansion" }
+        public enum LigatureAttribute: AttributedStringKey { public typealias Value = Int; public static let name = "NSLigature" }
+        public enum ObliquenessAttribute: AttributedStringKey { public typealias Value = CGFloat; public static let name = "NSObliqueness" }
+        public enum ShadowAttribute: AttributedStringKey { public typealias Value = NSShadow; public static let name = "NSShadow" }
+        public enum StrikethroughColorAttribute: AttributedStringKey { public typealias Value = UIColor; public static let name = "NSStrikethroughColor" }
+        public enum StrikethroughStyleAttribute: AttributedStringKey { public typealias Value = NSUnderlineStyle; public static let name = "NSStrikethrough" }
+        public enum StrokeColorAttribute: AttributedStringKey { public typealias Value = UIColor; public static let name = "NSStrokeColor" }
+        public enum StrokeWidthAttribute: AttributedStringKey { public typealias Value = CGFloat; public static let name = "NSStrokeWidth" }
+        public enum TrackingAttribute: AttributedStringKey { public typealias Value = CGFloat; public static let name = "NSTracking" }
+        public enum UnderlineColorAttribute: AttributedStringKey { public typealias Value = UIColor; public static let name = "NSUnderlineColor" }
+        public enum UnderlineStyleAttribute: AttributedStringKey { public typealias Value = NSUnderlineStyle; public static let name = "NSUnderline" }
+        @available(iOS 18.0, *)
+        public enum AdaptiveImageGlyphAttribute: AttributedStringKey { public typealias Value = NSAdaptiveImageGlyph; public static let name = "CTAdaptiveImageProvider" }
         public enum ForegroundColorAttribute: AttributedStringKey { public typealias Value = UIColor; public static let name = "NSColor" }
         public enum BackgroundColorAttribute: AttributedStringKey { public typealias Value = UIColor; public static let name = "NSBackgroundColor" }
         public enum FontAttribute: AttributedStringKey { public typealias Value = UIFont; public static let name = "NSFont" }
