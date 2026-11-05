@@ -23,7 +23,8 @@ public let VNErrorDomain = "com.apple.Vision"
     case tuplesOutOfRange = 0, requestCancelled = 1, invalidFormat = 2, operationFailed = 3, outOfBoundsError = 4, invalidOption = 5,
          ioError = 6, missingOption = 7, notImplemented = 8, internalError = 9, outOfMemory = 10, unknownError = 11, invalidOperation = 12,
          invalidImage = 13, invalidArgument = 14, invalidModel = 15, unsupportedRevision = 16, dataUnavailable = 17, timeStampNotFound = 18,
-         unsupportedRequest = 19, timeout = 20, unsupportedComputeStage = 21, unsupportedComputeDevice = 22
+         unsupportedRequest = 19, timeout = 20, unsupportedComputeStage = 21, unsupportedComputeDevice = 22,
+         resourceUnavailable = 23, resourceCorrupted = 24
 }
 /// Vision errors are NSErrors in VNErrorDomain with a VNErrorCode and a message saying what isim cannot do.
 func _vnError(_ code: VNErrorCode, _ message: String) -> NSError {
@@ -113,6 +114,8 @@ public typealias VNRequestCompletionHandler = (VNRequest, Error?) -> Void
     @objc open class var defaultRevision: Int { 1 }
     @objc open class var currentRevision: Int { 1 }
     @objc var _cancelled = false
+    /// VNRequest.setComputeDevice(_:for:) (VisionExtras.swift): kept; isim runs on the CPU
+    var _computeDevices: [String: MLComputeDevice] = [:]
     @objc public override init() { completionHandler = nil; super.init() }
     @objc public init(completionHandler: VNRequestCompletionHandler?) { self.completionHandler = completionHandler; super.init() }
     @objc open func cancel() { _cancelled = true }
@@ -323,6 +326,8 @@ public typealias VNConfidence = Float
     @objc open var confidence: VNConfidence = 1
     open var timeRange: CMTimeRange = .zero
     @objc open var requestRevision: Int { 1 }
+    /// unarchiving is not supported on isim (an observation is made by its request)
+    @objc public convenience init?(coder: NSCoder) { self.init() }
 }
 @objc(VNDetectedObjectObservation) open class VNDetectedObjectObservation: VNObservation, @unchecked Sendable {
     @objc open var boundingBox: CGRect

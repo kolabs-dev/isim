@@ -48,6 +48,7 @@ final class VisionViewController: UIViewController {
         text()
         faces()
         detectors()
+        classicExtras()
         tracking()
         Task { await swiftAPI() }
         models()
@@ -385,6 +386,71 @@ final class VisionViewController: UIViewController {
             log("saliency \(CVPixelBufferGetWidth(pb))x\(CVPixelBufferGetHeight(pb)) float \(CVPixelBufferGetPixelFormatType(pb) == kCVPixelFormatType_OneComponent32Float) " +
                 "objects \(s.salientObjects?.count ?? 0) first center \(f2(o.boundingBox.midX)),\(f2(o.boundingBox.midY))")
         } else { log("saliency none") }
+    }
+
+    /// issue #852: trajectories, circles, instance masks, document segmentation, aesthetics, objectness, revisions
+    func classicExtras() {
+        /* a ball thrown in an arc over eight frames */
+        let handler = VNSequenceRequestHandler()
+        let throwing = VNDetectTrajectoriesRequest(frameAnalysisSpacing: .zero, trajectoryLength: 6)
+        var trajectory: VNTrajectoryObservation?
+        for i in 0..<9 {
+            let x = 30 + CGFloat(i) * 30, y = 220 - 160 * sin(CGFloat(i) / 8 * .pi)
+            let frame = render(320, 240) { c in
+                c.setFillColor(UIColor.white.cgColor); c.fill(CGRect(x: 0, y: 0, width: 320, height: 240))
+                c.setFillColor(UIColor.black.cgColor); c.fillEllipse(in: CGRect(x: x - 8, y: y - 8, width: 16, height: 16))
+            }
+            try? handler.perform([throwing], on: frame)
+            if let t = throwing.results?.first as? VNTrajectoryObservation { trajectory = t }
+        }
+        if let t = trajectory {
+            log("trajectory points \(t.detectedPoints.count) projected \(t.projectedPoints.count) arc \(t.equationCoefficients.x < 0) radius \(t.movingAverageRadius > 0)")
+        } else { log("trajectory none") }
+
+        let circle = (try? VNGeometryUtils.boundingCircle(for: [VNPoint(x: 0, y: 0), VNPoint(x: 1, y: 0), VNPoint(x: 0, y: 1), VNPoint(x: 1, y: 1)])) ?? .zero
+        log("circle center \(f2(circle.center.x)),\(f2(circle.center.y)) radius \(f2(circle.radius)) contains \(circle.contains(VNPoint(x: 0.5, y: 0.9))) ring \(circle.contains(VNPoint(x: 1, y: 1), inCircumferentialRingOfWidth: 0.01))")
+
+        /* the red disk again: one foreground instance, its mask and the cut-out */
+        let disk = render(300, 300) { c in
+            c.setFillColor(UIColor(white: 0.5, alpha: 1).cgColor); c.fill(CGRect(x: 0, y: 0, width: 300, height: 300))
+            c.setFillColor(UIColor.red.cgColor); c.fillEllipse(in: CGRect(x: 175, y: 55, width: 70, height: 70))
+        }
+        let foreground = VNGenerateForegroundInstanceMaskRequest(), objectness = VNGenerateObjectnessBasedSaliencyImageRequest()
+        let diskHandler = VNImageRequestHandler(cgImage: disk)
+        do {
+            try diskHandler.perform([foreground, objectness])
+            if let m = foreground.results?.first as? VNInstanceMaskObservation {
+                let scaled = try m.generateScaledMaskForImage(forInstances: m.allInstances, from: diskHandler)
+                let cut = try m.generateMaskedImage(ofInstances: m.allInstances, from: diskHandler, croppedToInstancesExtent: true)
+                log("foreground instances \(m.allInstances.count) scaled \(CVPixelBufferGetWidth(scaled))x\(CVPixelBufferGetHeight(scaled)) " +
+                    "cut smaller \(CVPixelBufferGetWidth(cut) < 200 && CVPixelBufferGetHeight(cut) < 200) objectness \(objectness.results?.count ?? 0)")
+            } else { log("foreground none") }
+        } catch { log("foreground error \(message(error))") }
+
+        /* a page on a dark desk; then the same page as a "photo" for aesthetics */
+        let page = render(400, 300) { c in
+            c.setFillColor(UIColor(white: 0.2, alpha: 1).cgColor); c.fill(CGRect(x: 0, y: 0, width: 400, height: 300))
+            c.setFillColor(UIColor.white.cgColor); c.fill(CGRect(x: 80, y: 30, width: 240, height: 240))
+        }
+        let document = VNDetectDocumentSegmentationRequest()
+        try? VNImageRequestHandler(cgImage: page).perform([document])
+        log("document \((document.results as? [VNRectangleObservation])?.first.map { rect($0.boundingBox) } ?? "none")")
+        let receipt = render(300, 400) { c in
+            c.setFillColor(UIColor.white.cgColor); c.fill(CGRect(x: 0, y: 0, width: 300, height: 400))
+            for i in 0..<8 { ("ITEM \(i)   1.00" as NSString).draw(at: CGPoint(x: 30, y: 30 + i * 40), withAttributes: [.font: UIFont.systemFont(ofSize: 14), .foregroundColor: UIColor.gray]) }
+        }
+        let a1 = VNCalculateImageAestheticsScoresRequest(), a2 = VNCalculateImageAestheticsScoresRequest()
+        try? VNImageRequestHandler(cgImage: receipt).perform([a1])
+        try? VNImageRequestHandler(cgImage: disk).perform([a2])
+        let r = (a1.results?.first as? VNImageAestheticsScoresObservation), d = (a2.results?.first as? VNImageAestheticsScoresObservation)
+        log("aesthetics receipt utility \(r?.isUtility ?? false) disk utility \(d?.isUtility ?? true) scores in range \([r, d].allSatisfy { ($0?.overallScore ?? 9) >= -1 && ($0?.overallScore ?? 9) <= 1 })")
+
+        log("revisions text \(VNRecognizeTextRequestRevision3) barcodes \(VNDetectBarcodesRequestRevision4) unspecified \(VNRequestRevisionUnspecified) float size \(VNElementTypeSize(.float)) " +
+            "3d joints \((try? VNDetectHumanBodyPose3DRequest().supportedJointNames.count) ?? 0) animals \((try? VNRecognizeAnimalsRequest().supportedIdentifiers().map(\.rawValue)) ?? [])")
+        for (name, request) in [("3d body", VNDetectHumanBodyPose3DRequest() as VNRequest), ("animals", VNRecognizeAnimalsRequest()), ("person instances", VNGeneratePersonInstanceMaskRequest())] {
+            do { try VNImageRequestHandler(cgImage: disk).perform([request]); log("model \(name) results \(request.results?.count ?? 0)") }
+            catch { log("model \(name) error \((error as NSError).code)") }
+        }
     }
 
     // MARK: Core ML

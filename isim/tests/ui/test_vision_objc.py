@@ -43,6 +43,7 @@ def test_vision_objc(launch):
         r"models print 1024 ok 1 self 0\.00 other (0\.[3-9]\d|1\.\d\d) body ran 0 code 19 joints 19 nose head_joint all VNIPOAll vector 1\.41",
         r"documentcamera supported=0 delegate=1",                  # VisionKit from Objective-C: no camera (issue #379)
         r"utils image 100\.00,100\.00,200\.00,50\.00 back 0\.25,0\.50,0\.50,0\.25 identity 1 roi point 300\.00,100\.00 landmark 50\.00,50\.00 float size 4",
+        r"extras circle 0\.50,0\.50 radius 0\.71 contains 1 trajectory length 6 revision 1 foreground ok 1 instances 1 scaled 200x200",
     ]:
         app.wait_log(p + rx)
     if HAVE_FACES:

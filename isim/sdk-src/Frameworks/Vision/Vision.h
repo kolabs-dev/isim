@@ -43,3 +43,13 @@
 #import <Vision/VNDetectHumanHandPoseRequest.h>
 #import <Vision/VNDetectAnimalBodyPoseRequest.h>
 #import <Vision/VNGeneratePersonSegmentationRequest.h>
+#import <Vision/VNGeometryUtils.h>
+#import <Vision/VNDetectTrajectoriesRequest.h>
+#import <Vision/VNRecognizeAnimalsRequest.h>
+#import <Vision/VNGenerateObjectnessBasedSaliencyImageRequest.h>
+#import <Vision/VNGenerateForegroundInstanceMaskRequest.h>
+#import <Vision/VNGeneratePersonInstanceMaskRequest.h>
+#import <Vision/VNDetectDocumentSegmentationRequest.h>
+#import <Vision/VNCalculateImageAestheticsScoresRequest.h>
+#import <Vision/VNDetectHumanBodyPose3DRequest.h>
+#import <Vision/VNVideoProcessor.h>
