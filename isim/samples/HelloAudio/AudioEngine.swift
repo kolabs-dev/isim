@@ -279,9 +279,85 @@ final class EngineViewController: UIViewController {
         report("graph interactions \(interactions) node \(nodeCount) connection \(info.nodeInteractionType == UInt32(kAUNodeInteraction_Connection)) " +
                "dest \(info.nodeInteraction.connection.destNode == outNode) show \(shown.contains("AudioUnitGraph")) uisound \(isUI)")
     }
+    /// Audio Unit version 3 (issue #856): a bridge over an Apple effect, a registered subclass rendered as version 3
+    /// and as version 2, parameter trees, presets and state, AVAudioUnit.auAudioUnit
+    func auChecks() {
+        // an Apple effect as AUAudioUnit: an AUAudioUnitV2Bridge whose parameter tree comes from the unit
+        let delayDesc = AudioComponentDescription(componentType: kAudioUnitType_Effect, componentSubType: kAudioUnitSubType_Delay,
+                                                  componentManufacturer: kAudioUnitManufacturer_Apple, componentFlags: 0, componentFlagsMask: 0)
+        var bridged: AUAudioUnit?
+        let made = DispatchSemaphore(value: 0)
+        AUAudioUnit.instantiate(with: delayDesc, options: []) { u, _ in bridged = u; made.signal() }
+        while made.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        let delay = bridged!
+        let time = delay.parameterTree?.parameter(withAddress: AUParameterAddress(kDelayParam_DelayTime))
+        var heard: AUValue = -1
+        let token = delay.parameterTree!.token(byAddingParameterObserver: { _, v in heard = v })
+        time?.value = 0.25
+        var v2: AudioUnitParameterValue = 0
+        _ = AudioUnitGetParameter((delay as! AUAudioUnitV2Bridge).audioUnit, kDelayParam_DelayTime, kAudioUnitScope_Global, 0, &v2)
+        delay.parameterTree!.removeParameterObserver(token)
+        report("v3 bridge \(delay is AUAudioUnitV2Bridge) name \(delay.audioUnitName ?? "-") params \(delay.parameterTree?.allParameters.count ?? 0) " +
+               "time \(time?.displayName ?? "-") max \(time?.maxValue ?? 0) unit \(time?.unit == .seconds) v2 \(v2) heard \(heard) " +
+               "busses \(delay.inputBusses.count) \(delay.outputBusses.count) rate \(Int(delay.outputBusses[0].format.sampleRate))")
+        // a registered subclass: version 3 rendering with a scheduled parameter, then version 2 through AudioUnitRender
+        AUAudioUnit.registerSubclass(HelloGainUnit.self, as: HelloGainUnit.desc, name: "Hello: Gain", version: 0x0001_0000)
+        var gainUnit: AUAudioUnit?
+        let made2 = DispatchSemaphore(value: 0)
+        AUAudioUnit.instantiate(with: HelloGainUnit.desc, options: []) { u, _ in gainUnit = u; made2.signal() }
+        while made2.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        let g = gainUnit!
+        try? g.allocateRenderResources()
+        g.scheduleParameterBlock(AUEventSampleTimeImmediate, 0, 0, 0.5)
+        let out = AVAudioPCMBuffer(pcmFormat: g.outputBusses[0].format, frameCapacity: 256)!
+        out.frameLength = 256
+        var flags = AudioUnitRenderActionFlags()
+        var ts = AudioTimeStamp(); ts.mSampleTime = 0; ts.mFlags = .sampleTimeValid
+        let st = g.renderBlock(&flags, &ts, 256, 0, out.mutableAudioBufferList) { _, _, frames, _, data in
+            for b in UnsafeMutableAudioBufferListPointer(data) { if let p = b.mData?.assumingMemoryBound(to: Float.self) { for i in 0..<Int(frames) { p[i] = 1 } } }
+            return noErr
+        }
+        let v3Out = out.floatChannelData![0][100]
+        var desc = HelloGainUnit.desc
+        var unit: AudioUnit? = nil
+        _ = AudioComponentInstanceNew(AudioComponentFindNext(nil, &desc)!, &unit)
+        _ = AudioUnitInitialize(unit!)
+        _ = AudioUnitSetParameter(unit!, 0, kAudioUnitScope_Global, 0, 0.25, 0)
+        var cb = AURenderCallbackStruct(inputProc: { _, _, _, _, frames, data in
+            for b in UnsafeMutableAudioBufferListPointer(data!) { if let p = b.mData?.assumingMemoryBound(to: Float.self) { for i in 0..<Int(frames) { p[i] = 1 } } }
+            return noErr
+        }, inputProcRefCon: nil)
+        _ = AudioUnitSetProperty(unit!, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &cb, UInt32(MemoryLayout<AURenderCallbackStruct>.size))
+        let out2 = AVAudioPCMBuffer(pcmFormat: g.outputBusses[0].format, frameCapacity: 256)!
+        out2.frameLength = 256
+        let st2 = AudioUnitRender(unit!, nil, &ts, 0, 256, out2.mutableAudioBufferList)
+        var gv: AudioUnitParameterValue = 0
+        _ = AudioUnitGetParameter(unit!, 0, kAudioUnitScope_Global, 0, &gv)
+        _ = AudioComponentInstanceDispose(unit!)
+        report("v3 subclass \(g is HelloGainUnit) render \(st) out \(v3Out) v2 \(st2) out \(out2.floatChannelData![0][100]) param \(gv) " +
+               "string \(g.parameterTree!.parameter(withAddress: 0)!.string(fromValue: nil)) keyPath \(g.parameterTree!.allParameters[0].keyPath)")
+        // state, presets, archived parameters, AVAudioUnit.auAudioUnit
+        let state = g.fullState ?? [:]
+        g.parameterTree!.parameter(withAddress: 0)!.value = 0.9
+        g.fullState = state
+        let restored = g.parameterTree!.parameter(withAddress: 0)!.value
+        let preset = AUAudioUnitPreset(); preset.name = "Quiet"; preset.number = -1
+        try? g.saveUserPreset(preset)
+        let presets = g.userPresets.map(\.name)
+        let archived = try? NSKeyedArchiver.archivedData(withRootObject: g.parameterTree!.allParameters[0], requiringSecureCoding: true)
+        let back = archived.flatMap { try? NSKeyedUnarchiver.unarchivedObject(ofClass: AUParameter.self, from: $0) }
+        let reverb = AVAudioUnitReverb()
+        let tmpl = AUParameterTree.createGroupTemplate([AUParameterTree.createParameter(withIdentifier: "level", name: "Level", address: 0, min: 0, max: 1,
+                                                                                         unit: .linearGain, unitName: nil, valueStrings: nil, dependentParameters: nil)])
+        let ch2 = AUParameterTree.createGroup(fromTemplate: tmpl, identifier: "ch2", name: "Channel 2", addressOffset: 100)
+        let tree = AUParameterTree.createTree(withChildren: [ch2])
+        report("v3 state \(restored) presets \(presets) archived \(back?.identifier ?? "-") \(back?.maxValue ?? 0) " +
+               "reverb \(reverb.auAudioUnit.parameterTree?.allParameters.first?.displayName ?? "-") template \(tree.parameter(withAddress: 100)?.keyPath ?? "-")")
+    }
     func offlineChecks() {
         declarationChecks()
         functionChecks()
+        auChecks()
         let mono = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1)!
         // varispeed rate 2: twice as fast and an octave up
         var variEnd = -1.0
@@ -754,6 +830,46 @@ final class EngineViewController: UIViewController {
                 report("queue tap \(st) format \(Int(tapFormat.mSampleRate)) speed \(String(format: "%.1f", speed)) freq \(Int((frequency(Array(fast.suffix(22050)), rate: 44100) / 10).rounded()) * 10) pitched \(Int((frequency(Array(high.suffix(11025)), rate: 44100) / 10).rounded()) * 10) rate \(rate)")
                 report("done")
             }
+        }
+    }
+}
+
+/// HelloAudio's own Audio Unit (issue #856): a gain, registered with AUAudioUnit.registerSubclass
+final class HelloGainUnit: AUAudioUnit {
+    static let desc = AudioComponentDescription(componentType: kAudioUnitType_Effect, componentSubType: 0x6761696E,   // 'gain'
+                                                componentManufacturer: 0x48656C6C, componentFlags: 0, componentFlagsMask: 0)   // 'Hell'
+    let gain = AUParameterTree.createParameter(withIdentifier: "gain", name: "Gain", address: 0, min: 0, max: 1, unit: .linearGain, unitName: nil,
+                                               flags: [.flag_IsReadable, .flag_IsWritable], valueStrings: nil, dependentParameters: nil)
+    var level: AUValue = 1
+    lazy var inBus = AUAudioUnitBusArray(audioUnit: self, busType: .input,
+                                         busses: [try! AUAudioUnitBus(format: AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!)])
+    lazy var outBus = AUAudioUnitBusArray(audioUnit: self, busType: .output,
+                                          busses: [try! AUAudioUnitBus(format: AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!)])
+    override init(componentDescription: AudioComponentDescription, options: AudioComponentInstantiationOptions = []) throws {
+        try super.init(componentDescription: componentDescription, options: options)
+        gain.value = 1
+        let tree = AUParameterTree.createTree(withChildren: [gain])
+        tree.implementorValueObserver = { [unowned self] _, v in self.level = v }
+        tree.implementorValueProvider = { [unowned self] _ in self.level }
+        tree.implementorStringFromValueCallback = { _, v in String(format: "%.0f%%", (v?.pointee ?? 0) * 100) }
+        parameterTree = tree
+    }
+    override var inputBusses: AUAudioUnitBusArray { inBus }
+    override var outputBusses: AUAudioUnitBusArray { outBus }
+    override var supportsUserPresets: Bool { true }
+    override var internalRenderBlock: AUInternalRenderBlock {
+        return { [unowned self] flags, ts, frames, bus, data, events, pull in
+            var e = events
+            while let ev = e {
+                if ev.pointee.head.eventType == .parameter { self.level = ev.pointee.parameter.value }
+                e = ev.pointee.head.next.map { UnsafePointer($0) }
+            }
+            let st = pull?(flags, ts, frames, 0, data) ?? kAudioUnitErr_NoConnection
+            guard st == noErr else { return st }
+            for b in UnsafeMutableAudioBufferListPointer(data) {
+                if let p = b.mData?.assumingMemoryBound(to: Float.self) { for i in 0..<Int(frames) { p[i] *= self.level } }
+            }
+            return noErr
         }
     }
 }

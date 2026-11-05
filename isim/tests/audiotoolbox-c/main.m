@@ -16,6 +16,50 @@ int plain_c_checks(int *checks);
 int decl_checks(int *checks);
 int function_checks(int *checks);
 
+/// an Audio Unit version 3 subclass in Objective-C (issue #856): halves its input; registered as a component
+@interface HalfUnit : AUAudioUnit
+@end
+@implementation HalfUnit {
+    AUAudioUnitBusArray *_in, *_out;
+    AUParameterTree *_tree;
+    float _gain;
+}
+- (instancetype)initWithComponentDescription:(AudioComponentDescription)desc options:(AudioComponentInstantiationOptions)options error:(NSError **)error {
+    if (!(self = [super initWithComponentDescription:desc options:options error:error])) return nil;
+    _gain = 0.5f;
+    AudioStreamBasicDescription f = {44100, kAudioFormatLinearPCM, kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked | kAudioFormatFlagIsNonInterleaved,
+                                     4, 1, 4, 1, 32, 0};
+    (void)f;
+    AUParameter *gain = [AUParameterTree createParameterWithIdentifier:@"gain" name:@"Gain" address:0 min:0 max:1 unit:kAudioUnitParameterUnit_LinearGain
+                                                              unitName:nil flags:kAudioUnitParameterFlag_IsReadable | kAudioUnitParameterFlag_IsWritable
+                                                          valueStrings:nil dependentParameters:nil];
+    _tree = [AUParameterTree createTreeWithChildren:@[gain]];
+    __unsafe_unretained HalfUnit *me = self;
+    _tree.implementorValueObserver = ^(AUParameter *p, AUValue v) { me->_gain = v; };
+    _tree.implementorValueProvider = ^AUValue(AUParameter *p) { return me->_gain; };
+    return self;
+}
+- (AUParameterTree *)parameterTree { return _tree; }
+- (AUInternalRenderBlock)internalRenderBlock {
+    __unsafe_unretained HalfUnit *me = self;
+    return ^AUAudioUnitStatus(AudioUnitRenderActionFlags *flags, const AudioTimeStamp *ts, AUAudioFrameCount frames, NSInteger bus, AudioBufferList *data,
+                              const AURenderEvent *events, AURenderPullInputBlock pull) {
+        if (!pull) return kAudioUnitErr_NoConnection;
+        AUAudioUnitStatus st = pull(flags, ts, frames, 0, data);
+        if (st != noErr) return st;
+        for (UInt32 b = 0; b < data->mNumberBuffers; b++) {
+            float *p = data->mBuffers[b].mData;
+            for (UInt32 i = 0; i < frames; i++) p[i] *= me->_gain;
+        }
+        return noErr;
+    };
+}
+@end
+static OSStatus ones(void *ref, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *ts, UInt32 bus, UInt32 frames, AudioBufferList *data) {
+    for (UInt32 b = 0; b < data->mNumberBuffers; b++) { float *p = data->mBuffers[b].mData; for (UInt32 i = 0; i < frames; i++) p[i] = 1; }
+    return noErr;
+}
+
 static int eventsHeard;
 static AudioUnitPropertyID heardProperty;
 static void eventHeard(void *user, void *object, const AudioUnitEvent *event, UInt64 host, AudioUnitParameterValue value) {
@@ -232,6 +276,37 @@ int main(void) {
         failures += plain_c_checks(&checks);
         failures += decl_checks(&checks);
         failures += function_checks(&checks);
+
+        // ---- Audio Unit version 3 (issue #856): a bridge over an Apple effect, an Objective-C subclass as a version 2 unit ----
+        {
+            AudioComponentDescription delayDesc = {kAudioUnitType_Effect, kAudioUnitSubType_Delay, kAudioUnitManufacturer_Apple, 0, 0};
+            __block AUAudioUnit *delay = nil;
+            [AUAudioUnit instantiateWithComponentDescription:delayDesc options:0 completionHandler:^(AUAudioUnit *u, NSError *e) { delay = u; }];
+            WAIT_FOR(delay != nil, 5);
+            CHECK([delay isKindOfClass:[AUAudioUnitV2Bridge class]] && delay.parameterTree.allParameters.count == 4);
+            AUParameter *wet = [delay.parameterTree parameterWithAddress:kDelayParam_WetDryMix];
+            wet.value = 25;
+            AudioUnitParameterValue v = 0;
+            AudioUnitGetParameter(((AUAudioUnitV2Bridge *)delay).audioUnit, kDelayParam_WetDryMix, kAudioUnitScope_Global, 0, &v);
+            CHECK(v == 25 && wet.maxValue == 100 && [wet.displayName isEqualToString:@"Wet Dry Mix"]);
+            CHECK(delay.outputBusses.count == 1 && delay.outputBusses[0].busType == AUAudioUnitBusTypeOutput);
+
+            AudioComponentDescription halfDesc = {kAudioUnitType_Effect, 'half', 'Isim', 0, 0};
+            [AUAudioUnit registerSubclass:[HalfUnit class] asComponentDescription:halfDesc name:@"Isim: Half" version:0x00010000];
+            AudioUnit unit = NULL;
+            CHECK(AudioComponentInstanceNew(AudioComponentFindNext(NULL, &halfDesc), &unit) == noErr && unit != NULL);
+            AURenderCallbackStruct cb = {ones, NULL};
+            AudioUnitSetProperty(unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &cb, sizeof(cb));
+            CHECK(AudioUnitInitialize(unit) == noErr);
+            float samples[64];
+            AudioBufferList list = {1, {{1, sizeof(samples), samples}}};
+            AudioTimeStamp ts = {0};
+            ts.mFlags = kAudioTimeStampSampleTimeValid;
+            CHECK(AudioUnitRender(unit, NULL, &ts, 0, 64, &list) == noErr && samples[10] == 0.5f);
+            CHECK(AudioUnitSetParameter(unit, 0, kAudioUnitScope_Global, 0, 0.25f, 0) == noErr && AudioUnitRender(unit, NULL, &ts, 0, 64, &list) == noErr
+                  && samples[10] == 0.25f);
+            AudioComponentInstanceDispose(unit);
+        }
 
         // ---- AUEventListener (issue #856): a property change of a unit, delivered on the main run loop ----
         {

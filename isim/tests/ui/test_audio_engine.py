@@ -81,6 +81,13 @@ def test_audio_engine(launch, device_data):
         f"AudioQueueOfflineRender of a buffer enqueued with 10 frames trimmed (ramp 0, 100, ...): {line('offline render')}"
     assert has(r"graph interactions 1 node 1 connection true dest true show true uisound 0"), \
         f"AUGraph interactions, CAShowFile, AudioServicesSetProperty: {line('graph interactions')}"
+    # issue #856: Audio Unit version 3
+    assert has(r"v3 bridge true name AUDelay params 4 time Delay Time max 2\.0 unit true v2 0\.25 heard 0\.25 busses 1 1 rate 44100"), \
+        f"AUAudioUnitV2Bridge over AUDelay: parameter tree from ParameterInfo, values reach the unit, observers: {line('v3 bridge')}"
+    assert has(r"v3 subclass true render 0 out 0\.5 v2 0 out 0\.25 param 0\.25 string 50% keyPath gain"), \
+        f"a registered AUAudioUnit subclass rendered as version 3 (scheduled parameter) and version 2: {line('v3 subclass')}"
+    assert has(r'v3 state 0\.5 presets \["Quiet"\] archived gain 1\.0 reverb Dry Wet Mix template ch2\.level'), \
+        f"fullState, user presets, archived parameters, AVAudioUnit.auAudioUnit, group templates: {line('v3 state')}"
     assert has(r"unit classes timeeffect true varispeed true generator true"), f"AVAudioUnitTimeEffect, AVAudioUnitGenerator: {line('unit classes')}"
     m = re.search(r"realtime tap true rms before ([\d.]+) after lowpass ([\d.]+) playerTime ([\d.]+)", log)
     assert m and float(m[1]) > 0.3 and float(m[2]) < float(m[1]) * 0.5 and 0.8 <= float(m[3]) <= 1.1, \

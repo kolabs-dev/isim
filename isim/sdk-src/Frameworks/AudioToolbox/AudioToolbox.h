@@ -19,3 +19,4 @@
 #include <AudioToolbox/AudioFormat.h>
 #include <AudioToolbox/AudioUnitUtilities.h>
 #include <AudioToolbox/CAShow.h>
+#include <AudioToolbox/AUAudioUnit.h>
