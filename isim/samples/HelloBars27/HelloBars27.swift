@@ -43,8 +43,21 @@ final class TabsController: UITabBarController, UITabBarController.Sidebar.Deleg
             sidebar.delegate = self
             sidebar.preferredPlacement = .tabBar
             print("hb27 sidebar available \(sidebar.isAvailable) placement \(sidebar.preferredPlacement == .tabBar)")
+            // #872: Apple's nested names, the scroll target and the overflow items
+            let layout: UITabBarController.Sidebar.Layout = .tile
+            sidebar.preferredLayout = layout
+            sidebar.scroll(to: .tab(home), animated: false)
+            sidebar.navigationOverflowItems = UIDeferredMenuElement.uncached { done in done([]) }
+            print("hb27 sidebar layout tile \(sidebar.preferredLayout == .tile) overflow \(sidebar.navigationOverflowItems != nil)")
         }
         if ProcessInfo.processInfo.arguments.contains("sidebar") { mode = .tabSidebar }
+    }
+    // #872: the sidebar's rows coming on screen and going away
+    func tabBarController(_ tabBarController: UITabBarController, sidebar: UITabBarController.Sidebar, willBeginDisplaying tab: UITab) {
+        if tab.identifier == "home" { print("hb27 sidebar displaying home") }
+    }
+    func tabBarController(_ tabBarController: UITabBarController, sidebar: UITabBarController.Sidebar, didEndDisplaying tab: UITab) {
+        if tab.identifier == "home" { print("hb27 sidebar ended home") }
     }
     func tabBarController(_ tabBarController: UITabBarController, sidebarAvailabilityDidChange sidebar: UITabBarController.Sidebar) {
         if #available(iOS 27, *) { print("hb27 sidebar availability changed \(sidebar.isAvailable)") }

@@ -28,7 +28,7 @@ API_AVAILABLE(ios(18.4))
 
 typedef NS_ENUM(NSInteger, UIMessageConversationEntryDataKind) {
     UIMessageConversationEntryDataKindText, UIMessageConversationEntryDataKindAttachment, UIMessageConversationEntryDataKindOther,
-} NS_SWIFT_NAME(UIMessageConversationContext.MessageEntry.DataKind) API_AVAILABLE(ios(26.0));
+} NS_SWIFT_NAME(UIMessageConversationEntry.DataKind) API_AVAILABLE(ios(26.0));
 NS_SWIFT_NAME(UIMessageConversationContext.MessageEntry) API_AVAILABLE(ios(26.0))
 @interface UIMessageConversationEntry : UIConversationEntry
 @property (nonatomic) UIMessageConversationEntryDataKind dataKind;
@@ -40,7 +40,7 @@ API_AVAILABLE(ios(26.0))
 typedef NS_ENUM(NSInteger, UIMailConversationEntryKind) {
     UIMailConversationEntryKindNone, UIMailConversationEntryKindPersonal, UIMailConversationEntryKindTransaction,
     UIMailConversationEntryKindPromotion, UIMailConversationEntryKindSocial, UIMailConversationEntryKindNews,
-} NS_SWIFT_NAME(UIMailConversationContext.MailEntry.Kind) API_AVAILABLE(ios(26.0));
+} NS_SWIFT_NAME(UIMailConversationEntry.Kind) API_AVAILABLE(ios(26.0));
 NS_SWIFT_NAME(UIMailConversationContext.MailEntry) API_AVAILABLE(ios(26.0))
 @interface UIMailConversationEntry : UIConversationEntry
 @property (nonatomic) UIMailConversationEntryKind kind;

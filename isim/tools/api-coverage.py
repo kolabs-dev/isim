@@ -377,8 +377,12 @@ def extract_symbol_graphs(sdk, modules, outdir):
                         # aliased type's members under the alias (resolved in matches())
                         target = [f.get('preciseIdentifier') for f in sym.get('declarationFragments', [])
                                   if f.get('kind') == 'typeIdentifier']
-                        if len(target) == 1 and target[0]:
-                            ALIAS_USR[path] = target[0]
+                        # the aliased type is the last identifier (`= __UIButtonConfiguration.CornerStyle`); generic
+                        # arguments (`= Array<Element>`) would follow it, so only aliases without them resolve
+                        rhs = sym['declarationFragments'][[f.get('spelling', '').strip() for f in sym['declarationFragments']].index('=') + 1:] \
+                            if '=' in [f.get('spelling', '').strip() for f in sym.get('declarationFragments', [])] else []
+                        if target and target[-1] and '<' not in ''.join(f.get('spelling', '') for f in rhs):
+                            ALIAS_USR[path] = target[-1]
             for r in g.get('relationships', []):
                 if r.get('kind') in ('inheritsFrom', 'conformsTo'):
                     src = usr.get(r['source'])

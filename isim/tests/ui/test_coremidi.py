@@ -22,6 +22,7 @@ def test_coremidi(launch):
     app.wait_log(r"HelloMIDI: sysex complete=1 left=0")
     app.wait_log(r"HelloMIDI: builders bytes=B0 07 64 time=42 words=1 type=2")
     app.wait_log(r'HelloMIDI: ump endpoints=\["Monitor UMP"\] blocks=1 source=true')
+    app.wait_log(r'HelloMIDI: ump keys MIDIUMPEndpointObjectKey MIDICIProfileObjectKey')   # DictionaryKey names (#872)
     app.wait_log(r"HelloMIDI: network enabled=true contacts=1 source=Network")
     app.wait_log(r"HelloMIDI: added Monitor Out type=2")
 

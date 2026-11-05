@@ -418,12 +418,14 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))
 @property (nullable, nonatomic, readonly, strong) UINavigationController *managingNavigationController;
 - (nullable UITab *)tabForIdentifier:(NSString *)identifier;
 @end
-@class UITabBarControllerSidebar, UITabSidebarItem, UITabSidebarItemRequest;
+@class UITabBarControllerSidebar, UITabSidebarItem, UITabSidebarItemRequest, UIContextMenuConfiguration, UISwipeActionsConfiguration, UIAction, UIDragItem;
+@protocol UIDragSession, UIDropSession;
+typedef NS_ENUM(NSUInteger, UIDropOperation);     /* UIDragInteraction.h */
 @protocol UITabBarControllerSidebarDelegate;
 typedef NS_ENUM(NSInteger, UITabBarControllerMode) { UITabBarControllerModeAutomatic = 0, UITabBarControllerModeTabBar = 1,
     UITabBarControllerModeTabSidebar = 2 } NS_SWIFT_NAME(UITabBarController.Mode) API_AVAILABLE(ios(18.0));
 typedef NS_ENUM(NSInteger, UITabBarControllerSidebarPlacement) { UITabBarControllerSidebarPlacementAutomatic = 0, UITabBarControllerSidebarPlacementTabBar = 1,
-    UITabBarControllerSidebarPlacementSidebar = 2 } NS_SWIFT_NAME(UITabBarController.Sidebar.Placement) API_AVAILABLE(ios(27.0));
+    UITabBarControllerSidebarPlacementSidebar = 2 } NS_SWIFT_NAME(UITabBarControllerSidebar.Placement) API_AVAILABLE(ios(27.0));
 NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0)) NS_SWIFT_NAME(UITabBarController.Sidebar)
 @interface UITabBarControllerSidebar : NSObject
 /* iOS 18 (the hidden value; tabBarController:sidebarVisibilityWillChange:animator:) and iOS 27 */
@@ -444,6 +446,19 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))   /* Swift: UITabBarController.Sideba
 - (void)tabBarController:(UITabBarController *)tabBarController sidebarAvailabilityDidChange:(UITabBarControllerSidebar *)sidebar API_AVAILABLE(ios(27.0));
 /* the row for a tab or a sidebar action (UITabBarExtras.h) */
 - (UITabSidebarItem *)tabBarController:(UITabBarController *)tabBarController sidebar:(UITabBarControllerSidebar *)sidebar itemForRequest:(UITabSidebarItemRequest *)request API_AVAILABLE(ios(18.0));
+/* a row's item needs updating (when it is built or reconfigured): the delegate changes its configurations */
+- (void)tabBarController:(UITabBarController *)tabBarController sidebar:(UITabBarControllerSidebar *)sidebar updateItem:(UITabSidebarItem *)item NS_SWIFT_NAME(tabBarController(_:sidebar:update:)) API_AVAILABLE(ios(18.0));
+/* a tab's row comes on screen / goes away */
+- (void)tabBarController:(UITabBarController *)tabBarController sidebar:(UITabBarControllerSidebar *)sidebar willBeginDisplayingTab:(UITab *)tab NS_SWIFT_NAME(tabBarController(_:sidebar:willBeginDisplaying:)) API_AVAILABLE(ios(18.0));
+- (void)tabBarController:(UITabBarController *)tabBarController sidebar:(UITabBarControllerSidebar *)sidebar didEndDisplayingTab:(UITab *)tab NS_SWIFT_NAME(tabBarController(_:sidebar:didEndDisplaying:)) API_AVAILABLE(ios(18.0));
+/* a row's context menu, swipe actions, drags and drops onto a group's sidebar action (isim: not called) */
+- (nullable UIContextMenuConfiguration *)tabBarController:(UITabBarController *)tabBarController sidebar:(UITabBarControllerSidebar *)sidebar contextMenuConfigurationForTab:(UITab *)tab NS_SWIFT_NAME(tabBarController(_:sidebar:contextMenuConfigurationFor:)) API_AVAILABLE(ios(18.0));
+- (nullable UISwipeActionsConfiguration *)tabBarController:(UITabBarController *)tabBarController sidebar:(UITabBarControllerSidebar *)sidebar leadingSwipeActionsConfigurationForTab:(UITab *)tab NS_SWIFT_NAME(tabBarController(_:sidebar:leadingSwipeActionsConfigurationFor:)) API_AVAILABLE(ios(18.0));
+- (nullable UISwipeActionsConfiguration *)tabBarController:(UITabBarController *)tabBarController sidebar:(UITabBarControllerSidebar *)sidebar trailingSwipeActionsConfigurationForTab:(UITab *)tab NS_SWIFT_NAME(tabBarController(_:sidebar:trailingSwipeActionsConfigurationFor:)) API_AVAILABLE(ios(18.0));
+- (NSArray<UIDragItem *> *)tabBarController:(UITabBarController *)tabBarController sidebar:(UITabBarControllerSidebar *)sidebar itemsForBeginningDragSession:(id<UIDragSession>)session tab:(UITab *)tab NS_SWIFT_NAME(tabBarController(_:sidebar:itemsForBeginning:tab:)) API_AVAILABLE(ios(18.0));
+- (NSArray<UIDragItem *> *)tabBarController:(UITabBarController *)tabBarController sidebar:(UITabBarControllerSidebar *)sidebar itemsForAddingToDragSession:(id<UIDragSession>)session tab:(UITab *)tab NS_SWIFT_NAME(tabBarController(_:sidebar:itemsForAddingTo:tab:)) API_AVAILABLE(ios(18.0));
+- (UIDropOperation)tabBarController:(UITabBarController *)tabBarController sidebar:(UITabBarControllerSidebar *)sidebar sidebarAction:(UIAction *)action group:(UITabGroup *)group operationForAcceptingItemsFromDropSession:(id<UIDropSession>)session NS_SWIFT_NAME(tabBarController(_:sidebar:sidebarAction:group:operationForAcceptingItemsFrom:)) API_AVAILABLE(ios(18.0));
+- (void)tabBarController:(UITabBarController *)tabBarController sidebar:(UITabBarControllerSidebar *)sidebar sidebarAction:(UIAction *)action group:(UITabGroup *)group acceptItemsFromDropSession:(id<UIDropSession>)session NS_SWIFT_NAME(tabBarController(_:sidebar:sidebarAction:group:acceptItemsFrom:)) API_AVAILABLE(ios(18.0));
 @end
 
 @protocol UITabBarControllerDelegate <NSObject>

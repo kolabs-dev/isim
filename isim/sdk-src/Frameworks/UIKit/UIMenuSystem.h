@@ -97,7 +97,7 @@ typedef NS_ENUM(NSInteger, UIMenuSystemElementGroupPreference) {
 typedef NS_ENUM(NSInteger, UIMenuSystemFindElementGroupConfigurationStyle) {
     UIMenuSystemFindElementGroupConfigurationStyleAutomatic = 0, UIMenuSystemFindElementGroupConfigurationStyleSearch,
     UIMenuSystemFindElementGroupConfigurationStyleNonEditableText, UIMenuSystemFindElementGroupConfigurationStyleEditableText,
-} NS_SWIFT_NAME(UIMenuSystem.FindElementGroupConfiguration.Style) API_AVAILABLE(ios(26.0));
+} NS_SWIFT_NAME(UIMenuSystemFindElementGroupConfiguration.Style) API_AVAILABLE(ios(26.0));
 @protocol UIMenuBuilder;
 NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(13.0))
 @interface UIMenuSystem : NSObject

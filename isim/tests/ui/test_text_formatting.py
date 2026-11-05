@@ -39,6 +39,7 @@ def test_text_formatting(launch, ios):
         assert "fm writing tools available false state inactive true behavior none true view true" in log
         assert "fm conversation entries 1 first Lunch tomorrow? sender amy kept true reply Sounds good" in log
         assert "fm mail kind personal true subject Re: plans" in log
+        assert "fm nested kinds true true true" in log, "MailEntry.Kind, MessageEntry.DataKind, FindElementGroupConfiguration.Style (#872)"
     if v < 18:
         return
 

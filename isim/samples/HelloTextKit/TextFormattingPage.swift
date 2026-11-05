@@ -78,6 +78,11 @@ final class FormatViewController: UIViewController, UITextViewDelegate {
             mail.kind = .personal; mail.text = "See attached"
             let thread = UIMailConversationContext(); thread.conversationEntries = [mail]; thread.responseSubject = "Re: plans"
             log("mail kind personal \((thread.conversationEntries.first as? UIMailConversationContext.MailEntry)?.kind == .personal) subject \(thread.responseSubject)")
+            // #872: Apple's nested names of the entry kinds and the find menu style
+            let kind: UIMailConversationContext.MailEntry.Kind = .news
+            let data: UIMessageConversationContext.MessageEntry.DataKind = .attachment
+            let style: UIMenuSystem.FindElementGroupConfiguration.Style = .search
+            log("nested kinds \(kind == .news) \(data == .attachment) \(style == .search)")
         }
     }
 

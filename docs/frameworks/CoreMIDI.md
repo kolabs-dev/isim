@@ -42,6 +42,7 @@
 | `MIDIBluetoothDriverActivateAllConnections`, `MIDIBluetoothDriverDisconnect` | 🟡 | ≤17 | stub: no Bluetooth MIDI peripherals, as in the Simulator |
 | `MIDICIDiscoveryManager`, `MIDICISession`, `MIDICIResponder`, `MIDICIProfile`, `MIDICIProfileState`, `MIDICIDeviceInfo`, `MIDICIDiscoveredNode` | 🟡 | ≤17 | stub: no MIDI-CI device answers: discovery finds no node; profiles, states and device info are values with secure coding; tested (CoreMIDITest) |
 | `MIDIUMPMutableEndpoint`, `MIDIUMPMutableFunctionBlock`, `MIDIUMPEndpoint`, `MIDIUMPFunctionBlock`, `MIDIUMPEndpointManager`, `MIDI2DeviceInfo` | ✅ | 18.0 | adapted: an enabled endpoint is a virtual source and destination pair of the app's server; static function blocks are locked; tested (HelloMIDI, CoreMIDITest) |
+| `MIDIUMPEndpointManager.DictionaryKey.endpointObject` / `functionBlockObject`, `MIDICIDeviceManager.DictionaryKey.deviceObject` / `profileObject` under Apple's names (issue #872) | ✅ | ≤17 | passthrough of the string constants; they imported as `DictionaryKey.objectKey` before (a two-level `NS_SWIFT_NAME` the importer could not resolve). Tested (HelloMIDI, test_coremidi.py) |
 | `MIDICIDeviceManager`, `MIDICIDevice`, `MIDIUMPCIProfile` | 🟡 | 18.0 | stub: no MIDI-CI devices are discovered; tested (CoreMIDITest) |
 
 ## Not yet in isim

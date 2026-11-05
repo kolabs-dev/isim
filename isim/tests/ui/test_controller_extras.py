@@ -87,6 +87,7 @@ def test_controller_extras(launch, ios):
     app.tap_id("close-popover")
     app.tap_id("adaptive")
     m = app.wait_log(r"^ctl adaptive shown height (\d+) screen (\d+)$")
+    app.wait_log(r"^ctl detent identifier com.apple.UIKit.medium inactive true$")   # Detent.Identifier, Detent.inactive (#872)
     assert int(m[1]) < int(m[2]) * 0.6, "the adaptive sheet's medium detent"
     app.tap_id("close-adaptive")
     app.tap_id("share")
