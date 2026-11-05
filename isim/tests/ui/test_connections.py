@@ -15,6 +15,8 @@ from isimtest import ROOT, local_server
 
 EXPECTED = {   # check: the line HelloConnections logs
     "NWListener + NWConnection TCP echo, currentPath": "tcp echo: echo:hello tcp error=none remote=ok",
+    "establishment and data transfer reports, receiveDiscontiguous":
+        "reports: echo:report me handshakes=tcp resolution=query ok sent=9 received=14 interface=loopback",
     "Network's C API from Swift: nw_connection_*, a final message, the server's close": "c api: ready remote=ok type=true closed=true error=none",
     "UDP echo (listener datagram connection)": "udp echo: echo:datagram",
     "refused -> .waiting(ECONNREFUSED)": "refused: waiting ECONNREFUSED",
@@ -121,7 +123,8 @@ def test_connections_mcui(launch):
 
 @pytest.mark.os_matrix
 def test_connections_structured(launch, ios):
-    """The iOS 26 Network API (#422): NetworkListener and NetworkConnection over TCP (state updates), TLV (typed
+    """The iOS 26 Network API (#422, #851): NetworkListener and NetworkConnection over TCP (state updates, integers, the
+    data transfer and establishment reports), TLV (typed
     messages), Coder (Codable JSON messages), UDP and WebSocket; withNetworkConnection; a Bonjour service advertised by a
     NetworkListener and found by a NetworkBrowser; a refused connection waits until its task is cancelled. Before iOS 26 the API is unavailable."""
     app = launch("HelloConnections", args=["-structured"])
@@ -130,6 +133,7 @@ def test_connections_structured(launch, ios):
         assert app.quit() == 0
         return
     for line in (r"structured tcp: echo:hello state=ready states=.*ready.* remote=true",
+                 r"structured integers: 42000 sent=4 received=4 handshakes=1",
                  r"structured tlv: type=8 gnip",
                  r"structured coder: E4 42, D4 10",
                  r"structured udp: echo:datagram",

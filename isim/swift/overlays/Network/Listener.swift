@@ -5,23 +5,31 @@
 // MARK: - TXT records
 
 public struct NWTXTRecord: Hashable, CustomDebugStringConvertible, Sendable {
-    public var dictionary: [String: String]
+    public var dictionary: [String: String] { didSet { _binary = _binary.filter { dictionary[$0.key] != nil }; _bare = _bare.filter { dictionary[$0] != nil } } }
+    /// values that are not text (Entry.data), and keys without "=" (Entry.none)
+    var _binary: [String: Data] = [:], _bare: Set<String> = []
     public init() { dictionary = [:] }
     public init(_ dictionary: [String: String]) { self.dictionary = dictionary }
     public init(_ data: Data) {
-        var d: [String: String] = [:], i = 0
+        var d: [String: String] = [:], i = 0, bin: [String: Data] = [:], bare: Set<String> = []
         let b = [UInt8](data)
         while i < b.count {
             let n = Int(b[i]); i += 1
             guard i + n <= b.count else { break }
-            let s = String(decoding: b[i..<i + n], as: UTF8.self); i += n
-            if let eq = s.firstIndex(of: "=") { d[String(s[..<eq])] = String(s[s.index(after: eq)...]) } else if !s.isEmpty { d[s] = "" }
+            let item = b[i..<i + n]; i += n
+            if let eq = item.firstIndex(of: UInt8(ascii: "=")) {
+                let k = String(decoding: item[..<eq], as: UTF8.self), v = Data(item[(eq + 1)...])
+                if let s = String(data: v, encoding: .utf8) { d[k] = s } else { d[k] = ""; bin[k] = v }
+            } else if !item.isEmpty { let k = String(decoding: item, as: UTF8.self); d[k] = ""; bare.insert(k) }
         }
-        dictionary = d
+        dictionary = d; _binary = bin; _bare = bare
     }
     public var data: Data {
         var out = Data()
-        for (k, v) in dictionary.sorted(by: { $0.key < $1.key }) { let e = Data((v.isEmpty ? k : "\(k)=\(v)").utf8).prefix(255); out.append(UInt8(e.count)); out.append(e) }
+        for (k, v) in dictionary.sorted(by: { $0.key < $1.key }) {
+            let e = (_bare.contains(k) ? Data(k.utf8) : Data("\(k)=".utf8) + (_binary[k] ?? Data(v.utf8))).prefix(255)
+            out.append(UInt8(e.count)); out.append(e)
+        }
         return out
     }
     public subscript(key: String) -> String? { get { dictionary[key] } set { dictionary[key] = newValue } }
@@ -103,6 +111,10 @@ public final class NWListener: CustomDebugStringConvertible, @unchecked Sendable
             self.name = name; self.type = type; self.domain = domain; txtRecordObject = txtRecord
         }
         public var debugDescription: String { "\(name ?? "").\(type)\(domain ?? "local.")" }
+        /// whether a name conflict fails the registration instead of renaming the service
+        public var noAutoRename = false
+        /// iOS 16: a service for devices that pick this app (isim: a Bonjour service of the app's own type)
+        public init(applicationService: String) { self.init(name: applicationService, type: NWListener._applicationServiceType(applicationService)) }
     }
     public enum ServiceRegistrationChange: Sendable { case add(NWEndpoint), remove(NWEndpoint) }
 
@@ -268,7 +280,14 @@ public final class NWBrowser: CustomDebugStringConvertible, @unchecked Sendable 
     public enum Descriptor: Hashable, Sendable {
         case bonjour(type: String, domain: String?)
         case bonjourWithTXTRecord(type: String, domain: String?)
-        var type: String { switch self { case .bonjour(let t, _), .bonjourWithTXTRecord(let t, _): return t } }
+        /// devices running this app that the user picked (iOS 16): isim browses this app's own service type
+        case applicationService(name: String)
+        var type: String {
+            switch self {
+            case .bonjour(let t, _), .bonjourWithTXTRecord(let t, _): return t
+            case .applicationService(let n): return NWListener._applicationServiceType(n)
+            }
+        }
     }
     public enum State: Equatable, Sendable { case setup, ready, failed(NWError), cancelled, waiting(NWError) }
     public struct Result: Hashable, CustomDebugStringConvertible, Sendable {

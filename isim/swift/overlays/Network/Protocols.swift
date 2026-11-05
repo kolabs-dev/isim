@@ -129,6 +129,8 @@ public enum NWProtocolWebSocket {
         public var closeCode: CloseCode = .protocolCode(.normalClosure)
         public var additionalServerHeaders: [(name: String, value: String)]?
         public internal(set) var serverResponse: Response?
+        /// the sub-protocol the server picked
+        public var selectedSubprotocol: String? { serverResponse?.subprotocol }
         var pongHandler: (queue: DispatchQueue, handler: (NWError?) -> Void)?
         public init(opcode: Opcode) { self.opcode = opcode; super.init(); _definition = NWProtocolWebSocket.definition }
         public func setPongHandler(_ queue: DispatchQueue, handler: @escaping (NWError?) -> Void) { pongHandler = (queue, handler) }
@@ -445,6 +447,14 @@ public enum NWProtocolFramer {
         public func markFailed(error: NWError?) { layer.markFailed(error) }
         public func prependApplicationProtocol(options: NWProtocolOptions) {}
         public func scheduleWakeup(wakeupTime: DispatchTime) { layer.scheduleWakeup(wakeupTime) }
+        /// when wakeup(framer:) runs next
+        public enum WakeupTime: Sendable, Hashable { case milliseconds(UInt64), forever }
+        public func scheduleWakeup(wakeupTime: WakeupTime) {
+            if case .milliseconds(let ms) = wakeupTime { layer.scheduleWakeup(.now() + .milliseconds(Int(min(ms, UInt64(Int.max))))) }
+        }
+        /// iOS 27: adds a protocol above the framer without waiting for it to be ready (isim: one message protocol per
+        /// connection, so this does what prependApplicationProtocol(options:) does)
+        public func prependApplicationProtocolIgnoringReady(options: NWProtocolOptions) throws { prependApplicationProtocol(options: options) }
         public func async(execute: @escaping () -> Void) { layer.connection?.ioQueue.async(execute: execute) }
     }
 }

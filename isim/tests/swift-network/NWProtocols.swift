@@ -407,3 +407,68 @@ func nwQUICChecks() {
     check(err == .posix(.ENOTSUP), "NWProtocolQUIC: not available, a QUIC connection fails with ENOTSUP (\(String(describing: err)))")
     c.cancel()
 }
+
+/// issue #851: addresses, TXT record entries and TXTRecordDecoder, endpoint copies, parameters' privacy contexts and
+/// proxies, QUIC parameters, group descriptors and messages
+func nwAPIChecks() {
+    let mapped = IPv6Address("::ffff:192.0.2.7")
+    check(mapped?.isIPv4Mapped == true && mapped?.asIPv4 == IPv4Address("192.0.2.7"), "IPv6Address: an IPv4-mapped address and its IPv4 address")
+    check(IPv6Address.linkLocalNodes.multicastScope == .linkLocal && IPv6Address.nodeLocalNodes.multicastScope == .nodeLocal,
+          "IPv6Address: multicast scopes (ff02::1 link-local, ff01::1 node-local)")
+    check(IPv6Address("fd12::1")?.isUniqueLocal == true && IPv6Address("2002:c000:204::1")?.is6to4 == true && IPv6Address.broadcast.isAny,
+          "IPv6Address: unique local, 6to4 and the unspecified address")
+    check(IPv4Address.mdnsGroup.debugDescription == "224.0.0.251" && IPv4Address.allRoutersGroup.isMulticast, "IPv4Address: the multicast groups")
+    check(IPv4Address("10.1.2.3").map { "\($0)" } == "10.1.2.3", "IPAddress: init from text")
+
+    var txt = NWTXTRecord()
+    txt.setEntry(.string("isim"), for: "name")
+    txt.setEntry(.string("8080"), for: "port")
+    txt.setEntry(.none, for: "secure")
+    txt.setEntry(.empty, for: "note")
+    txt.setEntry(.data(Data([0xff, 0xfe])), for: "blob")
+    let back = NWTXTRecord(txt.data)
+    check(back.getEntry(for: "NAME") == .string("isim") && back.getEntry(for: "secure") == NWTXTRecord.Entry.none
+          && back.getEntry(for: "note") == .empty && back.getEntry(for: "blob") == .data(Data([0xff, 0xfe])) && back.getEntry(for: "missing") == nil,
+          "NWTXTRecord: entries survive the wire format (a key alone, an empty value, text, bytes; keys ignore case)")
+    check(back.entries.count == 5 && back.dataDictionary["port"] == Data("8080".utf8) && back.dataDictionary["secure"] == nil,
+          "NWTXTRecord: entries and dataDictionary")
+    struct Service: Decodable { let name: String; let port: Int; let secure: Bool; let missing: String? }
+    let decoded = try? TXTRecordDecoder().decode(Service.self, from: back)
+    check(decoded?.name == "isim" && decoded?.port == 8080 && decoded?.secure == true && decoded?.missing == nil,
+          "TXTRecordDecoder: text, numbers, a key alone as true, a missing optional")
+
+    let e = NWEndpoint.hostPort(host: "example.com", port: 80)
+    check(NWEndpoint(copying: e, newPort: 443) == .hostPort(host: "example.com", port: 443) && NWEndpoint(copying: .unix(path: "/tmp/s"), newPort: 1) == nil,
+          "NWEndpoint(copying:newPort:)")
+
+    let p = NWParameters.tls
+    let context = NWParameters.PrivacyContext(description: "isim test")
+    context.requireEncryptedNameResolution(true, fallbackResolver: .https(URL(string: "https://dns.example/dns-query")!, serverAddresses: []))
+    var proxy = ProxyConfiguration(socksv5Proxy: .hostPort(host: "127.0.0.1", port: 1080))
+    proxy.matchDomains = ["example.com"]
+    proxy.applyCredential(username: "u", password: "p")
+    context.proxyConfigurations = [proxy, ProxyConfiguration(relayHops: [.init(http3RelayEndpoint: .url(URL(string: "https://relay.example")!))])]
+    p.setPrivacyContext(context)
+    p.attribution = .user
+    p.expiredDNSBehavior = .persistent
+    let copy = p.copy()
+    check(copy.attribution == .user && copy.expiredDNSBehavior == .persistent && context.proxyConfigurations.count == 2,
+          "NWParameters: attribution, expired DNS, a privacy context with proxies, kept by copy()")
+    let ip = NWParameters.tcp.defaultProtocolStack.internetProtocol as! NWProtocolIP.Options
+    ip.localAddressPreference = .temporary
+    check(ip.localAddressPreference == .temporary && NWProtocolIP.Metadata().ecn(.ce).ecn == .ce, "NWProtocolIP: address preference and ECN")
+    let quic = NWParameters.quicDatagram(alpn: ["isim"])
+    let qo = quic.defaultProtocolStack.transportProtocol as? NWProtocolQUIC.Options
+    check("\(quic)" == "quic" && qo?.isDatagram == true && qo?.alpn == ["isim"] && qo?.direction == .bidirectional,
+          "NWParameters.quicDatagram(alpn:)")
+    check(NWProtocolQUIC.ApplicationError(code: 7, reason: "bye").code == 7 && NWParameters.applicationService.includePeerToPeer,
+          "NWProtocolQUIC.ApplicationError and NWParameters.applicationService")
+
+    if let g = try? NWMulticastGroup(for: [.hostPort(host: "239.255.43.22", port: 5000)], disableUnicast: true) {
+        let d: NWGroupDescriptor = g
+        check(d.members.count == 1 && g.isUnicastDisabled && g.sourceFilter == nil, "NWMulticastGroup: a class with members, isUnicastDisabled, sourceFilter")
+    } else { check(false, "NWMulticastGroup(for:disableUnicast:)") }
+    check(NWMultiplexGroup(to: .hostPort(host: "127.0.0.1", port: 443)).members.count == 1, "NWMultiplexGroup.members")
+    let m = NWConnectionGroup.Message(identifier: "m", isFinal: false)
+    check(!m.isFinal && m.path == nil && m.extractConnection() == nil, "NWConnectionGroup.Message(identifier:...): a message to send, no sender")
+}

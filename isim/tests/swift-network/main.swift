@@ -744,6 +744,7 @@ func streamChecks(port: UInt16, base: String, tlsPort: String?) async {
         nwFramerChecks()
         nwConnectionGroupChecks()
         nwQUICChecks()
+        nwAPIChecks()
 
         print("network test: \(checks - failures)/\(checks) passed")
         exit(failures == 0 ? 0 : 1)

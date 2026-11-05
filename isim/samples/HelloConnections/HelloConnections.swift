@@ -96,6 +96,7 @@ final class Runner: NSObject, URLSessionTaskDelegate, URLSessionDownloadDelegate
             report("done", "structured"); return
         }
         await tcpEcho()
+        await reports()
         await cAPI()
         await udpEcho()
         await refused()
@@ -147,6 +148,28 @@ final class Runner: NSObject, URLSessionTaskDelegate, URLSessionDownloadDelegate
             report("tcp echo", "\(d.map { String(decoding: $0, as: UTF8.self) } ?? "nil") error=\(e.map { "\($0)" } ?? "none") remote=\(remote == "127.0.0.1:\(port.rawValue)" ? "ok" : remote)")
             c.cancel()
         } catch { report("tcp echo", "listener error \(error)") }
+    }
+    /// an establishment report (the name resolution and TCP handshake), a data transfer report, a discontiguous receive
+    func reports() async {
+        do {
+            let l = try echoListener(.tcp)
+            guard let port = l.port else { report("reports", "no port"); return }
+            let c = NWConnection(host: "localhost", port: port, using: .tcp)
+            let pending = c.startDataTransferReport()
+            guard await c.waitReady() == .ready else { report("reports", "not ready"); return }
+            _ = await c.sendAsync(Data("report me".utf8))
+            let got: DispatchData? = await withCheckedContinuation { k in
+                c.receiveDiscontiguous(minimumIncompleteLength: 14, maximumLength: 14) { d, _, _, _ in k.resume(returning: d) }
+            }
+            let est: NWConnection.EstablishmentReport? = await withCheckedContinuation { k in c.requestEstablishmentReport(queue: .global()) { k.resume(returning: $0) } }
+            let transfer: NWConnection.DataTransferReport = await withCheckedContinuation { k in pending.collect(queue: .global()) { k.resume(returning: $0) } }
+            let hs = est?.handshakes.map(\.definition.name).joined(separator: ",") ?? "-"
+            let res = est?.resolutions.first.map { "\($0.source) \($0.endpointCount > 0 ? "ok" : "none")" } ?? "-"
+            let path = transfer.aggregatePathReport
+            report("reports", "\(got.map { String(decoding: Data($0), as: UTF8.self) } ?? "nil") handshakes=\(hs) resolution=\(res) "
+                   + "sent=\(path.sentApplicationByteCount) received=\(path.receivedApplicationByteCount) interface=\(path.interface.type)")
+            c.cancel()
+        } catch { report("reports", "listener error \(error)") }
     }
     /// Network's C API from Swift (nw_*): a connection to the echo listener, a final message, the server's close
     func cAPI() async {
@@ -650,6 +673,21 @@ extension Runner {
             report("structured tcp", "\(String(decoding: reply, as: UTF8.self)) state=\(c.state == .ready ? "ready" : "-") states=\(states.joined) remote=\(c.remoteEndpoint != nil)")
             task.cancel()
         } catch { report("structured tcp", "error \(error)") }
+
+        // integers in network byte order, and the channel's data transfer and establishment reports
+        do {
+            let (port, task) = await serve(try NetworkListener { TCP() }) { c in
+                let (n, _) = try await c.receive(as: UInt32.self)
+                try await c.send(n + 1)
+            }
+            let c = NetworkConnection(to: endpoint(port)) { TCP() }
+            try await c.send(UInt32(41_999))
+            let (n, _) = try await c.receive(as: UInt32.self)
+            let transfer = try await c.dataTransferReport().aggregatePathReport
+            let est = try await c.establishmentReport()
+            report("structured integers", "\(n) sent=\(transfer.sentApplicationByteCount) received=\(transfer.receivedApplicationByteCount) handshakes=\(est.handshakes.count)")
+            task.cancel()
+        } catch { report("structured integers", "error \(error)") }
 
         // TLV: typed messages; the server answers type + 1 with the bytes reversed
         do {
