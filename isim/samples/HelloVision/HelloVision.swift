@@ -50,7 +50,7 @@ final class VisionViewController: UIViewController {
         detectors()
         classicExtras()
         tracking()
-        Task { await swiftAPI() }
+        Task { await swiftAPI(); await swift18() }
         models()
         coreML()
         language()
@@ -223,6 +223,80 @@ final class VisionViewController: UIViewController {
             } catch VisionError.unsupportedRequest(let m) { log("swift text unsupported: \(m)") }
             catch { log("swift text error \(error)") }
         }
+    }
+    /// the rest of the iOS 18 Swift API (issue #852): requests and observations over the VN engines
+    func swift18() async {
+        let shapes = render(400, 300) { c in
+            c.setFillColor(UIColor.white.cgColor); c.fill(CGRect(x: 0, y: 0, width: 400, height: 300))
+            c.setFillColor(UIColor.black.cgColor); c.fill(CGRect(x: 40, y: 40, width: 160, height: 100))
+            c.fillEllipse(in: CGRect(x: 55, y: 185, width: 90, height: 90))
+            c.setFillColor(UIColor.white.cgColor); c.fillEllipse(in: CGRect(x: 75, y: 205, width: 50, height: 50))
+        }
+        let disk = render(200, 200) { c in
+            c.setFillColor(UIColor.white.cgColor); c.fill(CGRect(x: 0, y: 0, width: 200, height: 200))
+            c.setFillColor(UIColor.red.cgColor); c.fillEllipse(in: CGRect(x: 60, y: 60, width: 80, height: 80))
+        }
+        let circle = NormalizedCircle.boundingCircle(for: [NormalizedPoint(x: 0, y: 0), NormalizedPoint(x: 1, y: 0), NormalizedPoint(x: 1, y: 1), NormalizedPoint(x: 0, y: 1)])
+        log("swift18 circle \(f2(circle.center.x)),\(f2(circle.center.y)) radius \(f2(circle.radius)) contains \(circle.contains(NormalizedPoint(x: 0.5, y: 0.5)))")
+        do {
+            var rects = DetectRectanglesRequest(); rects.maximumObservations = 0; rects.minimumAspectRatio = 0.3; rects.minimumSize = 0.1
+            let handler = ImageRequestHandler(shapes)
+            let (found, contours, horizon) = try await handler.perform(rects, DetectContoursRequest(), DetectHorizonRequest())
+            let ring = contours.topLevelContours.max { $0.pointCount < $1.pointCount }
+            log("swift18 rectangles \(found.count) contours \(contours.contourCount) top \(contours.topLevelContours.count) ring children \(ring?.childContours.count ?? -1) " +
+                "area \(ring.map { $0.calculateArea() > 0 } ?? false) horizon \(horizon == nil ? "none" : "some") descriptor \(found.first?.originatingRequestDescriptor.map(String.init(describing:)) ?? "nil")")
+            let (saliency, mask, print1, aesthetics) = try await ImageRequestHandler(disk).perform(GenerateAttentionBasedSaliencyImageRequest(), GenerateForegroundInstanceMaskRequest(),
+                                                                                                  GenerateImageFeaturePrintRequest(), CalculateImageAestheticsScoresRequest())
+            let print2 = try await GenerateImageFeaturePrintRequest().perform(on: shapes)
+            let diskHandler = ImageRequestHandler(disk)
+            let scaled = try mask.map { try $0.generateScaledMask(for: $0.allInstances, scaledToImageFrom: diskHandler) }
+            log("swift18 saliency \(Int(saliency.heatMap.size.width))x\(Int(saliency.heatMap.size.height)) objects \(saliency.salientObjects.count) " +
+                "instances \(mask?.allInstances.count ?? 0) at center \(mask?.instanceAtPoint(NormalizedPoint(x: 0.5, y: 0.5)).count ?? 0) corner \(mask?.instanceAtPoint(NormalizedPoint(x: 0.02, y: 0.02)).count ?? -1) " +
+                "scaled \(scaled.map { "\(CVPixelBufferGetWidth($0))x\(CVPixelBufferGetHeight($0))" } ?? "-") print \(print1.elementCount) self \(f2(try print1.distance(to: print1))) other \(try print1.distance(to: print2) > 0) " +
+                "aesthetics \(aesthetics.overallScore >= -1 && aesthetics.overallScore <= 1)")
+        } catch { log("swift18 detectors error \(error)") }
+        /* tracking: a square moved 12 points right over three frames */
+        func frame(_ dx: CGFloat) -> CGImage {
+            render(320, 240) { c in
+                c.setFillColor(UIColor.white.cgColor); c.fill(CGRect(x: 0, y: 0, width: 320, height: 240))
+                c.setFillColor(UIColor.black.cgColor); c.fill(CGRect(x: 100 + dx, y: 100, width: 40, height: 40))
+                c.setFillColor(UIColor.gray.cgColor); c.fill(CGRect(x: 104 + dx, y: 104, width: 12, height: 12))
+            }
+        }
+        do {
+            let start = DetectedObjectObservation(boundingBox: NormalizedRect(imageRect: CGRect(x: 100, y: 100, width: 40, height: 40), in: CGSize(width: 320, height: 240)))
+            let tracker = TrackObjectRequest(detectedObject: start)
+            let registration = TrackTranslationalImageRegistrationRequest()
+            var last: DetectedObjectObservation?
+            var shift = CGAffineTransform.identity
+            for dx in [0, 6, 12] as [CGFloat] {
+                last = try await tracker.perform(on: frame(dx))
+                shift = try await registration.perform(on: frame(dx)).alignmentTransform
+            }
+            log("swift18 track same \(last?.uuid == start.uuid) moved \(Int(((last?.boundingBox.origin.x ?? 0) - start.boundingBox.origin.x) * 320)) " +
+                "registration tx \(Int(shift.tx)) latency \(tracker.minimumLatencyFrameCount) equal \(tracker == tracker) \(tracker == TrackObjectRequest(detectedObject: start))")
+        } catch { log("swift18 tracking error \(error)") }
+        /* poses and models: isim needs host models for them (ISIM_BODY_POSE_MODEL ...) */
+        do { _ = try await DetectHumanBodyPoseRequest().perform(on: shapes); log("swift18 body ran") }
+        catch VisionError.unsupportedRequest { log("swift18 body unsupported joints \(DetectHumanBodyPoseRequest().supportedJointNames.count) hand \(DetectHumanHandPoseRequest().supportedJointNames.count) " +
+                                                  "animal \(DetectAnimalBodyPoseRequest().supportedJointNames.count) 3d \(DetectHumanBodyPose3DRequest().supportedJointNames.count)") }
+        catch { log("swift18 body error \(error)") }
+        var kinds: [String] = []
+        if #available(iOS 18.0, *) {
+            for await result in ImageRequestHandler(disk).performAll([GenerateObjectnessBasedSaliencyImageRequest(), DetectDocumentSegmentationRequest(), ClassifyImageRequest()] as [any VisionRequest]) {
+                switch result {
+                case .generateObjectnessBasedSaliencyImage(_, let o): kinds.append("objectness \(o.salientObjects.count)")
+                case .detectDocumentSegmentation(_, let d): kinds.append("document \(d == nil ? "none" : "some")")
+                case .error(let r, let e): kinds.append("error \(type(of: r)) \(e is VisionError)")
+                default: kinds.append("other")
+                }
+            }
+        }
+        var request = DetectRectanglesRequest()
+        request.setComputeDevice(.cpu(MLCPUComputeDevice()), for: .main)
+        let device: String
+        if case .cpu? = request.computeDevice(for: .main) { device = "cpu" } else { device = "none" }
+        log("swift18 performAll \(kinds.joined(separator: ", ")) device \(device) post \(request.computeDevice(for: .postProcessing) == nil) stages \(request.supportedComputeStageDevices.count)")
     }
     /// tracking, registration and optical flow on drawn frames with known motion (issue #373)
     func tracking() {
