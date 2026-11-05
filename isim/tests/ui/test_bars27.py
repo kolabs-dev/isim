@@ -32,6 +32,7 @@ def test_bars_and_tabs(launch, ios):
     app.wait_log(r"^hb27 minimization true$")
     app.wait_log(r"^hb27 priorities low<flag<standard<high true$")
     app.wait_log(r"^hb27 sidebar available false placement true$")      # iPhone: no sidebar
+    app.wait_log(r"^hb27 sidebar layout tile true overflow true$")      # Sidebar.Layout, navigationOverflowItems (#872)
     t = app.wait_view(r"id=nav-overflow")
     app.wait_still()
     app.screenshot("bars")
@@ -81,8 +82,10 @@ def test_sidebar_delegate_ipad(launch, ios):
         pytest.skip("sidebar availability is iOS 27")
     app = launch("HelloBars27", device="ipadpro11", os_version=ipad_os(ios), args=["sidebar"])
     app.wait_log(r"^hb27 sidebar availability changed true$")
+    app.wait_log(r"^hb27 sidebar displaying home$")                     # willBeginDisplaying (#872)
     app.wait_still()
     app.tap_id("toggle-sidebar")
     app.wait_log(r"^hb27 sidebar visibility will change hidden false$")
     app.wait_log(r"^hb27 sidebar visibility changed hidden true$")     # the completion runs after the change
+    app.wait_log(r"^hb27 sidebar ended home$")                          # didEndDisplaying when the sidebar hides
     assert app.quit() == 0

@@ -1150,6 +1150,20 @@ extension UIBarButtonItemVisibilityPriority {
 extension UITabBarController.Sidebar {
     public typealias Delegate = UITabBarControllerSidebarDelegate
     public typealias Animating = UITabBarControllerSidebarAnimating
+    /// where the sidebar scrolls to
+    public enum ScrollTarget {
+        case header, footer
+        case tab(UITab)
+        var _object: __UITabSidebarScrollTarget {
+            switch self {
+            case .header: return .header()
+            case .footer: return .footer()
+            case .tab(let t): return .tab(t)
+            }
+        }
+    }
+    /// scrolls the sidebar to its header, its footer or a tab's row (isim's sidebar lists every row without scrolling)
+    public func scroll(to target: ScrollTarget, animated: Bool) { __scroll(to: target._object, animated: animated) }
 }
 // MARK: - iOS 27 scene display links with a closure (Apple's Swift API)
 private final class _IsimDisplayLinkAction: NSObject {

@@ -252,6 +252,8 @@ final class PresentViewController: UIViewController, UIPopoverPresentationContro
             vc.modalPresentationStyle = .popover
             vc.popoverPresentationController?.sourceItem = buttons["adaptive"]
             vc.popoverPresentationController?.adaptiveSheetPresentationController.detents = [.medium()]
+            let medium: UISheetPresentationController.Detent.Identifier = .medium     // Apple's nested names (#872)
+            log("detent identifier \(medium.rawValue) inactive \(UISheetPresentationController.Detent.inactive < 0)")
             present(vc, animated: false)
         case "share":
             let config = UIActivityItemsConfiguration(objects: ["Shared text" as NSString])

@@ -2383,7 +2383,7 @@ static void adopt_tab(UITab *t, UITabBarController *c, UITabGroup *parent) {
 - (void)_isim_layoutSidebar {
     UIView *host = self.viewIfLoaded;
     if (!host) return;
-    if (![self _isim_sidebarShown]) { [_sidebarView removeFromSuperview]; _sidebarView = nil; return; }
+    if (![self _isim_sidebarShown]) { [_sidebarView removeFromSuperview]; _sidebarView = nil; [self _isim_sidebarDisplaying:@[]]; return; }
     if (!_sidebarView) { _sidebarView = [__IsimSidebar new]; _sidebarView.owner = self; _sidebarView.accessibilityIdentifier = @"tab-sidebar"; }
     if (_sidebarView.superview != host) [host addSubview:_sidebarView];
     BOOL glass = isim_ui_glass();
@@ -2395,6 +2395,7 @@ static void adopt_tab(UITab *t, UITabBarController *c, UITabGroup *parent) {
     __block CGFloat y = glass ? 12 : safeTop + 12; CGFloat w = _sidebarView.bounds.size.width;
     UITabBarControllerSidebar *sb = self.sidebar;
     id<UITabBarControllerSidebarDelegate> sd = sb.delegate;
+    NSMutableArray<UITab *> *shown = [NSMutableArray array];        /* the tabs whose rows are on screen after this layout */
     /* iOS 18 sidebar items: the delegate's item for a tab or an action; its list content's text and image are drawn */
     void (^row)(UITab *, UIAction *, BOOL) = ^(UITab *t, UIAction *action, BOOL header) {
         __IsimSidebarRow *r = [[__IsimSidebarRow alloc] initWithFrame:CGRectMake(0, y, w, header ? 36 : 44)];
@@ -2402,10 +2403,12 @@ static void adopt_tab(UITab *t, UITabBarController *c, UITabGroup *parent) {
         r.on = t && !header && (t == self->_selectedTab || (!t.parent && t == self->_selectedTab.parent && ![t isKindOfClass:[UITabGroup class]]));
         if (!header && [sd respondsToSelector:@selector(tabBarController:sidebar:itemForRequest:)]) {
             UITabSidebarItem *item = [sd tabBarController:self sidebar:sb itemForRequest:[UITabSidebarItemRequest _isim_requestForTab:t action:action]];
+            if (item && [sd respondsToSelector:@selector(tabBarController:sidebar:updateItem:)]) [sd tabBarController:self sidebar:sb updateItem:item];
             id cc = item.contentConfiguration;
             if ([cc isKindOfClass:[UIListContentConfiguration class]]) { r.title = [cc text]; r.image = [cc image]; }
             r.fill = item.backgroundConfiguration.backgroundColor;
         }
+        if (t && !header) [shown addObject:t];
         r.accessibilityIdentifier = [@"sidebar-" stringByAppendingString:t ? t.identifier : action.identifier ?: action.title ?: @""];
         r.accessibilityLabel = r.title ?: t ? t.title : action.title;
         [r addTarget:self action:@selector(_isim_sidebarTapped:) forControlEvents:UIControlEventTouchUpInside];
@@ -2436,7 +2439,17 @@ static void adopt_tab(UITab *t, UITabBarController *c, UITabGroup *parent) {
         bottom.frame = CGRectMake(0, _sidebarView.bounds.size.height - bh - 8, w, bh);
         [_sidebarView addSubview:bottom];
     }
+    [self _isim_sidebarDisplaying:shown];
     if (glass) isim_ui_set_needs_display();
+}
+/* tells the sidebar delegate which tabs' rows came on screen and which went away */
+static char kSidebarShown;
+- (void)_isim_sidebarDisplaying:(NSArray<UITab *> *)now {
+    UITabBarControllerSidebar *sb = self.sidebar; id<UITabBarControllerSidebarDelegate> sd = sb.delegate;
+    NSArray<UITab *> *before = objc_getAssociatedObject(self, &kSidebarShown) ?: @[];
+    for (UITab *t in before) if (![now containsObject:t] && [sd respondsToSelector:@selector(tabBarController:sidebar:didEndDisplayingTab:)]) [sd tabBarController:self sidebar:sb didEndDisplayingTab:t];
+    for (UITab *t in now) if (![before containsObject:t] && [sd respondsToSelector:@selector(tabBarController:sidebar:willBeginDisplayingTab:)]) [sd tabBarController:self sidebar:sb willBeginDisplayingTab:t];
+    objc_setAssociatedObject(self, &kSidebarShown, [now copy], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 - (void)_isim_sidebarTapped:(__IsimSidebarRow *)r {
     if (r.action) { [r.action setSender:r]; UIActionHandler h = [r.action valueForKey:@"handler"]; if (h) h(r.action); return; }
@@ -3005,11 +3018,22 @@ static char kHiddenByDefault, kDefaultChild, kSidebarAppearance, kSidebarActions
 }
 @end
 
-static char kSidebarLayout, kSidebarHeader, kSidebarFooter, kSidebarBottom;
+@implementation UITabSidebarScrollTarget { @public int _kind; UITab *_tab; }   /* 0 header, 1 footer, 2 tab */
++ (instancetype)_isim_kind:(int)k tab:(UITab *)t { UITabSidebarScrollTarget *s = [super new]; s->_kind = k; s->_tab = t; return s; }
++ (instancetype)targetForHeader { return [self _isim_kind:0 tab:nil]; }
++ (instancetype)targetForFooter { return [self _isim_kind:1 tab:nil]; }
++ (instancetype)targetForTab:(UITab *)tab { return [self _isim_kind:2 tab:tab]; }
+- (NSString *)description { return _kind == 0 ? @"header" : _kind == 1 ? @"footer" : [@"tab " stringByAppendingString:_tab.identifier ?: @""]; }
+@end
+static char kSidebarLayout, kSidebarHeader, kSidebarFooter, kSidebarBottom, kSidebarOverflow, kSidebarScroll;
 @implementation UITabBarControllerSidebar (UITabBarControllerSidebarExtras)
 - (UITabBarControllerSidebarLayout)preferredLayout { return [assoc(self, &kSidebarLayout) integerValue]; }
 - (void)setPreferredLayout:(UITabBarControllerSidebarLayout)l { set_assoc(self, &kSidebarLayout, @(l)); }
 - (void)reconfigureItemForTab:(UITab *)tab { [self.tabBarController _isim_sidebarChanged]; }
+- (UIDeferredMenuElement *)navigationOverflowItems { return assoc(self, &kSidebarOverflow); }
+- (void)setNavigationOverflowItems:(UIDeferredMenuElement *)e { set_assoc(self, &kSidebarOverflow, e); }
+- (void)scrollToTarget:(UITabSidebarScrollTarget *)target animated:(BOOL)animated { set_assoc(self, &kSidebarScroll, target); }
+- (UITabSidebarScrollTarget *)_isim_lastScrollTarget { return assoc(self, &kSidebarScroll); }
 - (id<UIContentConfiguration>)headerContentConfiguration { return assoc(self, &kSidebarHeader); }
 - (void)setHeaderContentConfiguration:(id<UIContentConfiguration>)c { set_assoc(self, &kSidebarHeader, [(id)c copy]); [self.tabBarController _isim_sidebarChanged]; }
 - (id<UIContentConfiguration>)footerContentConfiguration { return assoc(self, &kSidebarFooter); }

@@ -160,6 +160,7 @@ final class MonitorViewController: UIViewController {
             try? endpoint.registerFunctionBlocks([block], markAsStatic: true)
             try? endpoint.setEnabled(true)
             log("ump endpoints=\(MIDIUMPEndpointManager.shared.umpEndpoints.map(\.name)) blocks=\(endpoint.functionBlocks.count) source=\(endpoint.midiSource != 0)")
+            log("ump keys \(MIDIUMPEndpointManager.DictionaryKey.endpointObject.rawValue) \(MIDICIDeviceManager.DictionaryKey.profileObject.rawValue)")
         }
         let session = MIDINetworkSession.default()
         session.isEnabled = true

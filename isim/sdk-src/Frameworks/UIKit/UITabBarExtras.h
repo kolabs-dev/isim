@@ -4,6 +4,7 @@
    sidebar items and layout. UINavigation.m. Categories on the existing classes (no ivars). */
 #import <UIKit/UINavigationController.h>
 #import <UIKit/UITableView.h>
+#import <UIKit/UIDragInteraction.h>
 NS_ASSUME_NONNULL_BEGIN
 
 /* ---- item appearances (iOS 13): per layout (stacked: iPhone portrait; inline: iPad; compact inline: iPhone
@@ -108,12 +109,26 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))
 - (UIBackgroundConfiguration *)defaultBackgroundConfiguration;
 - (void)setNeedsUpdateConfiguration;
 @end
+/* where the sidebar scrolls to (Swift: UITabBarController.Sidebar.ScrollTarget) */
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0)) NS_REFINED_FOR_SWIFT
+@interface UITabSidebarScrollTarget : NSObject
++ (instancetype)targetForHeader NS_SWIFT_NAME(header());
++ (instancetype)targetForFooter NS_SWIFT_NAME(footer());
++ (instancetype)targetForTab:(UITab *)tab NS_SWIFT_NAME(tab(_:));
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
+@end
 typedef NS_ENUM(NSInteger, UITabBarControllerSidebarLayout) { UITabBarControllerSidebarLayoutAutomatic = 0, UITabBarControllerSidebarLayoutOverlap,
-    UITabBarControllerSidebarLayoutTile } NS_SWIFT_NAME(UITabBarController.Sidebar.Layout) API_AVAILABLE(ios(26.0));
+    UITabBarControllerSidebarLayoutTile } NS_SWIFT_NAME(UITabBarControllerSidebar.Layout) API_AVAILABLE(ios(26.0));
 @interface UITabBarControllerSidebar (UITabBarControllerSidebarExtras)
 /* overlap: over the content; tile: beside it (isim's sidebar tiles) */
 @property (nonatomic) UITabBarControllerSidebarLayout preferredLayout API_AVAILABLE(ios(26.0));
 - (void)reconfigureItemForTab:(UITab *)tab;
+/* a menu of navigation items that do not fit (isim: stored) */
+@property (nullable, nonatomic, strong) UIDeferredMenuElement *navigationOverflowItems API_AVAILABLE(ios(18.0));
+/* scrolls the sidebar to its header, its footer or a tab's row (isim's sidebar lists every row without scrolling:
+   the request is kept, lastScrollTarget) */
+- (void)scrollToTarget:(UITabSidebarScrollTarget *)target animated:(BOOL)animated NS_REFINED_FOR_SWIFT API_AVAILABLE(ios(18.0));
 /* content above / below the rows (list content configurations: their text) and a view at the bottom */
 @property (nullable, nonatomic, copy) id<UIContentConfiguration> headerContentConfiguration;
 @property (nullable, nonatomic, copy) id<UIContentConfiguration> footerContentConfiguration;
