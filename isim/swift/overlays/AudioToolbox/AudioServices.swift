@@ -262,6 +262,10 @@ final class _AudioFile {
     var data: [UInt8]                  // packed audio data in `format`
     let writable: Bool
     var dirty = false
+    /// user data: the file's other chunks (CAF, WAVE, AIFF), in file order
+    var userData: [(id: UInt32, bytes: [UInt8])] = []
+    /// a file opened or created through the app's callbacks (AudioFunctions.swift): no path
+    var callbacks: _AudioFileCallbacks?
     init(path: String, type: AudioFileTypeID, format: AudioStreamBasicDescription, data: [UInt8], writable: Bool) {
         self.path = path; self.type = type; self.format = format; self.data = data; self.writable = writable
     }
@@ -285,7 +289,7 @@ final class _AudioFile {
     static func open(_ path: String, writable: Bool) -> (_AudioFile?, OSStatus) {
         guard let d = FileManager.default.contents(atPath: path) else { return (nil, kAudio_FileNotFoundError) }
         let b = [UInt8](d)
-        if let f = parsePCM(b, path: path, writable: writable) { return (f, noErr_) }
+        if let f = parsePCM(b, path: path, writable: writable) { f.userData = userChunks(b); return (f, noErr_) }
         var out: UnsafeMutablePointer<Float>? = nil
         var frames = 0, channels: Int32 = 0, rate = 0.0
         guard isim_audio_decode_file(path, &out, &frames, &channels, &rate) != 0, let pcm = out else { return (nil, kAudioFileUnsupportedFileTypeError) }
@@ -359,6 +363,34 @@ final class _AudioFile {
         }
         return nil
     }
+    /// the chunks of a CAF, WAVE or AIFF file other than its format and audio data: the file's user data
+    static func userChunks(_ b: [UInt8]) -> [(id: UInt32, bytes: [UInt8])] {
+        func be32(_ o: Int) -> UInt32 { UInt32(b[o]) << 24 | UInt32(b[o + 1]) << 16 | UInt32(b[o + 2]) << 8 | UInt32(b[o + 3]) }
+        func le32(_ o: Int) -> UInt32 { UInt32(b[o]) | UInt32(b[o + 1]) << 8 | UInt32(b[o + 2]) << 16 | UInt32(b[o + 3]) << 24 }
+        func tag(_ o: Int) -> String { String(decoding: b[o..<o + 4], as: UTF8.self) }
+        guard b.count >= 12 else { return [] }
+        var out: [(UInt32, [UInt8])] = []
+        if tag(0) == "caff" {
+            var o = 8
+            while o + 12 <= b.count {
+                let size = Int64(bitPattern: UInt64(be32(o + 4)) << 32 | UInt64(be32(o + 8)))
+                let body = o + 12
+                guard size >= 0, body + Int(size) <= b.count else { break }
+                if !["desc", "data", "free", "pakt"].contains(tag(o)) { out.append((be32(o), Array(b[body..<body + Int(size)]))) }
+                o = body + Int(size)
+            }
+        } else if (tag(0) == "RIFF" && tag(8) == "WAVE") || (tag(0) == "FORM" && (tag(8) == "AIFF" || tag(8) == "AIFC")) {
+            let riff = tag(0) == "RIFF"
+            var o = 12
+            while o + 8 <= b.count {
+                let size = Int(riff ? le32(o + 4) : be32(o + 4)), body = o + 8
+                guard body + size <= b.count else { break }
+                if !["fmt ", "data", "COMM", "SSND", "FVER"].contains(tag(o)) { out.append((be32(o), Array(b[body..<body + size]))) }
+                o = body + size + (size & 1)
+            }
+        }
+        return out
+    }
     /// Writes the file: PCM containers directly; other types as WAV then encoded by the host's ffmpeg.
     func flush() -> OSStatus {
         guard writable, dirty else { return noErr_ }
@@ -374,11 +406,14 @@ final class _AudioFile {
             s("desc"); be(32, 8); be(f.mSampleRate.bitPattern, 8); be(UInt64(kAudioFormatLinearPCM), 4)
             be(UInt64((f._isFloat ? 1 : 0) | (f._isBigEndian ? 0 : 2)), 4); be(UInt64(f._frameBytes), 4); be(1, 4)
             be(UInt64(f.mChannelsPerFrame), 4); be(UInt64(f.mBitsPerChannel), 4)
+            for u in userData { be(UInt64(u.id), 4); be(UInt64(u.bytes.count), 8); out.append(contentsOf: u.bytes) }
             s("data"); be(UInt64(data.count + 4), 8); be(0, 4); out.append(contentsOf: data)
         case kAudioFileAIFFType, kAudioFileAIFCType:
             var d = data
             if !f._isBigEndian { let bs = f._bytesPerSample; for i in stride(from: 0, to: d.count - bs + 1, by: bs) { d[i..<i + bs].reverse() } }
-            s("FORM"); be(UInt64(4 + 26 + 16 + d.count), 4); s("AIFF")
+            let extra = userData.reduce(0) { $0 + 8 + $1.bytes.count + ($1.bytes.count & 1) }
+            s("FORM"); be(UInt64(4 + 26 + 16 + d.count + extra), 4); s("AIFF")
+            for u in userData { be(UInt64(u.id), 4); be(UInt64(u.bytes.count), 4); out.append(contentsOf: u.bytes); if u.bytes.count & 1 != 0 { out.append(0) } }
             s("COMM"); be(18, 4); be(UInt64(f.mChannelsPerFrame), 2); be(UInt64(d.count / max(1, f._frameBytes)), 4); be(UInt64(f.mBitsPerChannel), 2)
             let e = Int(log2(f.mSampleRate)), mant = UInt64(f.mSampleRate * pow(2, Double(63 - e)))
             be(UInt64(e + 16383), 2); be(mant, 8)
@@ -386,13 +421,17 @@ final class _AudioFile {
         default:     // WAV (and the intermediate for compressed types)
             var d = data
             if f._isBigEndian { let bs = f._bytesPerSample; for i in stride(from: 0, to: d.count - bs + 1, by: bs) { d[i..<i + bs].reverse() } }
-            s("RIFF"); le(36 + d.count, 4); s("WAVE"); s("fmt "); le(16, 4); le(f._isFloat ? 3 : 1, 2); le(Int(f.mChannelsPerFrame), 2)
+            let extra = userData.reduce(0) { $0 + 8 + $1.bytes.count + ($1.bytes.count & 1) }
+            s("RIFF"); le(36 + d.count + extra, 4); s("WAVE"); s("fmt "); le(16, 4); le(f._isFloat ? 3 : 1, 2); le(Int(f.mChannelsPerFrame), 2)
             le(Int(f.mSampleRate), 4); le(Int(f.mSampleRate) * f._frameBytes, 4); le(f._frameBytes, 2); le(Int(f.mBitsPerChannel), 2)
+            for u in userData { be(UInt64(u.id), 4); le(u.bytes.count, 4); out.append(contentsOf: u.bytes); if u.bytes.count & 1 != 0 { out.append(0) } }
             s("data"); le(d.count, 4); out.append(contentsOf: d)
         }
         if [kAudioFileWAVEType, kAudioFileCAFType, kAudioFileAIFFType, kAudioFileAIFCType].contains(type) {
+            if let cb = callbacks { return cb.writeAll(out) }
             return FileManager.default.createFile(atPath: path, contents: out) ? noErr_ : kAudioFilePermissionsError
         }
+        guard callbacks == nil else { return kAudioFileUnsupportedFileTypeError }
         let tmp = NSTemporaryDirectory() + "isim-audiofile-\(UUID().uuidString).wav"
         guard FileManager.default.createFile(atPath: tmp, contents: out) else { return kAudioFilePermissionsError }
         defer { try? FileManager.default.removeItem(atPath: tmp) }
@@ -515,6 +554,8 @@ final class _ExtAudioFile {
     var client: AudioStreamBasicDescription
     var clientPos = 0                    // client frames read so far (reading)
     var decoded: [[Float]]?              // file samples (lazily, for reading)
+    /// made by ExtAudioFileWrapAudioFileID: the Audio File stays the app's to close
+    var wrapped = false
     init(file: _AudioFile) { self.file = file; client = file.format }
     var samples: [[Float]] {
         if let d = decoded { return d }
@@ -565,7 +606,7 @@ public func ExtAudioFileCreateWithURL(_ inURL: CFURL, _ inFileType: AudioFileTyp
 }
 @discardableResult public func ExtAudioFileDispose(_ inExtAudioFile: ExtAudioFileRef) -> OSStatus {
     guard let e = _object(inExtAudioFile, _ExtAudioFile.self) else { return kAudio_ParamError }
-    let st = e.file.flush()
+    let st = e.wrapped ? noErr_ : e.file.flush()
     _release(inExtAudioFile)
     return st
 }
@@ -1035,6 +1076,12 @@ final class _AudioQueue: @unchecked Sendable {
     var pending: [[Float]] = []                                 // decoded frames not yet rendered (queue rate)
     var inFlight: [(buffer: AudioQueueBufferRef, end: Int64)] = []
     var decoded: Int64 = 0, consumed: Int64 = 0
+    // AudioFunctions.swift: timelines, trimmed buffers, offline rendering
+    var timelines: [_AQTimeline] = []
+    var trims: [AudioQueueBufferRef: (start: Int, end: Int)] = [:]
+    var offlineFormat: AudioStreamBasicDescription?
+    var offlineRendering = false
+    func trimmedFrames(_ b: AudioQueueBufferRef) -> Int { trims[b].map { $0.start + $0.end } ?? 0 }
     init(input: Bool, format: AudioStreamBasicDescription, queue: DispatchQueue?) { self.input = input; self.format = format; callbackQueue = queue }
 
     func deliver(_ b: AudioQueueBufferRef, _ t: AudioTimeStamp, _ packets: UInt32) {
@@ -1131,7 +1178,10 @@ final class _AudioQueue: @unchecked Sendable {
         if pending.count != ch { pending = [[Float]](repeating: [], count: ch) }
         while pending[0].count < n, !queued.isEmpty {
             let b = queued.removeFirst()
-            let x = _PCM.decode(UnsafeRawBufferPointer(start: b.pointee.mAudioData, count: Int(b.pointee.mAudioDataByteSize)), format)
+            var x = _PCM.decode(UnsafeRawBufferPointer(start: b.pointee.mAudioData, count: Int(b.pointee.mAudioDataByteSize)), format)
+            if let t = trims.removeValue(forKey: b) {
+                x = x.map { c in Array(c.dropFirst(min(t.start, c.count)).dropLast(min(t.end, max(0, c.count - t.start)))) }
+            }
             for c in 0..<ch { pending[c].append(contentsOf: x[min(c, x.count - 1)]) }
             decoded += Int64(x.first?.count ?? 0)
             inFlight.append((b, decoded))
@@ -1174,6 +1224,7 @@ final class _AudioQueue: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         if running { paused = false; if stream > 0 { isim_audio_stream_control(stream, 0, Double(volume)) }; lock.broadcast(); return noErr_ }
         stopping = false; paused = false
+        if offlineFormat != nil { setRunning(true); return noErr_ }     // offline: renders only in AudioQueueOfflineRender
         if !input { stream = isim_audio_stream_open(1) }
         threadRunning = true
         setRunning(true)
@@ -1184,7 +1235,9 @@ final class _AudioQueue: @unchecked Sendable {
         lock.lock(); stopping = true; lock.broadcast(); lock.unlock()
         while Thread.current !== loopThread { lock.lock(); let r = threadRunning; lock.unlock(); if !r { break }; Thread.sleep(forTimeInterval: 0.005) }
         if stream > 0 { isim_audio_stream_close(stream); stream = 0 }
-        lock.lock(); queued.removeAll(); pending = []; inFlight = []; decoded = 0; consumed = 0; lock.unlock()
+        lock.lock(); queued.removeAll(); pending = []; inFlight = []; decoded = 0; consumed = 0; trims = [:]
+        for t in timelines { t.discontinuity = true }
+        lock.unlock()
         timePitchKernel.reset(); varispeedKernel.reset()
         if running { setRunning(false) }
     }
@@ -1288,7 +1341,7 @@ public func AudioQueueStop(_ inAQ: AudioQueueRef, _ inImmediate: Bool) -> OSStat
 public func AudioQueueFlush(_ inAQ: AudioQueueRef) -> OSStatus { noErr_ }
 public func AudioQueueReset(_ inAQ: AudioQueueRef) -> OSStatus {
     guard let q = _object(inAQ, _AudioQueue.self) else { return kAudio_ParamError }
-    q.lock.lock(); q.queued.removeAll(); q.lock.unlock()
+    q.lock.lock(); q.queued.removeAll(); q.trims = [:]; for t in q.timelines { t.discontinuity = true }; q.lock.unlock()
     return noErr_
 }
 public func AudioQueueDispose(_ inAQ: AudioQueueRef, _ inImmediate: Bool) -> OSStatus {
@@ -1380,7 +1433,9 @@ public func AudioQueueGetCurrentTime(_ inAQ: AudioQueueRef, _ inTimeline: Opaque
     guard let q = _object(inAQ, _AudioQueue.self) else { return kAudio_ParamError }
     var ts = AudioTimeStamp(); ts.mSampleTime = Double(q.framesDone); ts.mFlags = .sampleTimeValid
     outTimeStamp?.pointee = ts
-    outTimelineDiscontinuity?.pointee = false
+    if let t = _object(inTimeline, _AQTimeline.self) {
+        outTimelineDiscontinuity?.pointee = DarwinBoolean(t.discontinuity); t.discontinuity = false
+    } else { outTimelineDiscontinuity?.pointee = false }
     return noErr_
 }
 

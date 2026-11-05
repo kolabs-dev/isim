@@ -220,13 +220,23 @@ public let kAUGraphErr_InvalidAudioUnit: OSStatus = -10864
 final class _AUComponent {
     let desc: AudioComponentDescription
     let name: String
+    let version: UInt32
+    /// a component the app registered (AudioComponentRegister): its instances come from this factory
+    let factory: AudioComponentFactoryFunction?
     init(_ type: UInt32, _ sub: UInt32, _ name: String) {
         desc = AudioComponentDescription(componentType: type, componentSubType: sub, componentManufacturer: kAudioUnitManufacturer_Apple,
                                          componentFlags: 0, componentFlagsMask: 0)
         self.name = "Apple: " + name
+        version = 0x0001_0000; factory = nil
     }
+    init(desc: AudioComponentDescription, name: String, version: UInt32, factory: AudioComponentFactoryFunction?) {
+        self.desc = desc; self.name = name; self.version = version; self.factory = factory
+    }
+    var isCodec: Bool { desc.componentType == kAudioEncoderComponentType || desc.componentType == kAudioDecoderComponentType }
     lazy var handle: AudioComponent = AudioComponent(Unmanaged.passRetained(self).toOpaque())
-    nonisolated(unsafe) static let all: [_AUComponent] = [
+    static let lock = NSRecursiveLock()
+    /// isim's components, then those the app registers
+    nonisolated(unsafe) static var all: [_AUComponent] = [
         _AUComponent(kAudioUnitType_Output, kAudioUnitSubType_RemoteIO, "AURemoteIO"),
         _AUComponent(kAudioUnitType_Output, kAudioUnitSubType_VoiceProcessingIO, "AUVoiceProcessor"),
         _AUComponent(kAudioUnitType_Output, kAudioUnitSubType_GenericOutput, "AUGenericOutput"),
@@ -247,6 +257,16 @@ final class _AUComponent {
         _AUComponent(kAudioUnitType_Effect, kAudioUnitSubType_PeakLimiter, "AUPeakLimiter"),
         _AUComponent(kAudioUnitType_MusicDevice, kAudioUnitSubType_Sampler, "AUSampler"),
         _AUComponent(kAudioUnitType_MusicDevice, kAudioUnitSubType_MIDISynth, "AUMIDISynth"),
+        // the codecs of AudioCodec (AudioFunctions.swift), over the host's libavcodec
+        _AUComponent(desc: AudioComponentDescription(componentType: kAudioDecoderComponentType, componentSubType: kAudioFormatMPEG4AAC,
+                                                     componentManufacturer: kAppleSoftwareAudioCodecManufacturer, componentFlags: 0, componentFlagsMask: 0),
+                     name: "Apple: AAC Decoder", version: 0x0001_0000, factory: nil),
+        _AUComponent(desc: AudioComponentDescription(componentType: kAudioDecoderComponentType, componentSubType: kAudioFormatMPEGLayer3,
+                                                     componentManufacturer: kAppleSoftwareAudioCodecManufacturer, componentFlags: 0, componentFlagsMask: 0),
+                     name: "Apple: MPEG Layer 3 Decoder", version: 0x0001_0000, factory: nil),
+        _AUComponent(desc: AudioComponentDescription(componentType: kAudioEncoderComponentType, componentSubType: kAudioFormatMPEG4AAC,
+                                                     componentManufacturer: kAppleSoftwareAudioCodecManufacturer, componentFlags: 0, componentFlagsMask: 0),
+                     name: "Apple: AAC Encoder", version: 0x0001_0000, factory: nil),
     ]
     func matches(_ d: AudioComponentDescription) -> Bool {
         (d.componentType == 0 || d.componentType == desc.componentType) && (d.componentSubType == 0 || d.componentSubType == desc.componentSubType)
@@ -255,15 +275,21 @@ final class _AUComponent {
 }
 
 public func AudioComponentFindNext(_ inComponent: AudioComponent?, _ inDesc: UnsafePointer<AudioComponentDescription>) -> AudioComponent? {
+    _AUComponent.lock.lock(); defer { _AUComponent.lock.unlock() }
+    let all = _AUComponent.all
     var start = 0
-    if let c = inComponent, let i = _AUComponent.all.firstIndex(where: { $0.handle == c }) { start = i + 1 }
-    guard start < _AUComponent.all.count else { return nil }
-    return _AUComponent.all[start...].first { $0.matches(inDesc.pointee) }?.handle
+    if let c = inComponent, let i = all.firstIndex(where: { $0.handle == c }) { start = i + 1 }
+    guard start < all.count else { return nil }
+    return all[start...].first { $0.matches(inDesc.pointee) }?.handle
 }
 public func AudioComponentCount(_ inDesc: UnsafePointer<AudioComponentDescription>) -> UInt32 {
-    UInt32(_AUComponent.all.filter { $0.matches(inDesc.pointee) }.count)
+    _AUComponent.lock.lock(); defer { _AUComponent.lock.unlock() }
+    return UInt32(_AUComponent.all.filter { $0.matches(inDesc.pointee) }.count)
 }
-func _component(_ c: AudioComponent) -> _AUComponent? { _AUComponent.all.first { $0.handle == c } }
+func _component(_ c: AudioComponent) -> _AUComponent? {
+    _AUComponent.lock.lock(); defer { _AUComponent.lock.unlock() }
+    return _AUComponent.all.first { $0.handle == c }
+}
 public func AudioComponentGetDescription(_ inComponent: AudioComponent, _ outDesc: UnsafeMutablePointer<AudioComponentDescription>) -> OSStatus {
     guard let c = _component(inComponent) else { return kAudio_ParamError }
     outDesc.pointee = c.desc
@@ -275,11 +301,18 @@ public func AudioComponentCopyName(_ inComponent: AudioComponent, _ outName: Uns
     return noErr_
 }
 public func AudioComponentGetVersion(_ inComponent: AudioComponent, _ outVersion: UnsafeMutablePointer<UInt32>) -> OSStatus {
-    outVersion.pointee = 0x0001_0000
+    outVersion.pointee = _component(inComponent)?.version ?? 0x0001_0000
     return noErr_
 }
 public func AudioComponentInstanceNew(_ inComponent: AudioComponent, _ outInstance: UnsafeMutablePointer<AudioComponentInstance?>) -> OSStatus {
     guard let c = _component(inComponent) else { return kAudio_ParamError }
+    if c.factory != nil { return _newPlugIn(c, outInstance) }
+    if c.isCodec {
+        let codec = _AudioCodecInstance(c)
+        codec.handle = _handle(codec)
+        outInstance.pointee = codec.handle
+        return noErr_
+    }
     outInstance.pointee = _IsimAudioUnit(c).handle
     return noErr_
 }
@@ -290,12 +323,20 @@ public func AudioComponentInstantiate(_ inComponent: AudioComponent, _ inOptions
     DispatchQueue.main.async { inCompletionHandler(u, st) }
 }
 public func AudioComponentInstanceDispose(_ inInstance: AudioComponentInstance) -> OSStatus {
+    if let p = _AUPlugIn.from(inInstance) {
+        let st = p.iface.pointee.Close(p.storage)
+        _release(inInstance)
+        return st
+    }
+    if _AudioCodecInstance.from(inInstance) != nil { _release(inInstance); return noErr_ }
     guard let u = _IsimAudioUnit.from(inInstance) else { return kAudio_ParamError }
     u.dispose()
     return noErr_
 }
 public func AudioComponentInstanceGetComponent(_ inInstance: AudioComponentInstance) -> AudioComponent {
-    _IsimAudioUnit.from(inInstance)!.component.handle
+    if let p = _AUPlugIn.from(inInstance) { return p.component.handle }
+    if let c = _AudioCodecInstance.from(inInstance) { return c.component.handle }
+    return _IsimAudioUnit.from(inInstance)!.component.handle
 }
 
 // MARK: - units
@@ -361,9 +402,10 @@ public final class _IsimAudioUnit: @unchecked Sendable {
     public static func make(type: UInt32, subType: UInt32) -> _IsimAudioUnit? {
         _AUComponent.all.first { $0.desc.componentType == type && $0.desc.componentSubType == subType }.map { _IsimAudioUnit($0) }
     }
+    /// the unit of a handle (nil for a codec or a registered plug-in's instance)
     static func from(_ u: AudioUnit?) -> _IsimAudioUnit? {
         guard let u else { return nil }
-        return Unmanaged<_IsimAudioUnit>.fromOpaque(UnsafeRawPointer(u)).takeUnretainedValue()
+        return Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(u)).takeUnretainedValue() as? _IsimAudioUnit
     }
     func dispose() {
         stopIO()
@@ -641,6 +683,7 @@ public final class _IsimAudioUnit: @unchecked Sendable {
     }
     func notify(_ id: AudioUnitPropertyID, _ scope: AudioUnitScope, _ element: AudioUnitElement) {
         for (proc, ud, pid) in listeners where pid == id { proc(ud, handle, id, scope, element) }
+        _AUListener.propertyChanged(handle, id, scope, element)
     }
 }
 
@@ -690,39 +733,67 @@ public final class _IsimLimiterKernel: _IsimInPlaceKernel {
 // MARK: - unit functions
 
 public func AudioUnitInitialize(_ inUnit: AudioUnit) -> OSStatus {
+    if let p = _AUPlugIn.from(inUnit) {
+        guard let f = p.method(Int(kAudioUnitInitializeSelect), AudioUnitInitializeProc.self) else { return badComponentSelector }
+        return f(p.storage)
+    }
     guard let u = _IsimAudioUnit.from(inUnit) else { return kAudio_ParamError }
     u.initialized = true
     return noErr_
 }
 public func AudioUnitUninitialize(_ inUnit: AudioUnit) -> OSStatus {
+    if let p = _AUPlugIn.from(inUnit) {
+        guard let f = p.method(Int(kAudioUnitUninitializeSelect), AudioUnitUninitializeProc.self) else { return badComponentSelector }
+        return f(p.storage)
+    }
     guard let u = _IsimAudioUnit.from(inUnit) else { return kAudio_ParamError }
     u.initialized = false
     return noErr_
 }
 public func AudioUnitReset(_ inUnit: AudioUnit, _ inScope: AudioUnitScope, _ inElement: AudioUnitElement) -> OSStatus {
+    if let p = _AUPlugIn.from(inUnit) {
+        guard let f = p.method(Int(kAudioUnitResetSelect), AudioUnitResetProc.self) else { return badComponentSelector }
+        return f(p.storage, inScope, inElement)
+    }
     guard let u = _IsimAudioUnit.from(inUnit) else { return kAudio_ParamError }
     _IsimAudioUnit.renderLock.lock(); defer { _IsimAudioUnit.renderLock.unlock() }
     u.kernel?.reset(); u.convResampler.reset(); u.outResampler.reset(); u.micResampler.reset()
     return noErr_
 }
 public func AudioOutputUnitStart(_ ci: AudioUnit) -> OSStatus {
+    if let p = _AUPlugIn.from(ci) {
+        guard let f = p.method(Int(kAudioOutputUnitStartSelect), AudioOutputUnitStartProc.self) else { return badComponentSelector }
+        return f(p.storage)
+    }
     guard let u = _IsimAudioUnit.from(ci) else { return kAudio_ParamError }
     guard u.type == kAudioUnitType_Output else { return kAudioUnitErr_InvalidProperty }
     return u.startIO()
 }
 public func AudioOutputUnitStop(_ ci: AudioUnit) -> OSStatus {
+    if let p = _AUPlugIn.from(ci) {
+        guard let f = p.method(Int(kAudioOutputUnitStopSelect), AudioOutputUnitStopProc.self) else { return badComponentSelector }
+        return f(p.storage)
+    }
     guard let u = _IsimAudioUnit.from(ci) else { return kAudio_ParamError }
     u.stopIO()
     return noErr_
 }
 public func AudioUnitRender(_ inUnit: AudioUnit, _ ioActionFlags: UnsafeMutablePointer<AudioUnitRenderActionFlags>?, _ inTimeStamp: UnsafePointer<AudioTimeStamp>,
                             _ inOutputBusNumber: UInt32, _ inNumberFrames: UInt32, _ ioData: UnsafeMutablePointer<AudioBufferList>) -> OSStatus {
+    if let p = _AUPlugIn.from(inUnit) {
+        guard let f = p.method(Int(kAudioUnitRenderSelect), AudioUnitRenderProc.self) else { return badComponentSelector }
+        return f(p.storage, ioActionFlags, inTimeStamp, inOutputBusNumber, inNumberFrames, ioData)
+    }
     guard let u = _IsimAudioUnit.from(inUnit) else { return kAudio_ParamError }
     return u.render(ioActionFlags, inTimeStamp, inOutputBusNumber, inNumberFrames, ioData)
 }
 /// In-place processing (effects): ioData is the input and receives the output.
 public func AudioUnitProcess(_ inUnit: AudioUnit, _ ioActionFlags: UnsafeMutablePointer<AudioUnitRenderActionFlags>?, _ inTimeStamp: UnsafePointer<AudioTimeStamp>,
                              _ inNumberFrames: UInt32, _ ioData: UnsafeMutablePointer<AudioBufferList>) -> OSStatus {
+    if let p = _AUPlugIn.from(inUnit) {
+        guard let f = p.method(Int(kAudioUnitProcessSelect), AudioUnitProcessProc.self) else { return badComponentSelector }
+        return f(p.storage, ioActionFlags, inTimeStamp, inNumberFrames, ioData)
+    }
     guard let u = _IsimAudioUnit.from(inUnit) else { return kAudio_ParamError }
     guard let k = u.kernel else { return kAudioUnitErr_CannotDoInCurrentContext }
     _IsimAudioUnit.renderLock.lock(); defer { _IsimAudioUnit.renderLock.unlock() }
@@ -739,11 +810,19 @@ public func AudioUnitProcess(_ inUnit: AudioUnit, _ ioActionFlags: UnsafeMutable
     return noErr_
 }
 public func AudioUnitAddRenderNotify(_ inUnit: AudioUnit, _ inProc: AURenderCallback, _ inProcUserData: UnsafeMutableRawPointer?) -> OSStatus {
+    if let p = _AUPlugIn.from(inUnit) {
+        guard let f = p.method(Int(kAudioUnitAddRenderNotifySelect), AudioUnitAddRenderNotifyProc.self) else { return badComponentSelector }
+        return f(p.storage, inProc, inProcUserData)
+    }
     guard let u = _IsimAudioUnit.from(inUnit) else { return kAudio_ParamError }
     _IsimAudioUnit.renderLock.lock(); u.notifies.append((inProc, inProcUserData)); _IsimAudioUnit.renderLock.unlock()
     return noErr_
 }
 public func AudioUnitRemoveRenderNotify(_ inUnit: AudioUnit, _ inProc: AURenderCallback, _ inProcUserData: UnsafeMutableRawPointer?) -> OSStatus {
+    if let p = _AUPlugIn.from(inUnit) {
+        guard let f = p.method(Int(kAudioUnitRemoveRenderNotifySelect), AudioUnitRemoveRenderNotifyProc.self) else { return badComponentSelector }
+        return f(p.storage, inProc, inProcUserData)
+    }
     guard let u = _IsimAudioUnit.from(inUnit) else { return kAudio_ParamError }
     _IsimAudioUnit.renderLock.lock()
     u.notifies.removeAll { unsafeBitCast($0.0, to: UnsafeRawPointer.self) == unsafeBitCast(inProc, to: UnsafeRawPointer.self) && $0.1 == inProcUserData }
@@ -752,6 +831,10 @@ public func AudioUnitRemoveRenderNotify(_ inUnit: AudioUnit, _ inProc: AURenderC
 }
 public func AudioUnitGetParameter(_ inUnit: AudioUnit, _ inID: AudioUnitParameterID, _ inScope: AudioUnitScope, _ inElement: AudioUnitElement,
                                   _ outValue: UnsafeMutablePointer<AudioUnitParameterValue>) -> OSStatus {
+    if let p = _AUPlugIn.from(inUnit) {
+        guard let f = p.method(Int(kAudioUnitGetParameterSelect), AudioUnitGetParameterProc.self) else { return badComponentSelector }
+        return f(p.storage, inID, inScope, inElement, outValue)
+    }
     guard let u = _IsimAudioUnit.from(inUnit) else { return kAudio_ParamError }
     guard u.knows(inID, inScope, inElement) else { return kAudioUnitErr_InvalidParameter }
     outValue.pointee = u.parameter(inID, scope: inScope, element: inElement)
@@ -759,6 +842,10 @@ public func AudioUnitGetParameter(_ inUnit: AudioUnit, _ inID: AudioUnitParamete
 }
 public func AudioUnitSetParameter(_ inUnit: AudioUnit, _ inID: AudioUnitParameterID, _ inScope: AudioUnitScope, _ inElement: AudioUnitElement,
                                   _ inValue: AudioUnitParameterValue, _ inBufferOffsetInFrames: UInt32) -> OSStatus {
+    if let p = _AUPlugIn.from(inUnit) {
+        guard let f = p.method(Int(kAudioUnitSetParameterSelect), AudioUnitSetParameterProc.self) else { return badComponentSelector }
+        return f(p.storage, inID, inScope, inElement, inValue, inBufferOffsetInFrames)
+    }
     guard let u = _IsimAudioUnit.from(inUnit) else { return kAudio_ParamError }
     guard u.knows(inID, inScope, inElement) else { return kAudioUnitErr_InvalidParameter }
     u.setParameter(inID, inValue, scope: inScope, element: inElement)
@@ -805,6 +892,13 @@ func _auPut<T>(_ v: T, _ size: UnsafeMutablePointer<UInt32>?, _ out: UnsafeMutab
 
 public func AudioUnitGetPropertyInfo(_ inUnit: AudioUnit, _ inID: AudioUnitPropertyID, _ inScope: AudioUnitScope, _ inElement: AudioUnitElement,
                                      _ outDataSize: UnsafeMutablePointer<UInt32>?, _ outWritable: UnsafeMutablePointer<DarwinBoolean>?) -> OSStatus {
+    if let p = _AUPlugIn.from(inUnit) {
+        guard let f = p.method(Int(kAudioUnitGetPropertyInfoSelect), AudioUnitGetPropertyInfoProc.self) else { return badComponentSelector }
+        var w: DarwinBoolean = false
+        let st = f(p.storage, inID, inScope, inElement, outDataSize, &w)
+        outWritable?.pointee = w
+        return st
+    }
     guard let u = _IsimAudioUnit.from(inUnit) else { return kAudio_ParamError }
     var size: UInt32 = 0
     let st = u.getProperty(inID, inScope, inElement, nil, &size)
@@ -816,11 +910,20 @@ public func AudioUnitGetPropertyInfo(_ inUnit: AudioUnit, _ inID: AudioUnitPrope
 }
 public func AudioUnitGetProperty(_ inUnit: AudioUnit, _ inID: AudioUnitPropertyID, _ inScope: AudioUnitScope, _ inElement: AudioUnitElement,
                                  _ outData: UnsafeMutableRawPointer, _ ioDataSize: UnsafeMutablePointer<UInt32>) -> OSStatus {
+    if let p = _AUPlugIn.from(inUnit) {
+        guard let f = p.method(Int(kAudioUnitGetPropertySelect), AudioUnitGetPropertyProc.self) else { return badComponentSelector }
+        return f(p.storage, inID, inScope, inElement, outData, ioDataSize)
+    }
     guard let u = _IsimAudioUnit.from(inUnit) else { return kAudio_ParamError }
     return u.getProperty(inID, inScope, inElement, outData, ioDataSize)
 }
 public func AudioUnitSetProperty(_ inUnit: AudioUnit, _ inID: AudioUnitPropertyID, _ inScope: AudioUnitScope, _ inElement: AudioUnitElement,
                                  _ inData: UnsafeRawPointer?, _ inDataSize: UInt32) -> OSStatus {
+    if let p = _AUPlugIn.from(inUnit) {
+        guard let f = p.method(Int(kAudioUnitSetPropertySelect), AudioUnitSetPropertyProc.self) else { return badComponentSelector }
+        guard let inData else { return kAudio_ParamError }
+        return f(p.storage, inID, inScope, inElement, inData, inDataSize)
+    }
     guard let u = _IsimAudioUnit.from(inUnit) else { return kAudio_ParamError }
     _IsimAudioUnit.renderLock.lock(); defer { _IsimAudioUnit.renderLock.unlock() }
     let st = u.setProperty(inID, inScope, inElement, inData, inDataSize)
@@ -829,12 +932,21 @@ public func AudioUnitSetProperty(_ inUnit: AudioUnit, _ inID: AudioUnitPropertyI
 }
 public func AudioUnitAddPropertyListener(_ inUnit: AudioUnit, _ inID: AudioUnitPropertyID, _ inProc: AudioUnitPropertyListenerProc,
                                          _ inProcUserData: UnsafeMutableRawPointer?) -> OSStatus {
+    if let p = _AUPlugIn.from(inUnit) {
+        guard let f = p.method(Int(kAudioUnitAddPropertyListenerSelect), AudioUnitAddPropertyListenerProc.self) else { return badComponentSelector }
+        guard let ud = inProcUserData else { return kAudio_ParamError }
+        return f(p.storage, inID, inProc, ud)
+    }
     guard let u = _IsimAudioUnit.from(inUnit) else { return kAudio_ParamError }
     u.listeners.append((inProc, inProcUserData, inID))
     return noErr_
 }
 public func AudioUnitRemovePropertyListenerWithUserData(_ inUnit: AudioUnit, _ inID: AudioUnitPropertyID, _ inProc: AudioUnitPropertyListenerProc,
                                                         _ inProcUserData: UnsafeMutableRawPointer?) -> OSStatus {
+    if let p = _AUPlugIn.from(inUnit) {
+        guard let f = p.method(Int(kAudioUnitRemovePropertyListenerWithUserDataSelect), AudioUnitRemovePropertyListenerWithUserDataProc.self) else { return badComponentSelector }
+        return f(p.storage, inID, inProc, inProcUserData)
+    }
     guard let u = _IsimAudioUnit.from(inUnit) else { return kAudio_ParamError }
     u.listeners.removeAll { $0.2 == inID && $0.1 == inProcUserData && unsafeBitCast($0.0, to: UnsafeRawPointer.self) == unsafeBitCast(inProc, to: UnsafeRawPointer.self) }
     return noErr_

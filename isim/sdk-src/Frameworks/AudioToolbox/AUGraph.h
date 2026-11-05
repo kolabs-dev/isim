@@ -40,6 +40,11 @@ AT_EXPORT OSStatus AUGraphGetCPULoad(AUGraph inGraph, Float32 *outAverageCPULoad
 AT_EXPORT OSStatus AUGraphGetMaxCPULoad(AUGraph inGraph, Float32 *outMaxLoad);
 AT_EXPORT OSStatus AUGraphAddRenderNotify(AUGraph inGraph, AURenderCallback inCallback, void *_Nullable inRefCon);
 AT_EXPORT OSStatus AUGraphRemoveRenderNotify(AUGraph inGraph, AURenderCallback inCallback, void *_Nullable inRefCon);
+/* issue #856 (AudioFunctions.swift) */
+AT_EXPORT OSStatus AUGraphCountNodeInteractions(AUGraph inGraph, AUNode inNode, UInt32 * outNumInteractions);
+AT_EXPORT OSStatus AUGraphGetInteractionInfo(AUGraph inGraph, UInt32 inInteractionIndex, AUNodeInteraction * outInteraction);
+AT_EXPORT OSStatus AUGraphGetNodeInteractions(AUGraph inGraph, AUNode inNode, UInt32 * ioNumInteractions, AUNodeInteraction * outInteractions);
+AT_EXPORT OSStatus AUGraphGetNumberOfInteractions(AUGraph inGraph, UInt32 * outNumInteractions);
 #pragma clang assume_nonnull end
 __END_DECLS
 #endif

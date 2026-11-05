@@ -31,6 +31,20 @@ struct AudioStreamPacketDescription {
 };
 typedef struct AudioStreamPacketDescription AudioStreamPacketDescription;
 
+struct AudioStreamPacketDependencyDescription {
+    uint32_t mIsIndependentlyDecodable;
+    uint32_t mPreRollCount;
+    uint32_t mFlags;
+    uint32_t mReserved;
+};
+typedef struct AudioStreamPacketDependencyDescription AudioStreamPacketDependencyDescription;
+
+struct AudioValueRange {
+    double mMinimum;
+    double mMaximum;
+};
+typedef struct AudioValueRange AudioValueRange;
+
 struct AudioBuffer {
     uint32_t mNumberChannels;
     uint32_t mDataByteSize;

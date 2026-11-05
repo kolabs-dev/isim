@@ -31,6 +31,10 @@ AT_EXPORT OSStatus AudioServicesAddSystemSoundCompletion(SystemSoundID inSystemS
                                                          AudioServicesSystemSoundCompletionProc inCompletionRoutine,
                                                          void *_Nullable inClientData);
 AT_EXPORT void AudioServicesRemoveSystemSoundCompletion(SystemSoundID inSystemSoundID);
+/* issue #856 (AudioFunctions.swift) */
+AT_EXPORT OSStatus AudioServicesGetProperty(AudioServicesPropertyID inPropertyID, UInt32 inSpecifierSize, const void * _Nullable inSpecifier, UInt32 * ioPropertyDataSize, void * _Nullable outPropertyData);
+AT_EXPORT OSStatus AudioServicesGetPropertyInfo(AudioServicesPropertyID inPropertyID, UInt32 inSpecifierSize, const void * _Nullable inSpecifier, UInt32 * _Nullable outPropertyDataSize, Boolean * _Nullable outWritable);
+AT_EXPORT OSStatus AudioServicesSetProperty(AudioServicesPropertyID inPropertyID, UInt32 inSpecifierSize, const void * _Nullable inSpecifier, UInt32 inPropertyDataSize, const void * inPropertyData);
 #pragma clang assume_nonnull end
 __END_DECLS
 #endif

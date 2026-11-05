@@ -15,3 +15,7 @@
 #include <AudioToolbox/MusicPlayer.h>
 #include <AudioToolbox/AudioFileStream.h>
 #include <AudioToolbox/CAClock.h>
+#include <AudioToolbox/AudioCodec.h>
+#include <AudioToolbox/AudioFormat.h>
+#include <AudioToolbox/AudioUnitUtilities.h>
+#include <AudioToolbox/CAShow.h>

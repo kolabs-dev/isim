@@ -48,6 +48,12 @@ AT_EXPORT OSStatus AudioConverterFillComplexBuffer(AudioConverterRef inAudioConv
                                                    AudioStreamPacketDescription *_Nullable outPacketDescription);
 AT_EXPORT OSStatus AudioConverterConvertComplexBuffer(AudioConverterRef inAudioConverter, UInt32 inNumberPCMFrames,
                                                       const AudioBufferList *inInputData, AudioBufferList *outOutputData);
+/* issue #856 (AudioFunctions.swift) */
+AT_EXPORT OSStatus AudioConverterFillComplexBufferRealtimeSafe(AudioConverterRef inAudioConverter, AudioConverterComplexInputDataProcRealtimeSafe inInputDataProc, void * _Nullable inInputDataProcUserData, UInt32 * ioOutputDataPacketSize, AudioBufferList * outOutputData, AudioStreamPacketDescription * _Nullable outPacketDescription);
+AT_EXPORT OSStatus AudioConverterFillComplexBufferWithPacketDependencies(AudioConverterRef inAudioConverter, AudioConverterComplexInputDataProc inInputDataProc, void * _Nullable inInputDataProcUserData, UInt32 * ioOutputDataPacketSize, AudioBufferList * outOutputData, AudioStreamPacketDescription * _Nullable outPacketDescriptions, AudioStreamPacketDependencyDescription * outPacketDependencies);
+AT_EXPORT OSStatus AudioConverterNewSpecific(const AudioStreamBasicDescription * inSourceFormat, const AudioStreamBasicDescription * inDestinationFormat, UInt32 inNumberClassDescriptions, const AudioClassDescription * inClassDescriptions, AudioConverterRef _Nullable * _Nonnull outAudioConverter);
+AT_EXPORT OSStatus AudioConverterNewWithOptions(const AudioStreamBasicDescription * inSourceFormat, const AudioStreamBasicDescription * inDestinationFormat, AudioConverterOptions inOptions, AudioConverterRef _Nullable * _Nonnull outAudioConverter);
+AT_EXPORT void AudioConverterPrepare(UInt32 inFlags, void * _Nullable ioReserved, void (^_Nullable inCompletionBlock)(OSStatus));
 #pragma clang assume_nonnull end
 __END_DECLS
 #endif

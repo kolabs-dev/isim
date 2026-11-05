@@ -14,6 +14,14 @@ static int failures, checks;
 #define CHECK(cond) do { checks++; if (cond) printf("PASS  %s\n", #cond); else { failures++; printf("FAIL  %s  (line %d)\n", #cond, __LINE__); } } while (0)
 int plain_c_checks(int *checks);
 int decl_checks(int *checks);
+int function_checks(int *checks);
+
+static int eventsHeard;
+static AudioUnitPropertyID heardProperty;
+static void eventHeard(void *user, void *object, const AudioUnitEvent *event, UInt64 host, AudioUnitParameterValue value) {
+    eventsHeard++;
+    heardProperty = event->mArgument.mProperty.mPropertyID;
+}
 
 /// Waits for `cond` (the main run loop keeps running, for main-queue callbacks), up to `seconds`.
 #define WAIT_FOR(cond, seconds) do { NSDate *_end = [NSDate dateWithTimeIntervalSinceNow:(seconds)]; \
@@ -223,6 +231,36 @@ int main(void) {
         // ---- Audio Converter: sample rate conversion through an input proc (plain C covers ConvertBuffer) ----
         failures += plain_c_checks(&checks);
         failures += decl_checks(&checks);
+        failures += function_checks(&checks);
+
+        // ---- AUEventListener (issue #856): a property change of a unit, delivered on the main run loop ----
+        {
+            AudioComponentDescription d = {kAudioUnitType_Mixer, kAudioUnitSubType_MultiChannelMixer, kAudioUnitManufacturer_Apple, 0, 0};
+            AudioUnit mixer = NULL;
+            AudioComponentInstanceNew(AudioComponentFindNext(NULL, &d), &mixer);
+            AUEventListenerRef listener = NULL;
+            CHECK(AUEventListenerCreate(eventHeard, NULL, CFRunLoopGetMain(), kCFRunLoopDefaultMode, 0, 0, &listener) == noErr && listener != NULL);
+            AudioUnitEvent ev = {kAudioUnitEvent_PropertyChange};
+            ev.mArgument.mProperty = (AudioUnitProperty){mixer, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Global, 0};
+            AUEventListenerAddEventType(listener, NULL, &ev);
+            UInt32 frames = 2048;
+            AudioUnitSetProperty(mixer, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Global, 0, &frames, sizeof(frames));
+            WAIT_FOR(eventsHeard > 0, 5);
+            CHECK(eventsHeard == 1 && heardProperty == kAudioUnitProperty_MaximumFramesPerSlice);
+            __block AudioUnitParameterValue blockValue = -1;
+            AUParameterListenerRef plistener = NULL;
+            CHECK(AUListenerCreateWithDispatchQueue(&plistener, 0, dispatch_get_main_queue(), ^(void *obj, const AudioUnitParameter *p, AudioUnitParameterValue value) {
+                blockValue = value;
+            }) == noErr);
+            AudioUnitParameter param = {mixer, kMultiChannelMixerParam_Volume, kAudioUnitScope_Input, 0};
+            AUListenerAddParameter(plistener, NULL, &param);
+            AUParameterSet(NULL, NULL, &param, 0.4f, 0);
+            WAIT_FOR(blockValue >= 0, 5);
+            CHECK(fabsf(blockValue - 0.4f) < 1e-6f);
+            AUListenerDispose(plistener);
+            AUListenerDispose(listener);
+            AudioComponentInstanceDispose(mixer);
+        }
 
         // ---- Audio Queues: an output queue whose callback refills its buffers on the audio thread ----
         AudioStreamBasicDescription qfmt = {44100, kAudioFormatLinearPCM, kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked, 4, 1, 4, 2, 16, 0};

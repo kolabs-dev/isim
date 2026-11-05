@@ -3,6 +3,7 @@
  * layouts: Audio Unit properties, parameters and their units and flags, scopes and errors, Audio Codec, Audio Format
  * and Audio File property IDs, the CAF file structures, scheduled audio slices and file regions, parameter events,
  * render events, the Audio Session constants. Seen by Swift (the AudioToolbox module re-exports it) and by C. */
+#include <stddef.h>
 #include <CoreAudioTypes/CoreAudioTypes.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreMIDI/CoreMIDI.h>
@@ -2121,5 +2122,21 @@ typedef void *AUParameterObserverToken;
 #define kAudioUnitConfigurationInfo_MIDIProtocol "MIDIProtocol"
 #define kAudioUnitConfigurationInfo_MigrateFromPlugin "MigrateFromPlugin"
 #define kAudioUnitConfigurationInfo_SupportedChannelLayoutTags "SupportedChannelLayoutTags"
+/* Apple's inline helpers (AudioUnitProperties.h, AudioFile.h) */
+static inline AudioUnitParameterOptions GetAudioUnitParameterDisplayType(AudioUnitParameterOptions flags) {
+    return flags & kAudioUnitParameterFlag_DisplayMask;
+}
+static inline AudioUnitParameterOptions SetAudioUnitParameterDisplayType(AudioUnitParameterOptions flags, AudioUnitParameterOptions displayType) {
+    return (flags & ~kAudioUnitParameterFlag_DisplayMask) | displayType;
+}
+static inline size_t NumBytesToNumAudioFileMarkers(size_t inNumBytes) {
+    return inNumBytes < offsetof(AudioFileMarkerList, mMarkers[0]) ? 0 : (inNumBytes - offsetof(AudioFileMarkerList, mMarkers[0])) / sizeof(AudioFileMarker);
+}
+static inline size_t NumAudioFileMarkersToNumBytes(size_t inNumMarkers) {
+    return offsetof(AudioFileMarkerList, mMarkers) + inNumMarkers * sizeof(AudioFileMarker);
+}
+static inline AudioFileRegion *NextAudioFileRegion(const AudioFileRegion *inAFRegionPtr) {
+    return (AudioFileRegion *)((char *)inAFRegionPtr + offsetof(AudioFileRegion, mMarkers) + inAFRegionPtr->mNumberMarkers * sizeof(AudioFileMarker));
+}
 #pragma clang assume_nonnull end
 __END_DECLS

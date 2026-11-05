@@ -100,8 +100,188 @@ final class EngineViewController: UIViewController {
                "event \(AURenderEventType.parameterRamp.rawValue) room \(AUReverbRoomType.reverbRoomType_LargeHall.rawValue) " +
                "m4a \(kAudioFileM4AType == 0x6d346166) schedule \(kAudioUnitProperty_ScheduleAudioSlice) preset \(kAUPresetVersionKey)")
     }
+    /// AudioToolbox's other C functions from Swift (issue #856): Audio Format, Audio File global info, user data and
+    /// callbacks, parameter listeners, codecs, an offline Audio Queue with trimmed buffers, AUGraph interactions, CAShow
+    func functionChecks() {
+        // Audio Format: the rest of a PCM format, its name, the encoders
+        var pcm = AudioStreamBasicDescription(mSampleRate: 44100, mFormatID: kAudioFormatLinearPCM,
+                                              mFormatFlags: kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked, mBytesPerPacket: 0,
+                                              mFramesPerPacket: 0, mBytesPerFrame: 0, mChannelsPerFrame: 2, mBitsPerChannel: 16, mReserved: 0)
+        var size = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
+        let st1 = AudioFormatGetProperty(kAudioFormatProperty_FormatInfo, 0, nil, &size, &pcm)
+        var name: Unmanaged<CFString>? = nil
+        size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        _ = AudioFormatGetProperty(kAudioFormatProperty_FormatName, UInt32(MemoryLayout<AudioStreamBasicDescription>.size), &pcm, &size, &name)
+        var encoders = [AudioFormatID](repeating: 0, count: 4)
+        size = 16
+        _ = AudioFormatGetProperty(kAudioFormatProperty_EncodeFormatIDs, 0, nil, &size, &encoders)
+        report("format info \(st1) frame \(pcm.mBytesPerFrame) name \(name?.takeRetainedValue() as String? ?? "-") encoders \(size / 4) aac \(encoders.contains(kAudioFormatMPEG4AAC))")
+        // Audio File global info
+        size = 0
+        _ = AudioFileGetGlobalInfoSize(kAudioFileGlobalInfo_ReadableTypes, 0, nil, &size)
+        let cafExtension = "caf" as CFString
+        var ext = Unmanaged.passUnretained(cafExtension)
+        var cafType: AudioFileTypeID = 0
+        var tsize: UInt32 = 4
+        _ = AudioFileGetGlobalInfo(kAudioFileGlobalInfo_TypesForExtension, UInt32(MemoryLayout<CFString>.size), &ext, &tsize, &cafType)
+        withExtendedLifetime(cafExtension) {}
+        var typeName: Unmanaged<CFString>? = nil
+        var t = kAudioFileWAVEType, nsize = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        _ = AudioFileGetGlobalInfo(kAudioFileGlobalInfo_FileTypeName, 4, &t, &nsize, &typeName)
+        report("file types readable \(size / 4) caf \(cafType == kAudioFileCAFType) wave \(typeName?.takeRetainedValue() as String? ?? "-") markers \(NumAudioFileMarkersToNumBytes(2)) " +
+               "display \(GetAudioUnitParameterDisplayType([.flag_IsReadable, .flag_DisplayLogarithmic]) == .flag_DisplayLogarithmic)")
+        // user data in a CAF file, read back after it is closed
+        let url = URL(fileURLWithPath: NSTemporaryDirectory() + "hello-userdata.caf")
+        var fmt = AudioStreamBasicDescription(mSampleRate: 44100, mFormatID: kAudioFormatLinearPCM,
+                                              mFormatFlags: kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked, mBytesPerPacket: 2,
+                                              mFramesPerPacket: 1, mBytesPerFrame: 2, mChannelsPerFrame: 1, mBitsPerChannel: 16, mReserved: 0)
+        var file: AudioFileID? = nil
+        _ = AudioFileCreateWithURL(url as CFURL, kAudioFileCAFType, &fmt, .eraseFile, &file)
+        var samples = [Int16](repeating: 1000, count: 100), packets: UInt32 = 100
+        _ = AudioFileWritePackets(file!, false, 200, nil, 0, &packets, &samples)
+        let note = Array("hello".utf8)
+        _ = AudioFileSetUserData(file!, 0x696E_666F, 0, UInt32(note.count), note)        // 'info'
+        _ = AudioFileClose(file!)
+        _ = AudioFileOpenURL(url as CFURL, .readPermission, 0, &file)
+        var count: UInt32 = 0, usize: UInt32 = 16
+        _ = AudioFileCountUserData(file!, 0x696E_666F, &count)
+        var back = [UInt8](repeating: 0, count: 16)
+        _ = AudioFileGetUserData(file!, 0x696E_666F, 0, &usize, &back)
+        _ = AudioFileClose(file!)
+        report("user data count \(count) text \(String(decoding: back.prefix(Int(usize)), as: UTF8.self))")
+        // a WAV file written to memory through callbacks, then opened from it
+        final class Memory { var bytes: [UInt8] = [] }
+        let mem = Memory()
+        let client = Unmanaged.passUnretained(mem).toOpaque()
+        let read: AudioFile_ReadProc = { c, pos, n, buf, got in
+            let m = Unmanaged<Memory>.fromOpaque(c).takeUnretainedValue()
+            let k = max(0, min(Int(n), m.bytes.count - Int(pos)))
+            m.bytes.withUnsafeBytes { buf.copyMemory(from: $0.baseAddress! + Int(pos), byteCount: k) }
+            got.pointee = UInt32(k)
+            return 0
+        }
+        let write: AudioFile_WriteProc = { c, pos, n, buf, done in
+            let m = Unmanaged<Memory>.fromOpaque(c).takeUnretainedValue()
+            let end = Int(pos) + Int(n)
+            if m.bytes.count < end { m.bytes += [UInt8](repeating: 0, count: end - m.bytes.count) }
+            m.bytes.withUnsafeMutableBytes { ($0.baseAddress! + Int(pos)).copyMemory(from: buf, byteCount: Int(n)) }
+            done.pointee = n
+            return 0
+        }
+        let getSize: AudioFile_GetSizeProc = { c in Int64(Unmanaged<Memory>.fromOpaque(c).takeUnretainedValue().bytes.count) }
+        let setSize: AudioFile_SetSizeProc = { c, n in
+            let m = Unmanaged<Memory>.fromOpaque(c).takeUnretainedValue()
+            m.bytes = Array(m.bytes.prefix(Int(n))) + [UInt8](repeating: 0, count: max(0, Int(n) - m.bytes.count))
+            return 0
+        }
+        _ = AudioFileInitializeWithCallbacks(client, read, write, getSize, setSize, kAudioFileWAVEType, &fmt, [], &file)
+        packets = 100
+        _ = AudioFileWritePackets(file!, false, 200, nil, 0, &packets, &samples)
+        _ = AudioFileClose(file!)
+        let stOpen = AudioFileOpenWithCallbacks(client, read, nil, getSize, nil, 0, &file)
+        var npk: UInt64 = 0
+        size = 8
+        _ = AudioFileGetProperty(file!, kAudioFilePropertyAudioDataPacketCount, &size, &npk)
+        _ = AudioFileClose(file!)
+        report("callbacks bytes \(mem.bytes.count) riff \(String(decoding: mem.bytes.prefix(4), as: UTF8.self)) open \(stOpen) packets \(npk)")
+        // a parameter listener on a mixer's volume, told by AUParameterSet
+        var mixDesc = AudioComponentDescription(componentType: kAudioUnitType_Mixer, componentSubType: kAudioUnitSubType_MultiChannelMixer,
+                                                componentManufacturer: kAudioUnitManufacturer_Apple, componentFlags: 0, componentFlagsMask: 0)
+        var mixer: AudioUnit? = nil
+        _ = AudioComponentInstanceNew(AudioComponentFindNext(nil, &mixDesc)!, &mixer)
+        let heard = DispatchSemaphore(value: 0)
+        nonisolated(unsafe) var heardValue: Float = -1
+        var listener: AUParameterListenerRef? = nil
+        _ = AUListenerCreateWithDispatchQueue(&listener, 0, DispatchQueue(label: "listener")) { _, _, v in heardValue = v; heard.signal() }
+        var param = AudioUnitParameter(mAudioUnit: mixer!, mParameterID: kMultiChannelMixerParam_Volume, mScope: kAudioUnitScope_Input, mElement: 0)
+        _ = AUListenerAddParameter(listener!, nil, &param)
+        _ = AUParameterSet(nil, nil, &param, 0.25, 0)
+        let got = heard.wait(timeout: .now() + 5) == .success
+        var text = [CChar](repeating: 0, count: 32)
+        _ = AUParameterFormatValue(1.23456, &param, &text, 4)
+        _ = AUListenerDispose(listener!)
+        report("listener heard \(got) value \(heardValue) format \(String(cString: text))")
+        // AAC: encode a tone with the 'aenc' codec, decode it with 'adec'
+        var encDesc = AudioComponentDescription(componentType: kAudioEncoderComponentType, componentSubType: kAudioFormatMPEG4AAC,
+                                                componentManufacturer: 0, componentFlags: 0, componentFlagsMask: 0)
+        var enc: AudioComponentInstance? = nil
+        _ = AudioComponentInstanceNew(AudioComponentFindNext(nil, &encDesc)!, &enc)
+        var floatFmt = AudioStreamBasicDescription(mSampleRate: 44100, mFormatID: kAudioFormatLinearPCM,
+                                                   mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked, mBytesPerPacket: 4,
+                                                   mFramesPerPacket: 1, mBytesPerFrame: 4, mChannelsPerFrame: 1, mBitsPerChannel: 32, mReserved: 0)
+        var aacFmt = AudioStreamBasicDescription(mSampleRate: 44100, mFormatID: kAudioFormatMPEG4AAC, mFormatFlags: 0, mBytesPerPacket: 0,
+                                                 mFramesPerPacket: 1024, mBytesPerFrame: 0, mChannelsPerFrame: 1, mBitsPerChannel: 0, mReserved: 0)
+        let stEnc = AudioCodecInitialize(enc!, &floatFmt, &aacFmt, nil, 0)
+        var tone = (0..<44100).map { Float(sin(2 * Double.pi * 440 * Double($0) / 44100)) * 0.5 }
+        var inBytes = UInt32(tone.count * 4), inFrames = UInt32(tone.count)
+        _ = AudioCodecAppendInputData(enc!, &tone, &inBytes, &inFrames, nil)
+        var aac = [UInt8](repeating: 0, count: 1 << 16)
+        var descs = [AudioStreamPacketDescription](repeating: AudioStreamPacketDescription(), count: 64)
+        var outBytes = UInt32(aac.count), outPackets: UInt32 = 64, status: UInt32 = 0
+        _ = AudioCodecProduceOutputPackets(enc!, &aac, &outBytes, &outPackets, &descs, &status)
+        var cookieSize: UInt32 = 0
+        _ = AudioCodecGetPropertyInfo(enc!, kAudioCodecPropertyMagicCookie, &cookieSize, nil)
+        var cookie = [UInt8](repeating: 0, count: Int(cookieSize))
+        _ = AudioCodecGetProperty(enc!, kAudioCodecPropertyMagicCookie, &cookieSize, &cookie)
+        var decDesc = AudioComponentDescription(componentType: kAudioDecoderComponentType, componentSubType: kAudioFormatMPEG4AAC,
+                                                componentManufacturer: 0, componentFlags: 0, componentFlagsMask: 0)
+        var dec: AudioComponentInstance? = nil
+        _ = AudioComponentInstanceNew(AudioComponentFindNext(nil, &decDesc)!, &dec)
+        let stDec = AudioCodecInitialize(dec!, &aacFmt, &floatFmt, cookie, cookieSize)
+        var packetBytes = outBytes, packetCount = outPackets
+        _ = AudioCodecAppendInputData(dec!, &aac, &packetBytes, &packetCount, &descs)
+        var pcmOut = [Float](repeating: 0, count: 44100)
+        var pcmBytes = UInt32(pcmOut.count * 4), pcmFrames = UInt32(pcmOut.count), decStatus: UInt32 = 0
+        _ = AudioCodecProduceOutputPackets(dec!, &pcmOut, &pcmBytes, &pcmFrames, nil, &decStatus)
+        let decoded = Array(pcmOut.prefix(Int(pcmFrames)))
+        _ = AudioComponentInstanceDispose(enc!); _ = AudioComponentInstanceDispose(dec!)
+        report("codec init \(stEnc) \(stDec) packets \(outPackets > 10) decoded \(pcmFrames > 4096) " +
+               "tone \(decoded.count > 8192 ? Int((frequency(Array(decoded[4096..<8192]), rate: 44100) / 10).rounded()) * 10 : 0)")
+        // an Audio Queue rendering offline, its first buffer trimmed by 10 frames
+        var queue: AudioQueueRef? = nil
+        _ = AudioQueueNewOutput(&fmt, { _, _, _ in }, nil, nil, nil, 0, &queue)
+        _ = AudioQueueSetOfflineRenderFormat(queue!, &fmt, nil)
+        var buffer: AudioQueueBufferRef? = nil, outBuffer: AudioQueueBufferRef? = nil
+        _ = AudioQueueAllocateBuffer(queue!, 200, &buffer)
+        _ = AudioQueueAllocateBuffer(queue!, 200, &outBuffer)
+        let ramp = (0..<100).map { Int16($0 * 100) }
+        ramp.withUnsafeBytes { buffer!.pointee.mAudioData.copyMemory(from: $0.baseAddress!, byteCount: 200) }
+        buffer!.pointee.mAudioDataByteSize = 200
+        var actual = AudioTimeStamp()
+        _ = AudioQueueEnqueueBufferWithParameters(queue!, buffer!, 0, nil, 10, 0, 0, nil, nil, &actual)
+        _ = AudioQueueStart(queue!, nil)
+        var ts = AudioTimeStamp(); ts.mFlags = .sampleTimeValid
+        _ = AudioQueueOfflineRender(queue!, &ts, outBuffer!, 0)
+        let stRender = AudioQueueOfflineRender(queue!, &ts, outBuffer!, 50)
+        let first = outBuffer!.pointee.mAudioData.load(as: Int16.self)
+        _ = AudioQueueDispose(queue!, true)
+        report("offline render \(stRender) bytes \(outBuffer!.pointee.mAudioDataByteSize) first \(first)")
+        // AUGraph interactions, CAShow
+        var graph: AUGraph? = nil
+        _ = NewAUGraph(&graph)
+        var outDesc = AudioComponentDescription(componentType: kAudioUnitType_Output, componentSubType: kAudioUnitSubType_GenericOutput,
+                                                componentManufacturer: kAudioUnitManufacturer_Apple, componentFlags: 0, componentFlagsMask: 0)
+        var mixNode: AUNode = 0, outNode: AUNode = 0
+        _ = AUGraphAddNode(graph!, &mixDesc, &mixNode); _ = AUGraphAddNode(graph!, &outDesc, &outNode)
+        _ = AUGraphConnectNodeInput(graph!, mixNode, 0, outNode, 0)
+        var interactions: UInt32 = 0, nodeCount: UInt32 = 0
+        _ = AUGraphGetNumberOfInteractions(graph!, &interactions)
+        _ = AUGraphCountNodeInteractions(graph!, outNode, &nodeCount)
+        var info = AUNodeInteraction()
+        _ = AUGraphGetInteractionInfo(graph!, 0, &info)
+        let showPath = NSTemporaryDirectory() + "hello-cashow.txt"
+        if let f = fopen(showPath, "w") { CAShowFile(UnsafeMutableRawPointer(graph!), f); fclose(f) }
+        let shown = (try? String(contentsOfFile: showPath, encoding: .utf8)) ?? ""
+        _ = DisposeAUGraph(graph!)
+        var isUI: UInt32 = 0, ssize: UInt32 = 4, sound: SystemSoundID = 1104, off: UInt32 = 0
+        _ = AudioServicesSetProperty(kAudioServicesPropertyIsUISound, 4, &sound, 4, &off)
+        _ = AudioServicesGetProperty(kAudioServicesPropertyIsUISound, 4, &sound, &ssize, &isUI)
+        report("graph interactions \(interactions) node \(nodeCount) connection \(info.nodeInteractionType == UInt32(kAUNodeInteraction_Connection)) " +
+               "dest \(info.nodeInteraction.connection.destNode == outNode) show \(shown.contains("AudioUnitGraph")) uisound \(isUI)")
+    }
     func offlineChecks() {
         declarationChecks()
+        functionChecks()
         let mono = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1)!
         // varispeed rate 2: twice as fast and an octave up
         var variEnd = -1.0
