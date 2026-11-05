@@ -96,8 +96,8 @@ typedef NS_ENUM(NSInteger, NSDataCompressionAlgorithm) {
     NS_SWIFT_NAME(compress(using:));
 @end
 @interface NSString (NSStringDataConversions)
-- (nullable NSData *)dataUsingEncoding:(NSStringEncoding)encoding allowLossyConversion:(BOOL)lossy;
-- (nullable NSData *)dataUsingEncoding:(NSStringEncoding)encoding;
+- (nullable NSData *)dataUsingEncoding:(NSStringEncoding)encoding allowLossyConversion:(BOOL)lossy NS_SWIFT_NAME(data(using:allowLossyConversion:));
+- (nullable NSData *)dataUsingEncoding:(NSStringEncoding)encoding NS_SWIFT_NAME(data(using:));
 @end
 /* mutable data whose bytes may be discarded while no one accesses them (beginContentAccess / endContentAccess);
    isim (adapted): content is discarded only by discardContentIfPossible or an NSCache eviction, never by memory pressure */

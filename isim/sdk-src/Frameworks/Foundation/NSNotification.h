@@ -9,6 +9,10 @@ typedef NSString *NSNotificationName NS_TYPED_EXTENSIBLE_ENUM;
 @property (nullable, readonly, copy) NSDictionary *userInfo;
 + (instancetype)notificationWithName:(NSNotificationName)aName object:(nullable id)anObject userInfo:(nullable NSDictionary *)aUserInfo;
 @end
+@interface NSNotification (NSNotificationCreation)
++ (instancetype)notificationWithName:(NSNotificationName)aName object:(nullable id)anObject;
+- (instancetype)initWithName:(NSNotificationName)name object:(nullable id)object userInfo:(nullable NSDictionary *)userInfo;
+@end
 @interface NSNotificationCenter : NSObject
 @property (class, readonly, strong) NSNotificationCenter *defaultCenter;
 - (void)addObserver:(id)observer selector:(SEL)aSelector name:(nullable NSNotificationName)aName object:(nullable id)anObject;

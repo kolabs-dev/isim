@@ -3,15 +3,19 @@
 #import <Foundation/NSNotification.h>
 NS_ASSUME_NONNULL_BEGIN
 @class NSArray<ObjectType>, NSString;
-typedef NSString *NSLocaleKey NS_TYPED_ENUM;
+typedef NSString *NSLocaleKey NS_TYPED_ENUM NS_SWIFT_NAME(NSLocale.Key);
 FOUNDATION_EXPORT NSLocaleKey const NSLocaleIdentifier, NSLocaleLanguageCode, NSLocaleCountryCode, NSLocaleScriptCode,
     NSLocaleDecimalSeparator, NSLocaleGroupingSeparator, NSLocaleCurrencySymbol, NSLocaleCurrencyCode, NSLocaleUsesMetricSystem,
     NSLocaleCalendarIdentifier;
-FOUNDATION_EXPORT NSNotificationName const NSCurrentLocaleDidChangeNotification;
+FOUNDATION_EXPORT NSLocaleKey const NSLocaleVariantCode, NSLocaleExemplarCharacterSet, NSLocaleCalendar, NSLocaleCollationIdentifier,
+    NSLocaleMeasurementSystem, NSLocaleCollatorIdentifier, NSLocaleQuotationBeginDelimiterKey, NSLocaleQuotationEndDelimiterKey,
+    NSLocaleAlternateQuotationBeginDelimiterKey, NSLocaleAlternateQuotationEndDelimiterKey;
+FOUNDATION_EXPORT NSNotificationName const NSCurrentLocaleDidChangeNotification NS_SWIFT_NAME(NSLocale.currentLocaleDidChangeNotification);
 typedef NS_ENUM(NSUInteger, NSLocaleLanguageDirection) {
     NSLocaleLanguageDirectionUnknown = 0, NSLocaleLanguageDirectionLeftToRight = 1, NSLocaleLanguageDirectionRightToLeft = 2,
     NSLocaleLanguageDirectionTopToBottom = 3, NSLocaleLanguageDirectionBottomToTop = 4
-};
+} NS_SWIFT_NAME(NSLocale.LanguageDirection);
+@class NSCharacterSet, NSDictionary<KeyType, ObjectType>;
 @interface NSLocale : NSObject <NSCopying, NSSecureCoding>
 @property (class, readonly, copy) NSLocale *currentLocale;
 @property (class, readonly, strong) NSLocale *autoupdatingCurrentLocale;
@@ -43,5 +47,30 @@ typedef NS_ENUM(NSUInteger, NSLocaleLanguageDirection) {
 - (nullable NSString *)localizedStringForCurrencyCode:(NSString *)currencyCode;
 - (nullable NSString *)localizedStringForCalendarIdentifier:(NSString *)calendarIdentifier;
 + (NSLocaleLanguageDirection)characterDirectionForLanguage:(NSString *)isoLangCode;
+@end
+
+/* isim: quotation marks from a table of common languages (“ ” elsewhere); exemplar characters a-z for English and
+ * the letters elsewhere; Windows codes for the common locales (adapted) */
+@interface NSLocale (NSExtendedLocale)
+@property (readonly, copy) NSString *languageIdentifier;
+@property (nullable, readonly, copy) NSString *variantCode;
+@property (readonly, copy) NSCharacterSet *exemplarCharacterSet;
+@property (nullable, readonly, copy) NSString *collationIdentifier;
+@property (readonly, copy) NSString *collatorIdentifier;
+@property (readonly, copy) NSString *quotationBeginDelimiter;
+@property (readonly, copy) NSString *quotationEndDelimiter;
+@property (readonly, copy) NSString *alternateQuotationBeginDelimiter;
+@property (readonly, copy) NSString *alternateQuotationEndDelimiter;
+- (nullable NSString *)localizedStringForVariantCode:(NSString *)variantCode;
+- (nullable NSString *)localizedStringForCollationIdentifier:(NSString *)collationIdentifier;
+- (nullable NSString *)localizedStringForCollatorIdentifier:(NSString *)collatorIdentifier;
+@property (class, readonly, copy) NSArray<NSString *> *ISOLanguageCodes;
++ (NSDictionary<NSString *, NSString *> *)componentsFromLocaleIdentifier:(NSString *)string;
++ (NSString *)localeIdentifierFromComponents:(NSDictionary<NSString *, NSString *> *)dict;
++ (NSString *)canonicalLocaleIdentifierFromString:(NSString *)string;
++ (NSString *)canonicalLanguageIdentifierFromString:(NSString *)string;
++ (nullable NSString *)localeIdentifierFromWindowsLocaleCode:(uint32_t)lcid;
++ (uint32_t)windowsLocaleCodeFromLocaleIdentifier:(NSString *)localeIdentifier;
++ (NSLocaleLanguageDirection)lineDirectionForLanguage:(NSString *)isoLangCode;
 @end
 NS_ASSUME_NONNULL_END

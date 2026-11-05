@@ -1332,6 +1332,43 @@ static void calendar864_checks(void) {
     if (@available(iOS 26.0, *)) CHECK([NSCalendarIdentifierVikram isEqualToString:@"vikram"]);
 }
 
+/* NSLocale's identifiers and quotation marks, NSString's encodings, lines and paths (issue #864, part 3b) */
+static void locale_string864_checks(void) {
+    NSLocale *de = [NSLocale localeWithLocaleIdentifier:@"de_DE"], *us = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+    CHECK_STR(de.quotationBeginDelimiter, @"„"); CHECK_STR(de.quotationEndDelimiter, @"“");
+    CHECK_STR([de objectForKey:NSLocaleAlternateQuotationBeginDelimiterKey], @"‚");
+    CHECK_STR(us.variantCode, @"POSIX"); CHECK_STR(de.languageIdentifier, @"de-DE");
+    CHECK_STR([NSLocale canonicalLocaleIdentifierFromString:@"ZH-hant-tw"], @"zh_Hant_TW");
+    CHECK_STR([NSLocale canonicalLanguageIdentifierFromString:@"en_GB"], @"en-GB");
+    NSDictionary *c = [NSLocale componentsFromLocaleIdentifier:@"sr_Latn_RS@calendar=gregorian"];
+    CHECK([c[NSLocaleScriptCode] isEqualToString:@"Latn"] && [c[@"calendar"] isEqualToString:@"gregorian"]);
+    CHECK_STR([NSLocale localeIdentifierFromComponents:c], @"sr_Latn_RS@calendar=gregorian");
+    CHECK([NSLocale windowsLocaleCodeFromLocaleIdentifier:@"en-US"] == 1033 && [[NSLocale localeIdentifierFromWindowsLocaleCode:1036] isEqualToString:@"fr_FR"]);
+    CHECK([NSLocale lineDirectionForLanguage:@"ar"] == NSLocaleLanguageDirectionTopToBottom && [NSLocale.ISOLanguageCodes containsObject:@"fil"]);
+    CHECK([[us objectForKey:NSLocaleCalendar] isKindOfClass:[NSCalendar class]] && [[us objectForKey:NSLocaleMeasurementSystem] isEqualToString:@"U.S."]);
+    CHECK([us.exemplarCharacterSet characterIsMember:'q'] && ![us.exemplarCharacterSet characterIsMember:0xE9]);
+    /* strings */
+    NSString *s = @"one\ntwo\r\nthree";
+    NSUInteger st, end, ce;
+    [s getLineStart:&st end:&end contentsEnd:&ce forRange:NSMakeRange(5, 1)];
+    CHECK(st == 4 && end == 9 && ce == 7);
+    CHECK([@"héllo" canBeConvertedToEncoding:NSISOLatin1StringEncoding] && ![@"日本" canBeConvertedToEncoding:NSISOLatin1StringEncoding]);
+    CHECK([@"abc" smallestEncoding] == NSASCIIStringEncoding && [@"héllo" smallestEncoding] == NSISOLatin1StringEncoding);
+    char buf[8]; NSUInteger used = 0; NSRange left;
+    CHECK([@"abcdefghij" getBytes:buf maxLength:4 usedLength:&used encoding:NSUTF8StringEncoding options:0 range:NSMakeRange(0, 10) remainingRange:&left] && used == 4 && left.location == 4);
+    CHECK_STR([NSString localizedNameOfStringEncoding:NSUTF8StringEncoding], @"Unicode (UTF-8)");
+    CHECK_STR(([[@"/tmp" stringsByAppendingPaths:@[@"a", @"b"]] componentsJoinedByString:@","]), @"/tmp/a,/tmp/b");
+    CHECK_STR([[NSHomeDirectory() stringByAppendingPathComponent:@"x"] stringByAbbreviatingWithTildeInPath], @"~/x");
+    CHECK_STR(@"ﬁ".decomposedStringWithCompatibilityMapping, @"fi");
+    NSDictionary *strings = [@"\"greeting\" = \"hi\";" propertyListFromStringsFileFormat];
+    CHECK_STR(strings[@"greeting"], @"hi");
+    NSData *latin = [@"café" dataUsingEncoding:NSISOLatin1StringEncoding];
+    NSString *conv = nil;
+    CHECK([NSString stringEncodingForData:latin encodingOptions:nil convertedString:&conv usedLossyConversion:NULL] == NSWindowsCP1252StringEncoding && [conv isEqualToString:@"café"]);
+    CHECK(NSEqualRanges([@"a👍🏽b" rangeOfComposedCharacterSequencesForRange:NSMakeRange(2, 1)], NSMakeRange(1, 4)));
+    CHECK([@"xyz" rangeOfCharacterFromSet:[NSCharacterSet characterSetWithCharactersInString:@"z"] options:0 range:NSMakeRange(0, 2)].location == NSNotFound);
+}
+
 static void formatter864_checks(void) {
     NSLocale *us = [NSLocale localeWithLocaleIdentifier:@"en_US"];
     NSNumberFormatter *nf = [NSNumberFormatter new]; nf.locale = us; nf.numberStyle = NSNumberFormatterDecimalStyle;
@@ -2082,6 +2119,7 @@ int main(int argc, char *argv[]) {
         locale_checks();
         formatter864_checks();
         calendar864_checks();
+        locale_string864_checks();
 
         collection_checks();
 

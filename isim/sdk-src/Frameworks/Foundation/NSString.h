@@ -43,8 +43,8 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 - (nullable instancetype)initWithCharacters:(const unichar *)characters length:(NSUInteger)length;
 - (nullable instancetype)initWithData:(NSData *)data encoding:(NSStringEncoding)encoding;
 @property (nullable, readonly) const char *UTF8String NS_RETURNS_INNER_POINTER;
-- (nullable const char *)cStringUsingEncoding:(NSStringEncoding)encoding NS_RETURNS_INNER_POINTER;
-- (NSUInteger)lengthOfBytesUsingEncoding:(NSStringEncoding)enc;
+- (nullable const char *)cStringUsingEncoding:(NSStringEncoding)encoding NS_RETURNS_INNER_POINTER NS_SWIFT_NAME(cString(using:));
+- (NSUInteger)lengthOfBytesUsingEncoding:(NSStringEncoding)enc NS_SWIFT_NAME(lengthOfBytes(using:));
 - (BOOL)isEqualToString:(NSString *)aString;
 - (NSComparisonResult)compare:(NSString *)string;
 - (NSComparisonResult)compare:(NSString *)string options:(NSStringCompareOptions)mask;
@@ -105,7 +105,7 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 - (void)enumerateSubstringsInRange:(NSRange)range options:(NSStringEnumerationOptions)opts usingBlock:(void (NS_NOESCAPE ^)(NSString * _Nullable substring, NSRange substringRange, NSRange enclosingRange, BOOL *stop))block;
 - (NSRange)lineRangeForRange:(NSRange)range;
 - (NSRange)paragraphRangeForRange:(NSRange)range;
-- (NSString *)stringByPaddingToLength:(NSUInteger)newLength withString:(NSString *)padString startingAtIndex:(NSUInteger)padIndex;
+- (NSString *)stringByPaddingToLength:(NSUInteger)newLength withString:(NSString *)padString startingAtIndex:(NSUInteger)padIndex NS_SWIFT_NAME(padding(toLength:withPad:startingAt:));
 @property (readonly, copy) NSString *localizedLowercaseString NS_SWIFT_NAME(localizedLowercase);
 @property (readonly, copy) NSString *localizedUppercaseString NS_SWIFT_NAME(localizedUppercase);
 @property (readonly, copy) NSString *localizedCapitalizedString NS_SWIFT_NAME(localizedCapitalized);
@@ -126,6 +126,50 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 /* the path as the C string file system calls take (UTF-8) */
 @property (readonly) const char *fileSystemRepresentation NS_RETURNS_INNER_POINTER;
 - (BOOL)getFileSystemRepresentation:(char *)cname maxLength:(NSUInteger)max;
+@end
+
+typedef NS_OPTIONS(NSUInteger, NSStringEncodingConversionOptions) {
+    NSStringEncodingConversionAllowLossy = 1, NSStringEncodingConversionExternalRepresentation = 2
+} NS_SWIFT_NAME(NSString.EncodingConversionOptions);
+typedef NSString *NSStringEncodingDetectionOptionsKey NS_TYPED_ENUM NS_SWIFT_NAME(StringEncodingDetectionOptionsKey);
+FOUNDATION_EXPORT NSStringEncodingDetectionOptionsKey const NSStringEncodingDetectionSuggestedEncodingsKey, NSStringEncodingDetectionDisallowedEncodingsKey,
+    NSStringEncodingDetectionUseOnlySuggestedEncodingsKey, NSStringEncodingDetectionAllowLossyKey, NSStringEncodingDetectionFromWindowsKey,
+    NSStringEncodingDetectionLossySubstitutionKey, NSStringEncodingDetectionLikelyLanguageKey;
+@class NSCharacterSet, NSDictionary<KeyType, ObjectType>;
+/* encodings, bytes, lines and paragraphs, compatibility mappings, encoding detection (adapted: UTF-8, then the suggested
+ * encodings, then Windows-1252 / Latin-1) */
+@interface NSString (NSStringExtras)
+- (BOOL)getCString:(char *)buffer maxLength:(NSUInteger)maxBufferCount encoding:(NSStringEncoding)encoding;
+- (NSUInteger)maximumLengthOfBytesUsingEncoding:(NSStringEncoding)enc NS_SWIFT_NAME(maximumLengthOfBytes(using:));
+- (BOOL)canBeConvertedToEncoding:(NSStringEncoding)encoding NS_SWIFT_NAME(canBeConverted(to:));
+- (nullable instancetype)initWithCString:(const char *)nullTerminatedCString encoding:(NSStringEncoding)encoding;
+- (nullable instancetype)initWithBytesNoCopy:(void *)bytes length:(NSUInteger)len encoding:(NSStringEncoding)encoding freeWhenDone:(BOOL)freeBuffer;
+- (nullable instancetype)initWithBytesNoCopy:(void *)bytes length:(NSUInteger)len encoding:(NSStringEncoding)encoding deallocator:(void (^ _Nullable)(void *, NSUInteger))deallocator;
+- (instancetype)initWithCharactersNoCopy:(unichar *)characters length:(NSUInteger)length freeWhenDone:(BOOL)freeBuffer;
+- (instancetype)initWithCharactersNoCopy:(unichar *)chars length:(NSUInteger)len deallocator:(void (^ _Nullable)(unichar *, NSUInteger))deallocator;
+- (nullable instancetype)initWithContentsOfURL:(NSURL *)url usedEncoding:(nullable NSStringEncoding *)enc error:(NSError **)error NS_SWIFT_NAME(init(contentsOf:usedEncoding:));
+- (nullable instancetype)initWithContentsOfFile:(NSString *)path usedEncoding:(nullable NSStringEncoding *)enc error:(NSError **)error;
+- (instancetype)initWithFormat:(NSString *)format locale:(nullable id)locale arguments:(va_list)argList;
+- (NSRange)rangeOfCharacterFromSet:(NSCharacterSet *)searchSet options:(NSStringCompareOptions)mask;
+- (NSRange)rangeOfCharacterFromSet:(NSCharacterSet *)searchSet options:(NSStringCompareOptions)mask range:(NSRange)rangeOfReceiverToSearch;
+- (NSRange)rangeOfComposedCharacterSequencesForRange:(NSRange)range;
+- (void)getCharacters:(unichar *)buffer;
+- (BOOL)getBytes:(nullable void *)buffer maxLength:(NSUInteger)maxBufferCount usedLength:(nullable NSUInteger *)usedBufferCount encoding:(NSStringEncoding)encoding options:(NSStringEncodingConversionOptions)options range:(NSRange)range remainingRange:(nullable NSRangePointer)leftover NS_SWIFT_NAME(getBytes(_:maxLength:usedLength:encoding:options:range:remaining:));
+- (void)getLineStart:(nullable NSUInteger *)startPtr end:(nullable NSUInteger *)lineEndPtr contentsEnd:(nullable NSUInteger *)contentsEndPtr forRange:(NSRange)range;
+- (void)getParagraphStart:(nullable NSUInteger *)startPtr end:(nullable NSUInteger *)parEndPtr contentsEnd:(nullable NSUInteger *)contentsEndPtr forRange:(NSRange)range;
+- (NSArray<NSString *> *)stringsByAppendingPaths:(NSArray<NSString *> *)paths;
+@property (readonly, copy) NSString *stringByAbbreviatingWithTildeInPath;
+@property (readonly, copy) NSString *decomposedStringWithCompatibilityMapping;
+@property (readonly, copy) NSString *precomposedStringWithCompatibilityMapping;
+@property (readonly) NSStringEncoding fastestEncoding;
+@property (readonly) NSStringEncoding smallestEncoding;
+@property (class, readonly) const NSStringEncoding *availableStringEncodings;
+@property (class, readonly) NSStringEncoding defaultCStringEncoding;
++ (NSString *)localizedNameOfStringEncoding:(NSStringEncoding)encoding;
+- (id)propertyList;
+- (nullable NSDictionary *)propertyListFromStringsFileFormat;
+- (NSUInteger)completePathIntoString:(NSString * _Nullable * _Nullable)outputName caseSensitive:(BOOL)flag matchesIntoArray:(NSArray<NSString *> * _Nullable * _Nullable)outputArray filterTypes:(nullable NSArray<NSString *> *)filterTypes;
++ (NSStringEncoding)stringEncodingForData:(NSData *)data encodingOptions:(nullable NSDictionary<NSStringEncodingDetectionOptionsKey, id> *)opts convertedString:(NSString * _Nullable * _Nullable)string usedLossyConversion:(nullable BOOL *)usedLossyConversion;
 @end
 
 @interface NSMutableString : NSString

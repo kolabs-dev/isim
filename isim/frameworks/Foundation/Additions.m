@@ -269,7 +269,7 @@ static BOOL builtin_bytes(NSValue *v, void *out, NSUInteger size) {
 - (instancetype)initWithCapacity:(NSUInteger)n { return [self init]; }
 @end
 
-@implementation NSString (IsimMore)
+@implementation NSString (NSStringExtras)
 - (BOOL)getCString:(char *)buffer maxLength:(NSUInteger)max encoding:(NSStringEncoding)enc {
     NSData *d = [self dataUsingEncoding:enc];
     if (!d || d.length + 1 > max) return NO;
@@ -312,7 +312,239 @@ static BOOL builtin_bytes(NSValue *v, void *out, NSUInteger size) {
 }
 - (NSString *)stringByReplacingPercentEscapesUsingEncoding:(NSStringEncoding)enc { return self.stringByRemovingPercentEncoding; }
 + (NSStringEncoding)defaultCStringEncoding { return NSUTF8StringEncoding; }
+- (instancetype)initWithBytesNoCopy:(void *)bytes length:(NSUInteger)len encoding:(NSStringEncoding)enc deallocator:(void (^)(void *, NSUInteger))dealloc {
+    self = [self initWithBytes:bytes length:len encoding:enc];
+    if (dealloc) dealloc(bytes, len);
+    return self;
+}
+- (instancetype)initWithCharactersNoCopy:(unichar *)chars length:(NSUInteger)len freeWhenDone:(BOOL)freeBuffer {
+    self = [self initWithBytes:chars length:len * sizeof(unichar) encoding:NSUTF16LittleEndianStringEncoding];
+    if (freeBuffer) free(chars);
+    return self;
+}
+- (instancetype)initWithCharactersNoCopy:(unichar *)chars length:(NSUInteger)len deallocator:(void (^)(unichar *, NSUInteger))dealloc {
+    self = [self initWithBytes:chars length:len * sizeof(unichar) encoding:NSUTF16LittleEndianStringEncoding];
+    if (dealloc) dealloc(chars, len);
+    return self;
+}
+/* the encoding the data decodes in: UTF-8 (or a BOM's), else Windows-1252 */
+static NSStringEncoding str_detect(NSData *d, NSString **out) {
+    const unsigned char *b = d.bytes;
+    if (d.length >= 2 && ((b[0] == 0xFF && b[1] == 0xFE) || (b[0] == 0xFE && b[1] == 0xFF))) {
+        *out = [[NSString alloc] initWithData:d encoding:NSUTF16StringEncoding]; if (*out) return NSUTF16StringEncoding;
+    }
+    if ((*out = [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding])) return NSUTF8StringEncoding;
+    if ((*out = [[NSString alloc] initWithData:d encoding:NSWindowsCP1252StringEncoding])) return NSWindowsCP1252StringEncoding;
+    *out = [[NSString alloc] initWithData:d encoding:NSISOLatin1StringEncoding];
+    return *out ? NSISOLatin1StringEncoding : 0;
+}
+- (instancetype)initWithContentsOfURL:(NSURL *)url usedEncoding:(NSStringEncoding *)enc error:(NSError **)error {
+    NSData *d = [NSData dataWithContentsOfURL:url options:0 error:error];
+    if (!d) return nil;
+    NSString *s; NSStringEncoding e = str_detect(d, &s);
+    if (!s) { if (error) *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileReadUnknownStringEncodingError userInfo:nil]; return nil; }
+    if (enc) *enc = e;
+    return [self initWithString:s];
+}
+- (instancetype)initWithContentsOfFile:(NSString *)path usedEncoding:(NSStringEncoding *)enc error:(NSError **)error {
+    return [self initWithContentsOfURL:[NSURL fileURLWithPath:path] usedEncoding:enc error:error];
+}
+- (instancetype)initWithFormat:(NSString *)format locale:(id)locale arguments:(va_list)args { return [self initWithFormat:format arguments:args]; }
+- (NSRange)rangeOfCharacterFromSet:(NSCharacterSet *)set options:(NSStringCompareOptions)mask range:(NSRange)r {
+    BOOL anchored = (mask & NSAnchoredSearch) != 0;
+    if (mask & NSBackwardsSearch) {
+        for (NSUInteger i = NSMaxRange(r); i > r.location; i--) {
+            if ([set characterIsMember:[self characterAtIndex:i - 1]]) return NSMakeRange(i - 1, 1);
+            if (anchored) break;
+        }
+    } else for (NSUInteger i = r.location; i < NSMaxRange(r); i++) {
+        if ([set characterIsMember:[self characterAtIndex:i]]) return NSMakeRange(i, 1);
+        if (anchored) break;
+    }
+    return NSMakeRange(NSNotFound, 0);
+}
+- (NSRange)rangeOfComposedCharacterSequencesForRange:(NSRange)r {
+    if (r.length == 0) return [self rangeOfComposedCharacterSequenceAtIndex:r.location];
+    NSRange a = [self rangeOfComposedCharacterSequenceAtIndex:r.location], b = [self rangeOfComposedCharacterSequenceAtIndex:NSMaxRange(r) - 1];
+    return NSUnionRange(a, b);
+}
+- (void)getCharacters:(unichar *)buffer { [self getCharacters:buffer range:NSMakeRange(0, self.length)]; }
+- (BOOL)getBytes:(void *)buffer maxLength:(NSUInteger)max usedLength:(NSUInteger *)used encoding:(NSStringEncoding)enc options:(NSStringEncodingConversionOptions)opts range:(NSRange)r remainingRange:(NSRangePointer)left {
+    NSUInteger n = 0, i = r.location;
+    char *out = buffer;
+    BOOL lossy = (opts & NSStringEncodingConversionAllowLossy) != 0;
+    while (i < NSMaxRange(r)) {
+        NSRange c = [self rangeOfComposedCharacterSequenceAtIndex:i];
+        NSData *d = [[self substringWithRange:c] dataUsingEncoding:enc allowLossyConversion:lossy];
+        if (!d || n + d.length > max) break;
+        if (out) memcpy(out + n, d.bytes, d.length);
+        n += d.length; i = NSMaxRange(c);
+    }
+    if (used) *used = n;
+    if (left) *left = NSMakeRange(i, NSMaxRange(r) - i);
+    return i > r.location || r.length == 0;
+}
+- (void)getLineStart:(NSUInteger *)start end:(NSUInteger *)end contentsEnd:(NSUInteger *)contentsEnd forRange:(NSRange)r {
+    NSRange line = [self lineRangeForRange:r];
+    if (start) *start = line.location;
+    if (end) *end = NSMaxRange(line);
+    if (contentsEnd) {
+        NSUInteger e = NSMaxRange(line);
+        while (e > line.location && [[NSCharacterSet newlineCharacterSet] characterIsMember:[self characterAtIndex:e - 1]]) e--;
+        *contentsEnd = e;
+    }
+}
+- (void)getParagraphStart:(NSUInteger *)start end:(NSUInteger *)end contentsEnd:(NSUInteger *)contentsEnd forRange:(NSRange)r {
+    NSRange p = [self paragraphRangeForRange:r];
+    if (start) *start = p.location;
+    if (end) *end = NSMaxRange(p);
+    if (contentsEnd) {
+        NSUInteger e = NSMaxRange(p);
+        while (e > p.location && [[NSCharacterSet newlineCharacterSet] characterIsMember:[self characterAtIndex:e - 1]]) e--;
+        *contentsEnd = e;
+    }
+}
+- (NSArray<NSString *> *)stringsByAppendingPaths:(NSArray<NSString *> *)paths {
+    NSMutableArray *a = [NSMutableArray array];
+    for (NSString *p in paths) [a addObject:[self stringByAppendingPathComponent:p]];
+    return a;
+}
+- (NSString *)stringByAbbreviatingWithTildeInPath {
+    NSString *home = NSHomeDirectory(), *path = self.stringByStandardizingPath;
+    if ([path isEqualToString:home]) return @"~";
+    if ([path hasPrefix:[home stringByAppendingString:@"/"]]) return [@"~" stringByAppendingString:[path substringFromIndex:home.length]];
+    return self;
+}
+/* NFKD / NFKC: the canonical mappings after the compatibility decompositions the Unicode tables give (through ICU's transforms) */
+- (NSString *)decomposedStringWithCompatibilityMapping { return [self stringByApplyingTransform:@"Any-NFKD" reverse:NO] ?: self.decomposedStringWithCanonicalMapping; }
+- (NSString *)precomposedStringWithCompatibilityMapping { return [self stringByApplyingTransform:@"Any-NFKC" reverse:NO] ?: self.precomposedStringWithCanonicalMapping; }
+- (NSStringEncoding)fastestEncoding { return NSUnicodeStringEncoding; }
+- (NSStringEncoding)smallestEncoding {
+    if ([self canBeConvertedToEncoding:NSASCIIStringEncoding]) return NSASCIIStringEncoding;
+    if ([self canBeConvertedToEncoding:NSISOLatin1StringEncoding]) return NSISOLatin1StringEncoding;
+    return NSUTF8StringEncoding;
+}
++ (const NSStringEncoding *)availableStringEncodings {
+    static const NSStringEncoding list[] = { NSASCIIStringEncoding, NSNEXTSTEPStringEncoding, NSJapaneseEUCStringEncoding, NSUTF8StringEncoding,
+        NSISOLatin1StringEncoding, NSNonLossyASCIIStringEncoding, NSUnicodeStringEncoding, NSWindowsCP1252StringEncoding, NSMacOSRomanStringEncoding,
+        NSUTF16BigEndianStringEncoding, NSUTF16LittleEndianStringEncoding, NSUTF32StringEncoding, NSUTF32BigEndianStringEncoding,
+        NSUTF32LittleEndianStringEncoding, 0 };
+    return list;
+}
++ (NSString *)localizedNameOfStringEncoding:(NSStringEncoding)e {
+    switch (e) {
+    case NSASCIIStringEncoding: return @"Western (ASCII)";
+    case NSNEXTSTEPStringEncoding: return @"Western (NextStep)";
+    case NSJapaneseEUCStringEncoding: return @"Japanese (EUC)";
+    case NSUTF8StringEncoding: return @"Unicode (UTF-8)";
+    case NSISOLatin1StringEncoding: return @"Western (ISO Latin 1)";
+    case NSNonLossyASCIIStringEncoding: return @"Non-lossy ASCII";
+    case NSUnicodeStringEncoding: return @"Unicode (UTF-16)";
+    case NSWindowsCP1252StringEncoding: return @"Western (Windows Latin 1)";
+    case NSMacOSRomanStringEncoding: return @"Western (Mac OS Roman)";
+    case NSUTF16BigEndianStringEncoding: return @"Unicode (UTF-16BE)";
+    case NSUTF16LittleEndianStringEncoding: return @"Unicode (UTF-16LE)";
+    case NSUTF32StringEncoding: return @"Unicode (UTF-32)";
+    case NSUTF32BigEndianStringEncoding: return @"Unicode (UTF-32BE)";
+    case NSUTF32LittleEndianStringEncoding: return @"Unicode (UTF-32LE)";
+    default: return @"";
+    }
+}
+- (id)propertyList {
+    NSData *d = [self dataUsingEncoding:NSUTF8StringEncoding];
+    return d ? [NSPropertyListSerialization propertyListWithData:d options:0 format:NULL error:NULL] : nil;
+}
+/* "key" = "value"; pairs (a .strings file): quoted or bare tokens, backslash escapes, block and line comments */
+static NSString *strings_token(NSString *s, NSUInteger *i) {
+    NSUInteger n = s.length;
+    for (;;) {                                                  /* whitespace and comments */
+        while (*i < n && [[NSCharacterSet whitespaceAndNewlineCharacterSet] characterIsMember:[s characterAtIndex:*i]]) (*i)++;
+        if (*i + 1 < n && [s characterAtIndex:*i] == '/' && [s characterAtIndex:*i + 1] == '*') {
+            NSRange e = [s rangeOfString:@"*/" options:0 range:NSMakeRange(*i + 2, n - *i - 2)];
+            *i = e.location == NSNotFound ? n : NSMaxRange(e); continue;
+        }
+        if (*i + 1 < n && [s characterAtIndex:*i] == '/' && [s characterAtIndex:*i + 1] == '/') {
+            while (*i < n && [s characterAtIndex:*i] != '\n') (*i)++;
+            continue;
+        }
+        break;
+    }
+    if (*i >= n) return nil;
+    unichar c = [s characterAtIndex:*i];
+    if (c == '=' || c == ';') { (*i)++; return [NSString stringWithCharacters:&c length:1]; }
+    NSMutableString *out = [NSMutableString string];
+    if (c == '"') {
+        for ((*i)++; *i < n; (*i)++) {
+            unichar d = [s characterAtIndex:*i];
+            if (d == '"') { (*i)++; return out; }
+            if (d == '\\' && *i + 1 < n) {
+                unichar e = [s characterAtIndex:++(*i)];
+                unichar r = e == 'n' ? '\n' : e == 't' ? '\t' : e == 'r' ? '\r' : e;
+                [out appendFormat:@"%C", r];
+            } else [out appendFormat:@"%C", d];
+        }
+        return out;
+    }
+    while (*i < n) {
+        unichar d = [s characterAtIndex:*i];
+        if ([[NSCharacterSet whitespaceAndNewlineCharacterSet] characterIsMember:d] || d == '=' || d == ';') break;
+        [out appendFormat:@"%C", d]; (*i)++;
+    }
+    return out;
+}
+- (NSDictionary *)propertyListFromStringsFileFormat {
+    NSMutableDictionary *d = [NSMutableDictionary dictionary];
+    NSUInteger i = 0;
+    for (;;) {
+        NSString *k = strings_token(self, &i);
+        if (!k) return d;
+        NSString *eq = strings_token(self, &i);
+        if ([eq isEqualToString:@";"]) { d[k] = k; continue; }   /* "key"; means "key" = "key"; */
+        if (![eq isEqualToString:@"="]) return nil;
+        NSString *v = strings_token(self, &i), *semi = strings_token(self, &i);
+        if (!v || ![semi isEqualToString:@";"]) return nil;
+        d[k] = v;
+    }
+}
+- (NSUInteger)completePathIntoString:(NSString **)outName caseSensitive:(BOOL)cs matchesIntoArray:(NSArray<NSString *> **)outArray filterTypes:(NSArray<NSString *> *)types {
+    NSString *path = self.stringByExpandingTildeInPath;
+    NSString *dir = [path hasSuffix:@"/"] ? path : path.stringByDeletingLastPathComponent, *prefix = [path hasSuffix:@"/"] ? @"" : path.lastPathComponent;
+    if (!dir.length) dir = @".";
+    NSMutableArray *matches = [NSMutableArray array];
+    for (NSString *f in [[NSFileManager defaultManager] contentsOfDirectoryAtPath:dir error:NULL]) {
+        BOOL ok = cs ? [f hasPrefix:prefix] : [f.lowercaseString hasPrefix:prefix.lowercaseString];
+        if (ok && types.count && ![types containsObject:f.pathExtension]) ok = NO;
+        if (ok) [matches addObject:[dir stringByAppendingPathComponent:f]];
+    }
+    [matches sortUsingSelector:@selector(compare:)];
+    if (outArray) *outArray = matches;
+    if (outName && matches.count) {
+        NSString *common = matches[0];
+        for (NSString *m in matches) common = [common commonPrefixWithString:m options:cs ? 0 : NSCaseInsensitiveSearch];
+        *outName = common;
+    }
+    return matches.count;
+}
++ (NSStringEncoding)stringEncodingForData:(NSData *)data encodingOptions:(NSDictionary *)opts convertedString:(NSString **)string usedLossyConversion:(BOOL *)lossy {
+    if (lossy) *lossy = NO;
+    for (NSNumber *e in opts[NSStringEncodingDetectionSuggestedEncodingsKey]) {
+        NSString *s = [[NSString alloc] initWithData:data encoding:e.unsignedIntegerValue];
+        if (s) { if (string) *string = s; return e.unsignedIntegerValue; }
+    }
+    if ([opts[NSStringEncodingDetectionUseOnlySuggestedEncodingsKey] boolValue]) return 0;
+    NSString *s; NSStringEncoding e = str_detect(data, &s);
+    for (NSNumber *no in opts[NSStringEncodingDetectionDisallowedEncodingsKey]) if (no.unsignedIntegerValue == e) return 0;
+    if (string) *string = s;
+    return e;
+}
 @end
+NSStringEncodingDetectionOptionsKey const NSStringEncodingDetectionSuggestedEncodingsKey = @"NSStringEncodingDetectionSuggestedEncodingsKey",
+    NSStringEncodingDetectionDisallowedEncodingsKey = @"NSStringEncodingDetectionDisallowedEncodingsKey",
+    NSStringEncodingDetectionUseOnlySuggestedEncodingsKey = @"NSStringEncodingDetectionUseOnlySuggestedEncodingsKey",
+    NSStringEncodingDetectionAllowLossyKey = @"NSStringEncodingDetectionAllowLossyKey",
+    NSStringEncodingDetectionFromWindowsKey = @"NSStringEncodingDetectionFromWindowsKey",
+    NSStringEncodingDetectionLossySubstitutionKey = @"NSStringEncodingDetectionLossySubstitutionKey",
+    NSStringEncodingDetectionLikelyLanguageKey = @"NSStringEncodingDetectionLikelyLanguageKey";
 
 @implementation NSNumber (IsimMore)
 - (unsigned short)unsignedShortValue { return (unsigned short)self.unsignedIntValue; }
@@ -439,7 +671,7 @@ static NSString *remove_dot_segments(NSString *path) {
 + (void)resetStandardUserDefaults {}
 @end
 
-@implementation NSNotification (IsimMore)
+@implementation NSNotification (NSNotificationCreation)
 + (instancetype)notificationWithName:(NSNotificationName)name object:(id)object { return [self notificationWithName:name object:object userInfo:nil]; }
 - (instancetype)initWithName:(NSNotificationName)name object:(id)object userInfo:(NSDictionary *)userInfo {
     return [[self class] notificationWithName:name object:object userInfo:userInfo];
