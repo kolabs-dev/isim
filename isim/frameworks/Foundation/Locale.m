@@ -1031,6 +1031,34 @@ static NSString *hour_cycle(NSString *pat, NSLocale *locale) {
     NSArray *a = [self _icuSymbols:17 key:@"shortQuarters"] ?: (isim_icu_on() ? isim_icu_symbols(isim_locale_ident(_locale), 17) : nil);
     return a.count == 4 ? a : @[@"Q1", @"Q2", @"Q3", @"Q4"];
 }
+/* standalone quarters (ICU's UDAT_STANDALONE_QUARTERS / _SHORT_QUARTERS); the format-context names without ICU */
+- (NSArray *)standaloneQuarterSymbols {
+    NSArray *a = isim_icu_on() ? isim_icu_symbols(isim_locale_ident(_locale), 18) : nil;
+    return a.count == 4 ? a : self.quarterSymbols;
+}
+- (NSArray *)shortStandaloneQuarterSymbols {
+    NSArray *a = isim_icu_on() ? isim_icu_symbols(isim_locale_ident(_locale), 19) : nil;
+    return a.count == 4 ? a : self.shortQuarterSymbols;
+}
+/* issue #864: the behavior (only 10.4 exists on iOS), the Gregorian start date (kept; isim's Gregorian calendar is
+   proleptic), parsing a range of a string */
+static NSDateFormatterBehavior defaultDateBehavior = NSDateFormatterBehavior10_4;
++ (NSDateFormatterBehavior)defaultFormatterBehavior { return defaultDateBehavior; }
++ (void)setDefaultFormatterBehavior:(NSDateFormatterBehavior)b { defaultDateBehavior = b; }
+- (NSDateFormatterBehavior)formatterBehavior { NSNumber *n = _symbols[@"__behavior"]; return n ? (NSDateFormatterBehavior)n.unsignedIntegerValue : defaultDateBehavior; }
+- (void)setFormatterBehavior:(NSDateFormatterBehavior)b { _symbols[@"__behavior"] = @(b); }
+- (NSDate *)gregorianStartDate { return _symbols[@"__gregorianStart"]; }
+- (void)setGregorianStartDate:(NSDate *)d { if (d) _symbols[@"__gregorianStart"] = [d copy]; else [_symbols removeObjectForKey:@"__gregorianStart"]; }
+- (BOOL)getObjectValue:(out id *)obj forString:(NSString *)string range:(inout NSRange *)rangep error:(out NSError **)error {
+    NSString *s = rangep ? [string substringWithRange:*rangep] : string;
+    NSDate *d = [self dateFromString:s];
+    if (obj) *obj = d;
+    if (!d) {
+        if (error) *error = [NSError errorWithDomain:NSCocoaErrorDomain code:2048 userInfo:@{NSLocalizedDescriptionKey: @"The value is invalid."}];
+        return NO;
+    }
+    return YES;
+}
 
 - (NSString *)stringFromDate:(NSDate *)date {
     if (!date) return nil;

@@ -199,6 +199,7 @@ static NSString *ordinal_suffix(long long n, NSString *lang) {
 }
 
 /* ================= NSNumberFormatter ================= */
+#define ACC2(type, get, set, ivar) - (type)get { return ivar; } - (void)set:(type)v { ivar = v; }
 @implementation NSNumberFormatter {
     NSLocale *_locale;
     NSString *_dec, *_grp, *_cur, *_curCode, *_intlCur, *_percent, *_minus, *_plus, *_exp, *_nil, *_zero, *_nan, *_posInf, *_negInf;
@@ -208,11 +209,51 @@ static NSString *ordinal_suffix(long long n, NSString *lang) {
     BOOL _grouping, _useSig, _lenient, _allowsFloats, _generatesDecimal;
     NSInteger _rounding; NSNumber *_increment, *_multiplier, *_min, *_max;
     NSNumberFormatterStyle _style;
+    /* issue #864 */
+    NSUInteger _formatWidth; NSNumberFormatterPadPosition _padPosition; NSString *_padChar; NSInteger _minGroupDigits;
+    BOOL _alwaysDec, _partial; NSFormattingContext _context; NSNumberFormatterBehavior _behavior;
+    NSDictionary *_taNeg, *_taPos, *_taZero, *_taNil, *_taNaN, *_taPosInf, *_taNegInf;
+}
+static NSNumberFormatterBehavior defaultNumberBehavior = NSNumberFormatterBehavior10_4;
++ (NSNumberFormatterBehavior)defaultFormatterBehavior { return defaultNumberBehavior; }
++ (void)setDefaultFormatterBehavior:(NSNumberFormatterBehavior)b { defaultNumberBehavior = b; }
+ACC2(NSNumberFormatterBehavior, formatterBehavior, setFormatterBehavior, _behavior)
+ACC2(NSFormattingContext, formattingContext, setFormattingContext, _context)
+ACC2(NSUInteger, formatWidth, setFormatWidth, _formatWidth)
+ACC2(NSNumberFormatterPadPosition, paddingPosition, setPaddingPosition, _padPosition)
+ACC2(BOOL, alwaysShowsDecimalSeparator, setAlwaysShowsDecimalSeparator, _alwaysDec)
+ACC2(BOOL, isPartialStringValidationEnabled, setPartialStringValidationEnabled, _partial)
+- (NSInteger)minimumGroupingDigits { return _minGroupDigits > 0 ? _minGroupDigits : [self _region]->minGroup; }
+- (void)setMinimumGroupingDigits:(NSInteger)n { _minGroupDigits = n; }
+#define TA(get, set, ivar) - (NSDictionary *)get { return ivar; } - (void)set:(NSDictionary *)d { ivar = [d copy]; }
+TA(textAttributesForNegativeValues, setTextAttributesForNegativeValues, _taNeg)
+TA(textAttributesForPositiveValues, setTextAttributesForPositiveValues, _taPos)
+TA(textAttributesForZero, setTextAttributesForZero, _taZero)
+TA(textAttributesForNil, setTextAttributesForNil, _taNil)
+TA(textAttributesForNotANumber, setTextAttributesForNotANumber, _taNaN)
+TA(textAttributesForPositiveInfinity, setTextAttributesForPositiveInfinity, _taPosInf)
+TA(textAttributesForNegativeInfinity, setTextAttributesForNegativeInfinity, _taNegInf)
+/* the padding (formatWidth, paddingCharacter, paddingPosition) of a formatted number */
+- (NSString *)_padded:(NSString *)out negative:(BOOL)neg {
+    if (_formatWidth <= out.length || !self.paddingCharacter.length) return out;
+    NSMutableString *pad = [NSMutableString string];
+    while (pad.length + out.length < _formatWidth) [pad appendString:self.paddingCharacter];
+    NSString *pre = neg ? self.negativePrefix : self.positivePrefix, *suf = neg ? self.negativeSuffix : self.positiveSuffix;
+    BOOL hasPre = pre.length && [out hasPrefix:pre], hasSuf = suf.length && [out hasSuffix:suf];
+    switch (_padPosition) {
+    case NSNumberFormatterPadBeforePrefix: return [pad stringByAppendingString:out];
+    case NSNumberFormatterPadAfterPrefix:
+        return hasPre ? [NSString stringWithFormat:@"%@%@%@", pre, pad, [out substringFromIndex:pre.length]] : [pad stringByAppendingString:out];
+    case NSNumberFormatterPadBeforeSuffix:
+        return hasSuf ? [NSString stringWithFormat:@"%@%@%@", [out substringToIndex:out.length - suf.length], pad, suf] : [out stringByAppendingString:pad];
+    case NSNumberFormatterPadAfterSuffix: return [out stringByAppendingString:pad];
+    }
+    return out;
 }
 - (instancetype)init {
     if ((self = [super init])) {
         _locale = NSLocale.currentLocale; _maxFrac = 0; _minInt = 1; _maxInt = 42; _rounding = R_HALF_EVEN; _allowsFloats = YES;
-        _minSig = 1; _maxSig = 6; _groupSize = 3;
+        _minSig = 1; _maxSig = 6; _groupSize = 3; _behavior = defaultNumberBehavior;
     }
     return self;
 }
@@ -226,6 +267,9 @@ static NSString *ordinal_suffix(long long n, NSString *lang) {
     f->_groupSize = _groupSize; f->_group2 = _group2; f->_grouping = _grouping; f->_useSig = _useSig; f->_lenient = _lenient;
     f->_allowsFloats = _allowsFloats; f->_rounding = _rounding; f->_increment = _increment; f->_multiplier = _multiplier; f->_style = _style;
     f->_min = _min; f->_max = _max;
+    f->_formatWidth = _formatWidth; f->_padPosition = _padPosition; f->_padChar = _padChar; f->_minGroupDigits = _minGroupDigits;
+    f->_alwaysDec = _alwaysDec; f->_partial = _partial; f->_context = _context; f->_behavior = _behavior;
+    f->_taNeg = _taNeg; f->_taPos = _taPos; f->_taZero = _taZero; f->_taNil = _taNil; f->_taNaN = _taNaN; f->_taPosInf = _taPosInf; f->_taNegInf = _taNegInf;
     return f;
 }
 - (const isim_region_t *)_region { return isim_region(isim_locale_ident(_locale)); }
@@ -289,7 +333,8 @@ STR(negativeInfinitySymbol, setNegativeInfinitySymbol, _negInf, @"-∞")
 - (NSString *)zeroSymbol { return _zero; }
 - (void)setZeroSymbol:(NSString *)s { _zero = [s copy]; }
 - (NSString *)perMillSymbol { return @"‰"; }
-- (NSString *)paddingCharacter { return @" "; }
+- (NSString *)paddingCharacter { return _padChar ?: @" "; }
+- (void)setPaddingCharacter:(NSString *)s { _padChar = [s copy]; }
 - (NSString *)positivePrefix { return _posPrefix ?: [self _affixes:NO][0]; }
 - (void)setPositivePrefix:(NSString *)s { _posPrefix = [s copy]; }
 - (NSString *)positiveSuffix { return _posSuffix ?: [self _affixes:NO][1]; }
@@ -348,6 +393,7 @@ STR(negativeInfinitySymbol, setNegativeInfinitySymbol, _negInf, @"-∞")
                    _grouping, (int)_groupSize, (int)_group2, r->minGroup, (int)_rounding, _increment.doubleValue,
                    [self _isCurrency] ? self.currencyDecimalSeparator : self.decimalSeparator, [self _isCurrency] ? self.currencyGroupingSeparator : self.groupingSeparator };
     if (r->indian && !_group2) sp.group2 = 2;
+    if (_minGroupDigits > 0) sp.minGroup = (int)_minGroupDigits;
     if (_grp && !_dec && [_grp isEqualToString:sp.dec]) {}
     return sp;
 }
@@ -386,6 +432,7 @@ STR(negativeInfinitySymbol, setNegativeInfinitySymbol, _negInf, @"-∞")
     numspec sp = [self _spec];
     if (neg && dec_is_zero_after(x, &sp)) neg = NO;                /* -0.001 -> "0" (ICU drops the sign) */
     NSString *body = format_plain(x, &sp, neg);
+    if (_alwaysDec && ![body containsString:sp.dec]) body = [body stringByAppendingString:sp.dec];
     NSString *pre = neg ? self.negativePrefix : self.positivePrefix, *suf = neg ? self.negativeSuffix : self.positiveSuffix;
     if (_style == NSNumberFormatterCurrencyPluralStyle) {
         NSString *name = isim_currency_name(self.currencyCode, !isim_plural_one(lang, v, 0) || [body containsString:sp.dec]);
@@ -399,6 +446,16 @@ STR(negativeInfinitySymbol, setNegativeInfinitySymbol, _negInf, @"-∞")
     return [NSString stringWithFormat:@"%@%@%@", pre, body, suf];
 }
 - (NSString *)stringFromNumber:(NSNumber *)number {
+    NSString *out = [self _stringFromNumber:number];
+    if (!number || isnan(number.doubleValue)) return out;
+    out = [self _padded:out negative:number.doubleValue < 0];
+    /* spelled-out numbers start a sentence or stand alone capitalized, as on iOS */
+    if (out.length && _style == NSNumberFormatterSpellOutStyle
+        && (_context == NSFormattingContextBeginningOfSentence || _context == NSFormattingContextStandalone || _context == NSFormattingContextListItem))
+        out = [[[out substringToIndex:1] uppercaseString] stringByAppendingString:[out substringFromIndex:1]];
+    return out;
+}
+- (NSString *)_stringFromNumber:(NSNumber *)number {
     if (!number) return self.nilSymbol;
     double v = number.doubleValue;
     if (isnan(v)) return self.notANumberSymbol;
@@ -483,6 +540,17 @@ STR(negativeInfinitySymbol, setNegativeInfinitySymbol, _negInf, @"-∞")
     if (obj) *obj = n;
     if (!n && error) *error = @"Invalid number";
     return n != nil;
+}
+/* the number in the string's range (the whole range, or nothing; the range comes back as what was read) */
+- (BOOL)getObjectValue:(out id *)obj forString:(NSString *)string range:(inout NSRange *)rangep error:(out NSError **)error {
+    NSString *s = rangep ? [string substringWithRange:*rangep] : string;
+    NSNumber *n = [self numberFromString:s];
+    if (obj) *obj = n;
+    if (!n) {
+        if (error) *error = [NSError errorWithDomain:NSCocoaErrorDomain code:2048 userInfo:@{NSLocalizedDescriptionKey: @"The value is invalid."}];
+        return NO;
+    }
+    return YES;
 }
 @end
 
