@@ -307,6 +307,7 @@ public func AudioComponentGetVersion(_ inComponent: AudioComponent, _ outVersion
 public func AudioComponentInstanceNew(_ inComponent: AudioComponent, _ outInstance: UnsafeMutablePointer<AudioComponentInstance?>) -> OSStatus {
     guard let c = _component(inComponent) else { return kAudio_ParamError }
     if c.factory != nil { return _newPlugIn(c, outInstance) }
+    if let cls = c.auClass { return _newV3Instance(c, cls, outInstance) }
     if c.isCodec {
         let codec = _AudioCodecInstance(c)
         codec.handle = _handle(codec)
@@ -986,6 +987,9 @@ extension _IsimAudioUnit {
         case kAudioUnitProperty_MakeConnection:
             guard let c = connections[e] else { return kAudioUnitErr_PropertyNotInUse }
             return _auPut(AudioUnitConnection(sourceAudioUnit: c.unit.handle, sourceOutputNumber: c.bus, destInputNumber: e), size, out)
+        case kAudioUnitProperty_ParameterInfo:
+            guard let info = parameterInfo(e, scope) else { return kAudioUnitErr_InvalidParameter }
+            return _auPut(info, size, out)
         case kAudioUnitProperty_ParameterList:
             let ids = parameterIDs
             guard let out else { size?.pointee = UInt32(ids.count * 4); return noErr_ }
@@ -1298,4 +1302,87 @@ public func AUGraphRemoveRenderNotify(_ inGraph: AUGraph, _ inCallback: AURender
     g.notifies.removeAll { unsafeBitCast($0.0, to: UnsafeRawPointer.self) == unsafeBitCast(inCallback, to: UnsafeRawPointer.self) && $0.1 == inRefCon }
     if g.isOpen { g.apply() }
     return noErr_
+}
+
+// MARK: - parameter info (kAudioUnitProperty_ParameterInfo; issue #856)
+
+/// Apple's names, units, ranges and defaults of the parameters of isim's units (from the comments of Apple's
+/// AudioUnitParameters.h). A maximum of -1 is the Nyquist frequency of the unit's sample rate. The N-band EQ's band
+/// parameters are the band-0 entries plus the band number.
+let _parameterTable: [(sub: UInt32, id: AudioUnitParameterID, name: String, unit: AudioUnitParameterUnit, min: Float, max: Float, value: Float)] = [
+    (kAudioUnitSubType_MultiChannelMixer, kMultiChannelMixerParam_Volume, "Volume", .linearGain, 0, 1, 1),
+    (kAudioUnitSubType_MultiChannelMixer, kMultiChannelMixerParam_Enable, "Enable", .boolean, 0, 1, 1),
+    (kAudioUnitSubType_MultiChannelMixer, kMultiChannelMixerParam_Pan, "Pan", .pan, -1, 1, 0),
+    (kAudioUnitSubType_NewTimePitch, kNewTimePitchParam_Rate, "Rate", .rate, 0.03125, 32.0, 1.0),
+    (kAudioUnitSubType_NewTimePitch, kNewTimePitchParam_Pitch, "Pitch", .cents, -2400, 2400, 0),
+    (kAudioUnitSubType_NewTimePitch, kNewTimePitchParam_Smoothness, "Smoothness", .generic, 3.0, 32.0, 8.0),
+    (kAudioUnitSubType_NewTimePitch, kNewTimePitchParam_EnableSpectralCoherence, "Enable Spectral Coherence", .boolean, 0, 1, 1),
+    (kAudioUnitSubType_Varispeed, kVarispeedParam_PlaybackRate, "Playback Rate", .rate, 0.25, 4.0, 1.0),
+    (kAudioUnitSubType_Varispeed, kVarispeedParam_PlaybackCents, "Playback Cents", .cents, -2400, 2400, 0.0),
+    (kAudioUnitSubType_Delay, kDelayParam_WetDryMix, "Wet Dry Mix", .equalPowerCrossfade, 0, 100, 50),
+    (kAudioUnitSubType_Delay, kDelayParam_DelayTime, "Delay Time", .seconds, 0, 2, 1),
+    (kAudioUnitSubType_Delay, kDelayParam_Feedback, "Feedback", .percent, -100, 100, 50),
+    (kAudioUnitSubType_Delay, kDelayParam_LopassCutoff, "Lopass Cutoff", .hertz, 10, -1, 15000),
+    (kAudioUnitSubType_Reverb2, kReverb2Param_DryWetMix, "Dry Wet Mix", .equalPowerCrossfade, 0, 100, 100),
+    (kAudioUnitSubType_Reverb2, kReverb2Param_Gain, "Gain", .decibels, -20, 20, 0),
+    (kAudioUnitSubType_Reverb2, kReverb2Param_MinDelayTime, "Min Delay Time", .seconds, 0.0001, 1.0, 0.008),
+    (kAudioUnitSubType_Reverb2, kReverb2Param_MaxDelayTime, "Max Delay Time", .seconds, 0.0001, 1.0, 0.050),
+    (kAudioUnitSubType_Reverb2, kReverb2Param_DecayTimeAt0Hz, "Decay Time At 0 Hz", .seconds, 0.001, 20.0, 1.0),
+    (kAudioUnitSubType_Reverb2, kReverb2Param_DecayTimeAtNyquist, "Decay Time At Nyquist", .seconds, 0.001, 20.0, 0.5),
+    (kAudioUnitSubType_Reverb2, kReverb2Param_RandomizeReflections, "Randomize Reflections", .indexed, 1, 1000, 1),
+    (kAudioUnitSubType_LowPassFilter, kLowPassParam_CutoffFrequency, "Cutoff Frequency", .hertz, 10, -1, 6900),
+    (kAudioUnitSubType_LowPassFilter, kLowPassParam_Resonance, "Resonance", .decibels, -20, 40, 0),
+    (kAudioUnitSubType_HighPassFilter, kHipassParam_CutoffFrequency, "Cutoff Frequency", .hertz, 10, -1, 6900),
+    (kAudioUnitSubType_HighPassFilter, kHipassParam_Resonance, "Resonance", .decibels, -20, 40, 0),
+    (kAudioUnitSubType_BandPassFilter, kBandpassParam_CenterFrequency, "Center Frequency", .hertz, 20, -1, 5000),
+    (kAudioUnitSubType_BandPassFilter, kBandpassParam_Bandwidth, "Bandwidth", .cents, 100, 12000, 600),
+    (kAudioUnitSubType_LowShelfFilter, kAULowShelfParam_CutoffFrequency, "Cutoff Frequency", .hertz, 10, 200, 80),
+    (kAudioUnitSubType_LowShelfFilter, kAULowShelfParam_Gain, "Gain", .decibels, -40, 40, 0),
+    (kAudioUnitSubType_HighShelfFilter, kHighShelfParam_CutOffFrequency, "Cut Off Frequency", .hertz, 10000, -1, 10000),
+    (kAudioUnitSubType_HighShelfFilter, kHighShelfParam_Gain, "Gain", .decibels, -40, 40, 0),
+    (kAudioUnitSubType_ParametricEQ, kParametricEQParam_CenterFreq, "Center Freq", .hertz, 20, -1, 2000),
+    (kAudioUnitSubType_ParametricEQ, kParametricEQParam_Q, "Q", .hertz, 0.1, 20, 1.0),
+    (kAudioUnitSubType_ParametricEQ, kParametricEQParam_Gain, "Gain", .decibels, -20, 20, 0),
+    (kAudioUnitSubType_Distortion, kDistortionParam_SoftClipGain, "Soft Clip Gain", .decibels, -80, 20, -6),
+    (kAudioUnitSubType_Distortion, kDistortionParam_FinalMix, "Final Mix", .percent, 0, 100, 50),
+    (kAudioUnitSubType_PeakLimiter, kLimiterParam_AttackTime, "Attack Time", .seconds, 0.001, 0.03, 0.012),
+    (kAudioUnitSubType_PeakLimiter, kLimiterParam_DecayTime, "Decay Time", .seconds, 0.001, 0.06, 0.024),
+    (kAudioUnitSubType_PeakLimiter, kLimiterParam_PreGain, "Pre Gain", .decibels, -40, 40, 0),
+    (kAudioUnitSubType_Sampler, kAUSamplerParam_Gain, "Gain", .decibels, -90, 12, 0),
+    (kAudioUnitSubType_Sampler, kAUSamplerParam_CoarseTuning, "Coarse Tuning", .relativeSemiTones, -24, 24, 0),
+    (kAudioUnitSubType_Sampler, kAUSamplerParam_FineTuning, "Fine Tuning", .cents, -99, 99, 0),
+    (kAudioUnitSubType_Sampler, kAUSamplerParam_Pan, "Pan", .pan, -1.0, 1.0, 0),
+    (kAudioUnitSubType_MIDISynth, kMusicDeviceParam_Tuning, "Tuning", .cents, -1200, 1200, 0),
+    (kAudioUnitSubType_MIDISynth, kMusicDeviceParam_Volume, "Volume", .decibels, -120, 40, 0),
+    (kAudioUnitSubType_MIDISynth, kMusicDeviceParam_ReverbVolume, "Reverb Volume", .decibels, -120, 40, 0),
+    (kAudioUnitSubType_NBandEQ, kAUNBandEQParam_GlobalGain, "Global Gain", .decibels, -96, 24, 0),
+    (kAudioUnitSubType_NBandEQ, kAUNBandEQParam_BypassBand, "Bypass Band", .boolean, 0, 1, 1),
+    (kAudioUnitSubType_NBandEQ, kAUNBandEQParam_FilterType, "Filter Type", .indexed, 0, 10, 0),
+    (kAudioUnitSubType_NBandEQ, kAUNBandEQParam_Frequency, "Frequency", .hertz, 20, -1, 1000),
+    (kAudioUnitSubType_NBandEQ, kAUNBandEQParam_Gain, "Gain", .decibels, -96, 24, 0),
+    (kAudioUnitSubType_NBandEQ, kAUNBandEQParam_Bandwidth, "Bandwidth", .octaves, 0.05, 5.0, 0.5),
+
+]
+extension _IsimAudioUnit {
+    /// the AudioUnitParameterInfo of one of the unit's parameters
+    func parameterInfo(_ id: AudioUnitParameterID, _ scope: AudioUnitScope) -> AudioUnitParameterInfo? {
+        let base = subType == kAudioUnitSubType_NBandEQ && id >= 1000 ? id - id % 1000 : id
+        guard knows(id, scope, 0), id < 0x7FFF_0000,
+              let e = _parameterTable.first(where: { $0.sub == subType && $0.id == base }) else { return nil }
+        var info = AudioUnitParameterInfo()
+        let band = id - base
+        let name = subType == kAudioUnitSubType_NBandEQ && id >= 1000 ? "\(e.name) \(band)" : e.name
+        withUnsafeMutableBytes(of: &info.name) { b in
+            let u = Array(name.utf8.prefix(b.count - 1))
+            for (i, c) in u.enumerated() { b[i] = c }
+        }
+        info.cfNameString = Unmanaged.passRetained(name as CFString)
+        info.unit = e.unit
+        info.minValue = e.min
+        info.maxValue = e.max < 0 ? Float(format(kAudioUnitScope_Output, 0).mSampleRate / 2) : e.max
+        info.defaultValue = e.value
+        info.flags = [.flag_IsReadable, .flag_IsWritable, .flag_HasCFNameString, .flag_CFNameRelease]
+        if e.unit == .hertz { info.flags.insert(.flag_DisplayLogarithmic) }
+        return info
+    }
 }

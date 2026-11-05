@@ -2122,6 +2122,42 @@ typedef void *AUParameterObserverToken;
 #define kAudioUnitConfigurationInfo_MIDIProtocol "MIDIProtocol"
 #define kAudioUnitConfigurationInfo_MigrateFromPlugin "MigrateFromPlugin"
 #define kAudioUnitConfigurationInfo_SupportedChannelLayoutTags "SupportedChannelLayoutTags"
+
+/* AUAudioUnit.h, AUParameters.h, AUAudioUnitImplementation.h: the block types and enums of Audio Unit version 3
+   (the classes are the AudioToolbox Swift overlay's: <AudioToolbox/AUAudioUnit.h>) */
+#if defined(__OBJC__)
+typedef UInt32 AUAudioObjectID;
+typedef CF_ENUM(NSInteger, AUAudioUnitBusType) {
+    AUAudioUnitBusTypeInput = 1,
+    AUAudioUnitBusTypeOutput = 2
+};
+typedef AUAudioUnitStatus (^AURenderPullInputBlock)(AudioUnitRenderActionFlags *actionFlags, const AudioTimeStamp *timestamp,
+    AUAudioFrameCount frameCount, NSInteger inputBusNumber, AudioBufferList *inputData);
+typedef AUAudioUnitStatus (^AURenderBlock)(AudioUnitRenderActionFlags *actionFlags, const AudioTimeStamp *timestamp,
+    AUAudioFrameCount frameCount, NSInteger outputBusNumber, AudioBufferList *outputData, AURenderPullInputBlock _Nullable pullInputBlock);
+typedef void (^AURenderObserver)(AudioUnitRenderActionFlags actionFlags, const AudioTimeStamp *timestamp, AUAudioFrameCount frameCount,
+    NSInteger outputBusNumber);
+typedef void (^AUScheduleMIDIEventBlock)(AUEventSampleTime eventSampleTime, uint8_t cable, NSInteger length, const uint8_t *midiBytes);
+typedef OSStatus (^AUMIDIOutputEventBlock)(AUEventSampleTime eventSampleTime, uint8_t cable, NSInteger length, const uint8_t *midiBytes);
+typedef BOOL (^AUHostMusicalContextBlock)(double *_Nullable currentTempo, double *_Nullable timeSignatureNumerator,
+    NSInteger *_Nullable timeSignatureDenominator, double *_Nullable currentBeatPosition, NSInteger *_Nullable sampleOffsetToNextBeat,
+    double *_Nullable currentMeasureDownbeatPosition);
+typedef CF_OPTIONS(NSUInteger, AUHostTransportStateFlags) {
+    AUHostTransportStateChanged = 1,
+    AUHostTransportStateMoving = 2,
+    AUHostTransportStateRecording = 4,
+    AUHostTransportStateCycling = 8
+};
+typedef BOOL (^AUHostTransportStateBlock)(AUHostTransportStateFlags *_Nullable transportStateFlags, double *_Nullable currentSamplePosition,
+    double *_Nullable cycleStartBeatPosition, double *_Nullable cycleEndBeatPosition);
+typedef void (^AUInputHandler)(AudioUnitRenderActionFlags *actionFlags, const AudioTimeStamp *timestamp, AUAudioFrameCount frameCount,
+    NSInteger inputBusNumber);
+typedef void (^AUParameterObserver)(AUParameterAddress address, AUValue value);
+typedef void (^AUParameterRecordingObserver)(NSInteger numberEvents, const AURecordedParameterEvent *events);
+typedef AUAudioUnitStatus (^AUInternalRenderBlock)(AudioUnitRenderActionFlags *actionFlags, const AudioTimeStamp *timestamp,
+    AUAudioFrameCount frameCount, NSInteger outputBusNumber, AudioBufferList *outputData, const AURenderEvent *_Nullable realtimeEventListHead,
+    AURenderPullInputBlock _Nullable __unsafe_unretained pullInputBlock);
+#endif
 /* Apple's inline helpers (AudioUnitProperties.h, AudioFile.h) */
 static inline AudioUnitParameterOptions GetAudioUnitParameterDisplayType(AudioUnitParameterOptions flags) {
     return flags & kAudioUnitParameterFlag_DisplayMask;
