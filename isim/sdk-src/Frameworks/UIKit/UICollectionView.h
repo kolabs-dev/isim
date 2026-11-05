@@ -72,7 +72,12 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) UICellAccessoryDisplayedState displayedState;
 @property (nonatomic, getter=isHidden) BOOL hidden;
 @property (nullable, nonatomic, strong) UIColor *tintColor;
+/* the width the accessory takes: UICellAccessoryStandardDimension (the system's), 0 (its own) or a width */
+@property (nonatomic) CGFloat reservedLayoutWidth;
 @end
+UIKIT_EXTERN const CGFloat UICellAccessoryStandardDimension API_AVAILABLE(ios(14.0));
+typedef NS_ENUM(NSInteger, UICellAccessoryOutlineDisclosureStyle) { UICellAccessoryOutlineDisclosureStyleAutomatic,
+    UICellAccessoryOutlineDisclosureStyleHeader, UICellAccessoryOutlineDisclosureStyleCell } API_AVAILABLE(ios(14.0));
 @interface UICellAccessoryDisclosureIndicator : UICellAccessory @end
 @interface UICellAccessoryCheckmark : UICellAccessory @end
 @interface UICellAccessoryDetail : UICellAccessory
@@ -81,13 +86,19 @@ NS_SWIFT_UI_ACTOR
 @interface UICellAccessoryDelete : UICellAccessory
 @property (nullable, nonatomic, copy) void (^actionHandler)(void);
 @end
-@interface UICellAccessoryReorder : UICellAccessory @end
+@interface UICellAccessoryReorder : UICellAccessory
+@property (nonatomic) BOOL showsVerticalSeparator;       /* YES: a line between the content and the grip */
+@end
 @interface UICellAccessoryOutlineDisclosure : UICellAccessory
 @property (nullable, nonatomic, copy) void (^actionHandler)(void);
+/* automatic: header for section headers / rows with children, cell otherwise; a header-style row toggles from anywhere */
+@property (nonatomic) UICellAccessoryOutlineDisclosureStyle style;
 @end
 @interface UICellAccessoryLabel : UICellAccessory
 - (instancetype)initWithText:(NSString *)text;
 @property (nonatomic, readonly, copy) NSString *text;
+@property (nonatomic, strong) UIFont *font;                       /* body */
+@property (nonatomic) BOOL adjustsFontForContentSizeCategory;     /* YES */
 @end
 @interface UICellAccessoryCustomView : UICellAccessory
 - (instancetype)initWithCustomView:(UIView *)customView placement:(NSInteger)placement;

@@ -255,7 +255,9 @@ id isim_ui_content_configuration_for_state(id cfg, UIView *cell, BOOL selected, 
 @end
 
 /* ---- cell accessories ---- */
+const CGFloat UICellAccessoryStandardDimension = -CGFLOAT_MAX;
 @implementation UICellAccessory
+- (instancetype)init { if ((self = [super init])) _reservedLayoutWidth = UICellAccessoryStandardDimension; return self; }
 - (id)copyWithZone:(NSZone *)z { return self; }       /* immutable once configured */
 @end
 @implementation UICellAccessoryDisclosureIndicator @end
@@ -265,11 +267,14 @@ id isim_ui_content_configuration_for_state(id cfg, UIView *cell, BOOL selected, 
 - (instancetype)init { if ((self = [super init])) self.displayedState = UICellAccessoryDisplayedWhenEditing; return self; }
 @end
 @implementation UICellAccessoryReorder
-- (instancetype)init { if ((self = [super init])) self.displayedState = UICellAccessoryDisplayedWhenEditing; return self; }
+- (instancetype)init { if ((self = [super init])) { self.displayedState = UICellAccessoryDisplayedWhenEditing; _showsVerticalSeparator = YES; } return self; }
 @end
 @implementation UICellAccessoryOutlineDisclosure @end
 @implementation UICellAccessoryLabel
-- (instancetype)initWithText:(NSString *)text { if ((self = [super init])) _text = [text copy]; return self; }
+- (instancetype)initWithText:(NSString *)text {
+    if ((self = [super init])) { _text = [text copy]; _font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody]; _adjustsFontForContentSizeCategory = YES; }
+    return self;
+}
 @end
 @implementation UICellAccessoryCustomView
 - (instancetype)initWithCustomView:(UIView *)v placement:(NSInteger)p { if ((self = [super init])) { _customView = v; _placement = p; } return self; }
@@ -437,7 +442,14 @@ static NSString *popup_title(UICellAccessoryPopUpMenu *a) {       /* the pop-up 
     }
     return first.title ?: @"";
 }
+static CGFloat acc_natural_width(UICellAccessory *a);
+/* the width an accessory takes: its own, or the width it reserves when that is wider */
 static CGFloat acc_width(UICellAccessory *a) {
+    CGFloat w = acc_natural_width(a), r = a.reservedLayoutWidth;
+    return r > 0 ? fmax(w, r) : w;
+}
+static UIFont *acc_label_font(UICellAccessoryLabel *a) { return a.font ?: [UIFont systemFontOfSize:17]; }
+static CGFloat acc_natural_width(UICellAccessory *a) {
     if ([a isKindOfClass:[UICellAccessoryInsert class]] || [a isKindOfClass:[UICellAccessoryMultiselect class]]) return 22 + 16;
     if ([a isKindOfClass:[UICellAccessoryPopUpMenu class]]) return ceil(isim_ui_measure(popup_title((UICellAccessoryPopUpMenu *)a), [UIFont systemFontOfSize:17], 300, 1).width) + 6 + 12 + 12;
     if ([a isKindOfClass:[UICellAccessoryDisclosureIndicator class]]) return 9 + 12;
@@ -446,7 +458,7 @@ static CGFloat acc_width(UICellAccessory *a) {
     if ([a isKindOfClass:[UICellAccessoryDelete class]]) return 22 + 16;
     if ([a isKindOfClass:[UICellAccessoryReorder class]]) return 20 + 12;
     if ([a isKindOfClass:[UICellAccessoryOutlineDisclosure class]]) return 13 + 12;
-    if ([a isKindOfClass:[UICellAccessoryLabel class]]) return isim_ui_measure(((UICellAccessoryLabel *)a).text, [UIFont systemFontOfSize:17], 300, 1).width + 8;
+    if ([a isKindOfClass:[UICellAccessoryLabel class]]) return isim_ui_measure(((UICellAccessoryLabel *)a).text, acc_label_font((UICellAccessoryLabel *)a), 300, 1).width + 8;
     if ([a isKindOfClass:[UICellAccessoryCustomView class]]) return ((UICellAccessoryCustomView *)a).customView.bounds.size.width + 12;
     return 0;
 }
@@ -529,7 +541,13 @@ static BOOL acc_leading(UICellAccessory *a) {
         if ([a isKindOfClass:[UICellAccessoryDisclosureIndicator class]]) { sym = @"chevron.right"; h = 13; }
         else if ([a isKindOfClass:[UICellAccessoryCheckmark class]]) { sym = @"checkmark"; h = 15; def = self.tintColor ?: UIColor.systemBlueColor; }
         else if ([a isKindOfClass:[UICellAccessoryDetail class]]) { sym = @"info.circle"; h = 22; def = self.tintColor ?: UIColor.systemBlueColor; }
-        else if ([a isKindOfClass:[UICellAccessoryReorder class]]) { sym = @"line.3.horizontal"; h = 14; }
+        else if ([a isKindOfClass:[UICellAccessoryReorder class]]) {
+            sym = @"line.3.horizontal"; h = 14;
+            if (((UICellAccessoryReorder *)a).showsVerticalSeparator) {           /* a hairline between the content and the grip */
+                double sep[4]; isim_ui_rgba(UIColor.separatorColor, sep);
+                isim_gfx_fill_rounded(right - w, s.height * 0.2, 1.0 / 3, s.height * 0.6, 0, sep);
+            }
+        }
         else if ([a isKindOfClass:[UICellAccessoryOutlineDisclosure class]]) { sym = [self _isim_outlineState] == 2 ? @"chevron.down" : @"chevron.right"; h = 13; def = self.tintColor ?: UIColor.systemBlueColor; }
         if (sym) {
             UIImage *im = [UIImage systemImageNamed:sym]; CGSize i = im.size; double k = h / fmax(1, i.height);
@@ -540,7 +558,7 @@ static BOOL acc_leading(UICellAccessory *a) {
             [ch _isim_drawInRect:CGRectMake(right - 12 - ci.width * k + 4, (s.height - 14) / 2, ci.width * k, 14) tint:tint ?: UIColor.secondaryLabelColor alpha:1];
             isim_ui_draw_text(t, f, tint ?: UIColor.secondaryLabelColor, CGRectMake(right - 12 - ci.width * k - 2 - ts.width, (s.height - ts.height) / 2, ts.width, ts.height), NSTextAlignmentLeft, 1, 1);
         } else if ([a isKindOfClass:[UICellAccessoryLabel class]]) {
-            NSString *t = ((UICellAccessoryLabel *)a).text; UIFont *f = [UIFont systemFontOfSize:17]; CGSize ts = isim_ui_measure(t, f, 300, 1);
+            NSString *t = ((UICellAccessoryLabel *)a).text; UIFont *f = acc_label_font((UICellAccessoryLabel *)a); CGSize ts = isim_ui_measure(t, f, 300, 1);
             isim_ui_draw_text(t, f, tint ?: UIColor.secondaryLabelColor, CGRectMake(right - ts.width - 4, (s.height - ts.height) / 2, ts.width, ts.height), NSTextAlignmentLeft, 1, 1);
         }
         right -= w;
