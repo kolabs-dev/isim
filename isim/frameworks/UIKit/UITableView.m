@@ -4,6 +4,7 @@
  * row inserts/deletes/moves animate; plain section headers stick to the top. iOS 17 metrics. */
 #import "UIKitPrivate.h"
 #import <UIKit/UIConfigurationState.h>
+#import <objc/message.h>
 #include <math.h>
 
 const CGFloat UITableViewAutomaticDimension = -1;
@@ -111,6 +112,7 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
 - (NSArray<UIContextualAction *> *)_isim_trailingActionsFor:(UITableViewCell *)cell full:(BOOL *)full;
 - (NSArray<UIContextualAction *> *)_isim_leadingActionsFor:(UITableViewCell *)cell full:(BOOL *)full;
 - (void)_isim_closeSwipesExcept:(UITableViewCell *)cell;
+- (void)_isim_swipeEditing:(UITableViewCell *)cell began:(BOOL)began;
 - (void)_isim_editingControlTapped:(UITableViewCell *)cell;
 - (void)_isim_accessoryTapped:(UITableViewCell *)cell;
 - (UITableViewStyle)style;
@@ -398,6 +400,7 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
         _swipeTracking = actions.count > 0;
         if (!_swipeTracking) return;
         self._isim_actions = actions; self._isim_fullSwipe = full; _swipeStart = self._isim_swipe;
+        if (_swipeStart == 0) [self._isim_table _isim_swipeEditing:self began:YES];
         [self._isim_table _isim_highlight:self on:NO];
         [self _isim_buildActionsView];
     }
@@ -412,7 +415,7 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
     if (fullSwipe) { [self _isim_perform:first]; return; }
     BOOL stayOpen = sign * x > open / 2 || sign * [g velocityInView:self].x > 500;
     [UIView animateWithDuration:0.3 delay:0 usingSpringWithDamping:1 initialSpringVelocity:0 options:0 animations:^{ [self _isim_setSwipe:stayOpen ? sign * open : 0]; } completion:^(BOOL f) {
-        if (!stayOpen) { [self._isim_actionsView removeFromSuperview]; self._isim_actionsView = nil; }
+        if (!stayOpen) { [self._isim_actionsView removeFromSuperview]; self._isim_actionsView = nil; [self._isim_table _isim_swipeEditing:self began:NO]; }
     }];
 }
 - (CGFloat)_isim_actionsWidth { CGFloat w = 0; for (UIContextualAction *a in self._isim_actions) w += [self _isim_widthFor:a]; return w; }
@@ -454,7 +457,7 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
 - (void)_isim_closeSwipe {
     if (self._isim_swipe == 0) return;
     [UIView animateWithDuration:0.3 delay:0 usingSpringWithDamping:1 initialSpringVelocity:0 options:0 animations:^{ [self _isim_setSwipe:0]; }
-                     completion:^(BOOL f) { [self._isim_actionsView removeFromSuperview]; self._isim_actionsView = nil; }];
+                     completion:^(BOOL f) { [self._isim_actionsView removeFromSuperview]; self._isim_actionsView = nil; [self._isim_table _isim_swipeEditing:self began:NO]; }];
 }
 - (void)_isim_perform:(UIContextualAction *)a {
     if (!a) return;
@@ -866,7 +869,13 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
         NSMutableDictionary *map = footer ? _footers : _headers;
         CGFloat h = footer ? _secs[s].footerH : _secs[s].headerH;
         UIView *v = map[@(s)];
-        if (!visible || h <= 0) { [v removeFromSuperview]; [map removeObjectForKey:@(s)]; continue; }
+        if (!visible || h <= 0) {
+            if (v) {
+                SEL end = footer ? @selector(tableView:didEndDisplayingFooterView:forSection:) : @selector(tableView:didEndDisplayingHeaderView:forSection:);
+                if ([self.delegate respondsToSelector:end]) ((void (*)(id, SEL, id, id, NSInteger))objc_msgSend)(self.delegate, end, self, v, s);
+            }
+            [v removeFromSuperview]; [map removeObjectForKey:@(s)]; continue;
+        }
         if (!v) {
             id<UITableViewDelegate> d = self.delegate;
             SEL sel = footer ? @selector(tableView:viewForFooterInSection:) : @selector(tableView:viewForHeaderInSection:);
@@ -884,6 +893,8 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
             }
             if (!v) continue;
             map[@(s)] = v;
+            SEL will = footer ? @selector(tableView:willDisplayFooterView:forSection:) : @selector(tableView:willDisplayHeaderView:forSection:);
+            if ([d respondsToSelector:will]) ((void (*)(id, SEL, id, id, NSInteger))objc_msgSend)(d, will, self, v, s);
         }
         if (v.superview != self) [self addSubview:v];
         CGFloat rowsH = 0; for (NSInteger r = 0; r < _secs[s].rows; r++) rowsH += _secs[s].heights[r];
@@ -936,7 +947,12 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
     NSIndexPath *ip = [self indexPathForCell:c];
     if (on && (!ip || (!_allowsSelection && !self.editing) || (self.editing && !_allowsSelectionDuringEditing))) return;
     if (on && [self.delegate respondsToSelector:@selector(tableView:shouldHighlightRowAtIndexPath:)] && ![self.delegate tableView:self shouldHighlightRowAtIndexPath:ip]) return;
+    BOOL was = c.highlighted;
     [c setHighlighted:on animated:NO];
+    if (ip && was != on) {
+        SEL sel = on ? @selector(tableView:didHighlightRowAtIndexPath:) : @selector(tableView:didUnhighlightRowAtIndexPath:);
+        if ([self.delegate respondsToSelector:sel]) ((void (*)(id, SEL, id, id))objc_msgSend)(self.delegate, sel, self, ip);
+    }
 }
 - (void)_isim_cellTapped:(UITableViewCell *)c {
     NSIndexPath *ip = [self indexPathForCell:c];
@@ -945,6 +961,7 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
     if ([d respondsToSelector:@selector(tableView:willSelectRowAtIndexPath:)]) { ip = [d tableView:self willSelectRowAtIndexPath:ip]; if (!ip) return; }
     if (!_allowsMultipleSelection) for (NSIndexPath *o in [_selected allObjects]) if (![o isEqual:ip]) [self deselectRowAtIndexPath:o animated:NO notify:YES];
     if (_allowsMultipleSelection && [_selected containsObject:ip]) {
+        if ([d respondsToSelector:@selector(tableView:willDeselectRowAtIndexPath:)]) { ip = [d tableView:self willDeselectRowAtIndexPath:ip]; if (!ip) return; }
         [self deselectRowAtIndexPath:ip animated:YES notify:YES];
         [NSNotificationCenter.defaultCenter postNotificationName:UITableViewSelectionDidChangeNotification object:self];
         return;
@@ -954,6 +971,12 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
     if ([d respondsToSelector:@selector(tableView:didSelectRowAtIndexPath:)]) [d tableView:self didSelectRowAtIndexPath:ip];
     [NSNotificationCenter.defaultCenter postNotificationName:UITableViewSelectionDidChangeNotification object:self];   /* user selections only, like UIKit */
     isim_ib_cell_selected(c);                    /* storyboard selection segue */
+    /* iOS 16 primary actions: outside editing, a tap performs the row's action and the selection does not stay */
+    if (!self.editing && [d respondsToSelector:@selector(tableView:performPrimaryActionForRowAtIndexPath:)]
+        && (![d respondsToSelector:@selector(tableView:canPerformPrimaryActionForRowAtIndexPath:)] || [d tableView:self canPerformPrimaryActionForRowAtIndexPath:ip])) {
+        [d tableView:self performPrimaryActionForRowAtIndexPath:ip];
+        if (!_allowsMultipleSelection) [self deselectRowAtIndexPath:ip animated:YES];
+    }
 }
 - (void)selectRowAtIndexPath:(NSIndexPath *)ip animated:(BOOL)a scrollPosition:(UITableViewScrollPosition)pos {
     if (!ip) { for (NSIndexPath *o in [_selected allObjects]) [self deselectRowAtIndexPath:o animated:a]; return; }
@@ -1031,6 +1054,13 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
     return cfg.actions;
 }
 - (void)_isim_closeSwipesExcept:(UITableViewCell *)cell { for (UITableViewCell *c in _visible.allValues) if (c != cell) [c _isim_closeSwipe]; }
+/* a row's swipe actions open (willBeginEditingRowAt) and close (didEndEditingRowAt) */
+- (void)_isim_swipeEditing:(UITableViewCell *)c began:(BOOL)began {
+    NSIndexPath *ip = [self indexPathForCell:c];
+    id<UITableViewDelegate> d = self.delegate;
+    if (began && ip && [d respondsToSelector:@selector(tableView:willBeginEditingRowAtIndexPath:)]) [d tableView:self willBeginEditingRowAtIndexPath:ip];
+    if (!began && [d respondsToSelector:@selector(tableView:didEndEditingRowAtIndexPath:)]) [d tableView:self didEndEditingRowAtIndexPath:ip];
+}
 - (void)_isim_editingControlTapped:(UITableViewCell *)c {
     NSIndexPath *ip = [self indexPathForCell:c];
     if (!ip || ![self _canDelete:ip]) return;

@@ -107,6 +107,14 @@ final class ProduceViewController: UITableViewController, UITableViewDataSourceP
         print("selected \(sections[indexPath.section].1[indexPath.row])")
         tableView.deselectRow(at: indexPath, animated: true)
     }
+    // #872: highlighting, header views and swipe editing reported to the delegate
+    override func tableView(_ tableView: UITableView, didHighlightRowAt indexPath: IndexPath) { print("highlighted \(sections[indexPath.section].1[indexPath.row])") }
+    var headerShown = false
+    override func tableView(_ tableView: UITableView, willDisplayHeaderView view: UIView, forSection section: Int) {
+        if !headerShown { headerShown = true; print("header view \(section) \(type(of: view))") }
+    }
+    override func tableView(_ tableView: UITableView, willBeginEditingRowAt indexPath: IndexPath) { print("swipe editing \(sections[indexPath.section].1[indexPath.row])") }
+    override func tableView(_ tableView: UITableView, didEndEditingRowAt indexPath: IndexPath?) { print("swipe editing ended") }
     override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
         guard editingStyle == .delete else { return }
         let name = sections[indexPath.section].1.remove(at: indexPath.row)
@@ -171,6 +179,11 @@ final class SettingsViewController: UITableViewController {
     }
     override func tableView(_ tableView: UITableView, accessoryButtonTappedForRowWith indexPath: IndexPath) {
         print("detail button row \(indexPath.row)")
+    }
+    // #872: iOS 16 primary actions on the account rows (the sound rows keep their selection-driven checkmarks)
+    override func tableView(_ tableView: UITableView, canPerformPrimaryActionForRowAt indexPath: IndexPath) -> Bool { indexPath.section == 0 }
+    override func tableView(_ tableView: UITableView, performPrimaryActionForRowAt indexPath: IndexPath) {
+        print("primary action \(indexPath.row == 0 ? "name" : "plan"), selected \(tableView.indexPathForSelectedRow.map { "\($0.row)" } ?? "none")")
     }
 }
 
