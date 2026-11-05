@@ -30,7 +30,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 }
 
 @available(iOS 18, *)
-final class TabsController: UITabBarController, UITabBarController.Sidebar.Delegate {
+final class TabsController: UITabBarController, UITabBarController.Sidebar.Delegate, UITabBarControllerDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         let home = UITab(title: "Home", image: UIImage(systemName: "house"), identifier: "home") { _ in UINavigationController(rootViewController: ListViewController()) }
@@ -39,6 +39,8 @@ final class TabsController: UITabBarController, UITabBarController.Sidebar.Deleg
         let search = UISearchTab { _ in UINavigationController(rootViewController: SearchViewController()) }
         search.automaticallyActivatesSearch = true
         tabs = [home, library, inbox, search]
+        delegate = self
+        library.isHidden = true; library.isHidden = false               // #872: visibilityDidChangeFor
         if #available(iOS 27, *) {
             sidebar.delegate = self
             sidebar.preferredPlacement = .tabBar
@@ -51,6 +53,9 @@ final class TabsController: UITabBarController, UITabBarController.Sidebar.Deleg
             print("hb27 sidebar layout tile \(sidebar.preferredLayout == .tile) overflow \(sidebar.navigationOverflowItems != nil)")
         }
         if ProcessInfo.processInfo.arguments.contains("sidebar") { mode = .tabSidebar }
+    }
+    func tabBarController(_ tabBarController: UITabBarController, visibilityDidChangeFor tabs: [UITab]) {
+        print("hb27 visibility changed \(tabs.map(\.identifier).joined(separator: ",")) hidden \(tabs.first?.isHidden ?? false)")
     }
     // #872: the sidebar's rows coming on screen and going away
     func tabBarController(_ tabBarController: UITabBarController, sidebar: UITabBarController.Sidebar, willBeginDisplaying tab: UITab) {
@@ -98,6 +103,16 @@ final class ListViewController: UITableViewController {
             print("hb27 priorities low<flag<standard<high \(UIBarButtonItemVisibilityPriority.low.rawValue < flag.visibilityPriority.rawValue && flag.visibilityPriority.rawValue < UIBarButtonItemVisibilityPriority.standard.rawValue && UIBarButtonItemVisibilityPriority.standard.rawValue < UIBarButtonItemVisibilityPriority.high.rawValue)")
         }
         navigationItem.rightBarButtonItems = [edit, share, archive, flag, pin]
+        // #872: more bar button item members (selection, background images, the title + image + menu initializer, symbol effects)
+        let more = UIBarButtonItem(title: "More", image: UIImage(systemName: "ellipsis"), target: nil, action: nil, menu: UIMenu(children: []))
+        more.changesSelectionAsPrimaryAction = true; more.isSelected = true
+        more.preferredMenuElementOrder = .fixed
+        more.setBackgroundImage(UIImage(systemName: "circle"), for: .normal, barMetrics: .default)
+        more.addSymbolEffect(.pulse); more.removeAllSymbolEffects()
+        let landscape = UIBarButtonItem(image: UIImage(systemName: "star"), landscapeImagePhone: UIImage(systemName: "star.fill"), style: .plain, target: nil, action: nil)
+        print("hb27 bar item selected \(more.isSelected) changes \(more.changesSelectionAsPrimaryAction) menu \(more.menu != nil) title \(more.title ?? "") "
+              + "background \(more.backgroundImage(for: .normal, barMetrics: .default) != nil) fixed \(more.preferredMenuElementOrder == .fixed) "
+              + "landscape \(landscape.landscapeImagePhone != nil) format \(NSLayoutConstraint.FormatOptions.alignAllCenterX.rawValue != 0)")
         let prominent = UIBarButtonItem(image: UIImage(systemName: "star"), primaryAction: UIAction { [weak self] _ in self?.makeProminent() })
         prominent.accessibilityIdentifier = "make-prominent"
         let batch = UIBarButtonItem(image: UIImage(systemName: "square.stack"), primaryAction: UIAction { [weak self] _ in self?.batch() })

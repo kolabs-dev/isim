@@ -1809,7 +1809,12 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
 - (void)setTitle:(NSString *)t { _title = [t copy] ?: @""; [self _isim_changed]; }
 - (void)setImage:(UIImage *)i { _image = i; [self _isim_changed]; }
 - (void)setBadgeValue:(NSString *)b { _badgeValue = [b copy]; [self _isim_changed]; }
-- (void)setHidden:(BOOL)h { if (h == _hidden) return; _hidden = h; [_tabBarController _isim_tabsChanged]; }
+- (void)setHidden:(BOOL)h {
+    if (h == _hidden) return;
+    _hidden = h; [_tabBarController _isim_tabsChanged];
+    id<UITabBarControllerDelegate> d = _tabBarController.delegate;
+    if ([d respondsToSelector:@selector(tabBarController:visibilityDidChangeForTabs:)]) [d tabBarController:_tabBarController visibilityDidChangeForTabs:@[self]];
+}
 - (UITabGroup *)managingTabGroup { return _parent; }
 - (NSString *)description { return [NSString stringWithFormat:@"<%@ %@ “%@”>", [self class], _identifier, _title]; }
 @end
@@ -2523,7 +2528,7 @@ static UIEdgeInsets insets_of(id o, const void *k) { NSValue *v = assoc(o, k); r
 @end
 
 /* per state / metrics values, keyed "<what>.<state>.<metrics>" */
-static char kMetrics, kPossibleTitles, kSymbolAnimation, kMenuRepresentation, kPaddingRemoved;
+static char kMetrics, kPossibleTitles, kSymbolAnimation, kMenuRepresentation, kPaddingRemoved, kItemSelected, kChangesSelection, kMenuOrder, kItemIdentifier;
 static NSMutableDictionary *metrics_of(id o) {
     NSMutableDictionary *d = assoc(o, &kMetrics);
     if (!d) { d = [NSMutableDictionary dictionary]; set_assoc(o, &kMetrics, d); }
@@ -2551,6 +2556,31 @@ static NSString *metrics_key(NSString *what, NSUInteger state, NSInteger m) { re
 }
 - (UIBarButtonItemGroup *)creatingOptionalGroupWithCustomizationIdentifier:(NSString *)i inDefaultCustomization:(BOOL)d {
     return [UIBarButtonItemGroup optionalGroupWithCustomizationIdentifier:i inDefaultCustomization:d representativeItem:nil items:@[self]];
+}
+- (instancetype)initWithImage:(UIImage *)image landscapeImagePhone:(UIImage *)landscape style:(UIBarButtonItemStyle)style target:(id)target action:(SEL)action {
+    if ((self = [self initWithImage:image style:style target:target action:action])) self.landscapeImagePhone = landscape;
+    return self;
+}
+- (instancetype)initWithTitle:(NSString *)title image:(UIImage *)image target:(id)target action:(SEL)action menu:(UIMenu *)menu {
+    if ((self = [self init])) { self.title = title; self.image = image; self.target = target; self.action = action; self.menu = menu; }
+    return self;
+}
+- (instancetype)initWithCoder:(NSCoder *)coder { return [self init]; }
+- (BOOL)isSelected { return [assoc(self, &kItemSelected) boolValue]; }
+- (void)setSelected:(BOOL)s { set_assoc(self, &kItemSelected, @(s)); }
+- (BOOL)changesSelectionAsPrimaryAction { return [assoc(self, &kChangesSelection) boolValue]; }
+- (void)setChangesSelectionAsPrimaryAction:(BOOL)c { set_assoc(self, &kChangesSelection, @(c)); }
+- (UIContextMenuConfigurationElementOrder)preferredMenuElementOrder { return [assoc(self, &kMenuOrder) integerValue]; }
+- (void)setPreferredMenuElementOrder:(UIContextMenuConfigurationElementOrder)o { set_assoc(self, &kMenuOrder, @(o)); }
+- (NSString *)identifier { return assoc(self, &kItemIdentifier); }
+- (void)setIdentifier:(NSString *)i { set_assoc(self, &kItemIdentifier, [i copy]); }
+- (void)setBackgroundImage:(UIImage *)i forState:(UIControlState)s barMetrics:(UIBarMetrics)m { metrics_of(self)[metrics_key(@"bg", s, m)] = i ?: NSNull.null; }
+- (UIImage *)backgroundImageForState:(UIControlState)s barMetrics:(UIBarMetrics)m { id i = metrics_of(self)[metrics_key(@"bg", s, m)]; return [i isKindOfClass:[UIImage class]] ? i : nil; }
+- (void)setBackgroundImage:(UIImage *)i forState:(UIControlState)s style:(UIBarButtonItemStyle)st barMetrics:(UIBarMetrics)m {
+    metrics_of(self)[metrics_key([NSString stringWithFormat:@"bg%ld", (long)st], s, m)] = i ?: NSNull.null;
+}
+- (UIImage *)backgroundImageForState:(UIControlState)s style:(UIBarButtonItemStyle)st barMetrics:(UIBarMetrics)m {
+    id i = metrics_of(self)[metrics_key([NSString stringWithFormat:@"bg%ld", (long)st], s, m)]; return [i isKindOfClass:[UIImage class]] ? i : nil;
 }
 - (NSSet<NSString *> *)possibleTitles { return assoc(self, &kPossibleTitles); }
 - (void)setPossibleTitles:(NSSet<NSString *> *)t { set_assoc(self, &kPossibleTitles, [t copy]); }

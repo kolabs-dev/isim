@@ -258,6 +258,56 @@ extension UIImageView {
     }
 }
 
+// MARK: - Symbol effects on bar button items (iOS 17)
+// adapted: an item whose custom view is an image view animates it; isim draws other items' symbols without effects, so
+// the effects are recorded (an item's active effects) and nothing moves
+@available(iOS 17.0, *)
+extension UIBarButtonItem {
+    private static var _isimEffectsKey: UInt8 = 0
+    /// the kinds of indefinite effects running on the item (isim)
+    var _isimActiveEffects: [String] {
+        get { (objc_getAssociatedObject(self, &UIBarButtonItem._isimEffectsKey) as? [String]) ?? [] }
+        set { objc_setAssociatedObject(self, &UIBarButtonItem._isimEffectsKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
+    }
+    private var _isimImageView: UIImageView? { customView as? UIImageView }
+    private func _isimRecord(_ effect: any SymbolEffect, indefinite: Bool) {
+        if indefinite { _isimActiveEffects.append("\(effect._isimDescription.kind)") }
+    }
+    public func addSymbolEffect(_ effect: some DiscreteSymbolEffect & SymbolEffect, options: SymbolEffectOptions = .default, animated: Bool = true) {
+        if let v = _isimImageView { v.addSymbolEffect(effect, options: options, animated: animated) } else { _isimRecord(effect, indefinite: false) }
+    }
+    public func addSymbolEffect(_ effect: some IndefiniteSymbolEffect & SymbolEffect, options: SymbolEffectOptions = .default, animated: Bool = true) {
+        if let v = _isimImageView { v.addSymbolEffect(effect, options: options, animated: animated) } else { _isimRecord(effect, indefinite: true) }
+    }
+    public func addSymbolEffect(_ effect: some DiscreteSymbolEffect & IndefiniteSymbolEffect & SymbolEffect, options: SymbolEffectOptions = .default, animated: Bool = true) {
+        let k = effect._isimDescription.kind
+        if let v = _isimImageView { v.addSymbolEffect(effect, options: options, animated: animated) } else { _isimRecord(effect, indefinite: !(k == .bounce || k == .wiggle)) }
+    }
+    private func _isimForget(_ effect: any SymbolEffect) {
+        let kind = "\(effect._isimDescription.kind)"
+        _isimActiveEffects.removeAll { $0 == kind }
+    }
+    public func removeSymbolEffect(ofType effect: some DiscreteSymbolEffect & SymbolEffect, options: SymbolEffectOptions = .default, animated: Bool = true) {
+        _isimForget(effect)
+    }
+    public func removeSymbolEffect(ofType effect: some IndefiniteSymbolEffect & SymbolEffect, options: SymbolEffectOptions = .default, animated: Bool = true) {
+        if let v = _isimImageView { v.removeSymbolEffect(ofType: effect, options: options, animated: animated) }
+        _isimForget(effect)
+    }
+    public func removeSymbolEffect(ofType effect: some DiscreteSymbolEffect & IndefiniteSymbolEffect & SymbolEffect, options: SymbolEffectOptions = .default, animated: Bool = true) {
+        if let v = _isimImageView { v.removeSymbolEffect(ofType: effect, options: options, animated: animated) }
+        _isimForget(effect)
+    }
+    public func removeAllSymbolEffects(options: SymbolEffectOptions = .default, animated: Bool = true) {
+        _isimImageView?.removeAllSymbolEffects(options: options, animated: animated)
+        _isimActiveEffects = []
+    }
+    /// replaces the item's image (an image view custom view plays the transition)
+    public func setSymbolImage(_ image: UIImage, contentTransition: some ContentTransitionSymbolEffect & SymbolEffect, options: SymbolEffectOptions = .default) {
+        if let v = _isimImageView { v.setSymbolImage(image, contentTransition: contentTransition, options: options) } else { self.image = image }
+    }
+}
+
 // MARK: - Objective-C (issue #235)
 // Symbols.framework's NSSymbolEffect / NSSymbolEffectOptions / NSSymbolContentTransition objects describe themselves
 // (-_isimDescription, -_isimRepeatCount ...); these are Apple's Objective-C UIImageView methods over the same player.

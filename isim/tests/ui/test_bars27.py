@@ -19,6 +19,10 @@ def ipad_os(ios):
 def test_bars_and_tabs(launch, ios):
     v = major(ios)
     app = launch("HelloBars27")
+    app.wait_log(r"^hb27 bar item selected true changes true menu true title More background true fixed true landscape true format true$")   # #872
+    if v >= 18:
+        app.wait_log(r"^hb27 visibility changed library hidden true$")         # visibilityDidChangeFor (#872)
+        app.wait_log(r"^hb27 visibility changed library hidden false$")
     if v < 27:
         app.wait_log(r"^hb27 ios27 no$")
         t = app.wait_view(r"id=item-Edit")                          # (the first item is the trailingmost)
