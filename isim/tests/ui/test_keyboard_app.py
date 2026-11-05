@@ -28,6 +28,7 @@ def test_keyboard_app(launch):
     app.wait_view(r"id=isim-kb-return\b")
     app.tap_id("isim-kb-return")
     app.wait_log(r"return pressed")                                  # return -> textFieldShouldReturn
+    app.wait_log(r"did end editing reason 0")                        # textFieldDidEndEditing:reason: (committed; #872)
     app.wait_log(r"keyboard hidden")
 
     h = last_number(app, r"contentSize 393 x ([0-9.]+)")

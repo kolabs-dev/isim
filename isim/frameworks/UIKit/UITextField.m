@@ -193,7 +193,8 @@ static CGSize overlay_size(UIView *v) {
     _editing = NO; [self setNeedsLayout];
     isim_ui_text_did_end_editing(self);
     _sel = NSMakeRange(_storage.length, 0); _scrollX = 0;
-    if ([d respondsToSelector:@selector(textFieldDidEndEditing:)]) [d textFieldDidEndEditing:self];
+    if ([d respondsToSelector:@selector(textFieldDidEndEditing:reason:)]) [d textFieldDidEndEditing:self reason:UITextFieldDidEndEditingReasonCommitted];
+    else if ([d respondsToSelector:@selector(textFieldDidEndEditing:)]) [d textFieldDidEndEditing:self];
     [self _isim_sendEvents:UIControlEventEditingDidEnd withEvent:nil];
     [NSNotificationCenter.defaultCenter postNotificationName:UITextFieldTextDidEndEditingNotification object:self userInfo:@{ UITextFieldDidEndEditingReasonKey: @(UITextFieldDidEndEditingReasonCommitted) }];
     isim_ui_set_needs_display();
@@ -212,7 +213,9 @@ static CGSize overlay_size(UIView *v) {
 - (void)_isim_replaceRange:(NSRange)r withText:(NSString *)s {
     id<UITextFieldDelegate> d = _delegate;
     BOOL composing = isim_ui_marked_range(self).location != NSNotFound;
-    if (!composing && [d respondsToSelector:@selector(textField:shouldChangeCharactersInRange:replacementString:)] &&
+    if (!composing && [d respondsToSelector:@selector(textField:shouldChangeCharactersInRanges:replacementString:)]) {
+        if (![d textField:self shouldChangeCharactersInRanges:@[[NSValue valueWithRange:r]] replacementString:s]) return;
+    } else if (!composing && [d respondsToSelector:@selector(textField:shouldChangeCharactersInRange:replacementString:)] &&
         ![d textField:self shouldChangeCharactersInRange:r replacementString:s]) return;
     NSString *old = [_storage substringWithRange:r];
     _storage = [_storage stringByReplacingCharactersInRange:r withString:s];

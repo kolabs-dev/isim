@@ -223,6 +223,17 @@ static UIFont *base_font(UITextView *t, NSDictionary *a) { return a[NSFontAttrib
 }
 - (instancetype)init { return [self initWithConfiguration:[UITextFormattingViewControllerConfiguration new]]; }
 - (void)_isimSetTarget:(UITextView *)t { _target = t; }
+/* the target text view's delegate hears of the panel going away */
+- (void)viewWillDisappear:(BOOL)animated {
+    [super viewWillDisappear:animated];
+    UITextView *t = _target; id<UITextViewDelegate> d = t.delegate;
+    if (t && self.isBeingDismissed && [d respondsToSelector:@selector(textView:willEndFormattingWithViewController:)]) [d textView:t willEndFormattingWithViewController:self];
+}
+- (void)viewDidDisappear:(BOOL)animated {
+    [super viewDidDisappear:animated];
+    UITextView *t = _target; id<UITextViewDelegate> d = t.delegate;
+    if (t && self.isBeingDismissed && [d respondsToSelector:@selector(textView:didEndFormattingWithViewController:)]) [d textView:t didEndFormattingWithViewController:self];
+}
 - (NSArray<UITextFormattingViewControllerFormattingStyle *> *)_styles {
     if (_configuration.formattingStyles) return _configuration.formattingStyles;
     UIFont *(^f)(CGFloat, UIFontWeight) = ^(CGFloat s, UIFontWeight w) { return [UIFont systemFontOfSize:s weight:w]; };
@@ -584,7 +595,13 @@ void isim_ui_present_text_formatting(UITextView *tv) {
     NSRange sel = tv.selectedRange;
     [tv resignFirstResponder];
     tv.selectedRange = sel;
-    [host presentViewController:p animated:YES completion:nil];
+    id<UITextViewDelegate> d = tv.delegate;
+    if ([d respondsToSelector:@selector(textView:willBeginFormattingWithViewController:)]) [d textView:tv willBeginFormattingWithViewController:p];
+    __weak UITextView *wtv = tv;
+    [host presentViewController:p animated:YES completion:^{
+        UITextView *t = wtv; id<UITextViewDelegate> d2 = t.delegate;
+        if (t && [d2 respondsToSelector:@selector(textView:didBeginFormattingWithViewController:)]) [d2 textView:t didBeginFormattingWithViewController:p];
+    }];
 }
 
 static char kConfiguration;

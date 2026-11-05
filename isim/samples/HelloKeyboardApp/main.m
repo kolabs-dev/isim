@@ -68,6 +68,8 @@
 }
 - (void)changed:(UITextField *)f { NSLog(@"HelloKeyboardApp: text = \"%@\"", f.text); }
 - (BOOL)textFieldShouldReturn:(UITextField *)f { NSLog(@"HelloKeyboardApp: return pressed"); [f resignFirstResponder]; return NO; }
+/* #872: sent instead of textFieldDidEndEditing: when implemented */
+- (void)textFieldDidEndEditing:(UITextField *)f reason:(UITextFieldDidEndEditingReason)reason { NSLog(@"HelloKeyboardApp: did end editing reason %ld", (long)reason); }
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)s { NSLog(@"HelloKeyboardApp: scrolled to %g", s.contentOffset.y); }
 - (void)scrollViewDidEndDragging:(UIScrollView *)s willDecelerate:(BOOL)d { if (!d) NSLog(@"HelloKeyboardApp: scrolled to %g", s.contentOffset.y); }
 @end

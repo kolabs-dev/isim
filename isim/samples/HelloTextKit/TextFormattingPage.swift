@@ -161,6 +161,20 @@ final class FormatViewController: UIViewController, UITextViewDelegate {
     }
 
     func textViewDidChange(_ textView: UITextView) { log("notes changed") }
+    // #872: the edit menu's and the formatting panel's delegate methods
+    func textView(_ textView: UITextView, editMenuForTextIn range: NSRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
+        log("edit menu for \(range.location),\(range.length) items \(suggestedActions.count > 0)"); return nil
+    }
+    func textView(_ textView: UITextView, willPresentEditMenuWith animator: any UIEditMenuInteractionAnimating) { log("edit menu will present") }
+    func textView(_ textView: UITextView, willDismissEditMenuWith animator: any UIEditMenuInteractionAnimating) { log("edit menu will dismiss") }
+    @available(iOS 18.0, *)
+    func textView(_ textView: UITextView, willBeginFormattingWith viewController: UITextFormattingViewController) { log("formatting will begin") }
+    @available(iOS 18.0, *)
+    func textView(_ textView: UITextView, didBeginFormattingWith viewController: UITextFormattingViewController) { log("formatting did begin") }
+    @available(iOS 18.0, *)
+    func textView(_ textView: UITextView, willEndFormattingWith viewController: UITextFormattingViewController) { log("formatting will end") }
+    @available(iOS 18.0, *)
+    func textView(_ textView: UITextView, didEndFormattingWith viewController: UITextFormattingViewController) { log("formatting did end") }
 
     func report() {
         let s = notes.attributedText!
