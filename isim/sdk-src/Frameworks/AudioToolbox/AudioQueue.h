@@ -86,6 +86,15 @@ AT_EXPORT OSStatus AudioQueueProcessingTapGetSourceAudio(AudioQueueProcessingTap
                                                          AudioBufferList *ioData);
 AT_EXPORT OSStatus AudioQueueProcessingTapGetQueueTime(AudioQueueProcessingTapRef inAQTap, Float64 *outQueueSampleTime,
                                                        UInt32 *outQueueFrameCount);
+/* issue #856 (AudioFunctions.swift) */
+AT_EXPORT OSStatus AudioQueueCreateTimeline(AudioQueueRef inAQ, AudioQueueTimelineRef _Nullable * _Nonnull outTimeline);
+AT_EXPORT OSStatus AudioQueueDeviceGetCurrentTime(AudioQueueRef inAQ, AudioTimeStamp * outTimeStamp);
+AT_EXPORT OSStatus AudioQueueDeviceGetNearestStartTime(AudioQueueRef inAQ, AudioTimeStamp * ioRequestedStartTime, UInt32 inFlags);
+AT_EXPORT OSStatus AudioQueueDeviceTranslateTime(AudioQueueRef inAQ, const AudioTimeStamp * inTime, AudioTimeStamp * outTime);
+AT_EXPORT OSStatus AudioQueueDisposeTimeline(AudioQueueRef inAQ, AudioQueueTimelineRef inTimeline);
+AT_EXPORT OSStatus AudioQueueEnqueueBufferWithParameters(AudioQueueRef inAQ, AudioQueueBufferRef inBuffer, UInt32 inNumPacketDescs, const AudioStreamPacketDescription * _Nullable inPacketDescs, UInt32 inTrimFramesAtStart, UInt32 inTrimFramesAtEnd, UInt32 inNumParamValues, const AudioQueueParameterEvent * _Nullable inParamValues, const AudioTimeStamp * _Nullable inStartTime, AudioTimeStamp * _Nullable outActualStartTime);
+AT_EXPORT OSStatus AudioQueueOfflineRender(AudioQueueRef inAQ, const AudioTimeStamp * inTimestamp, AudioQueueBufferRef ioBuffer, UInt32 inNumberFrames);
+AT_EXPORT OSStatus AudioQueueSetOfflineRenderFormat(AudioQueueRef inAQ, const AudioStreamBasicDescription * _Nullable inFormat, const AudioChannelLayout * _Nullable inLayout);
 #pragma clang assume_nonnull end
 __END_DECLS
 #endif

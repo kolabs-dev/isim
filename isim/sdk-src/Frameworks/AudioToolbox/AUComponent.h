@@ -90,6 +90,11 @@ AT_EXPORT OSStatus AudioUnitRender(AudioUnit inUnit, AudioUnitRenderActionFlags 
 AT_EXPORT OSStatus AudioUnitProcess(AudioUnit inUnit, AudioUnitRenderActionFlags *_Nullable ioActionFlags, const AudioTimeStamp *inTimeStamp,
                                     UInt32 inNumberFrames, AudioBufferList *ioData);
 AT_EXPORT OSStatus AudioUnitReset(AudioUnit inUnit, AudioUnitScope inScope, AudioUnitElement inElement);
+/* issue #856 (AudioFunctions.swift) */
+AT_EXPORT CFArrayRef _Nullable AudioUnitExtensionCopyComponentList(CFStringRef extensionIdentifier);
+AT_EXPORT OSStatus AudioUnitExtensionSetComponentList(CFStringRef extensionIdentifier, CFArrayRef _Nullable audioComponentInfo);
+AT_EXPORT OSStatus AudioUnitProcessMultiple(AudioUnit inUnit, AudioUnitRenderActionFlags * _Nullable ioActionFlags, const AudioTimeStamp * inTimeStamp, UInt32 inNumberFrames, UInt32 inNumberInputBufferLists, const AudioBufferList * _Nonnull * _Nonnull inInputBufferLists, UInt32 inNumberOutputBufferLists, AudioBufferList * _Nonnull * _Nonnull ioOutputBufferLists);
+AT_EXPORT OSStatus AudioUnitScheduleParameters(AudioUnit inUnit, const AudioUnitParameterEvent * inParameterEvent, UInt32 inNumParamEvents);
 #pragma clang assume_nonnull end
 __END_DECLS
 #endif

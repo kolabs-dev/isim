@@ -20,6 +20,12 @@ AT_EXPORT void AudioComponentInstantiate(AudioComponent inComponent, AudioCompon
                                          void (^inCompletionHandler)(AudioComponentInstance _Nullable, OSStatus));
 AT_EXPORT OSStatus AudioComponentInstanceDispose(AudioComponentInstance inInstance);
 AT_EXPORT AudioComponent AudioComponentInstanceGetComponent(AudioComponentInstance inInstance);
+/* issue #856 (AudioFunctions.swift) */
+AT_EXPORT OSStatus AudioComponentCopyConfigurationInfo(AudioComponent inComponent, CFDictionaryRef _Nullable * _Nonnull outConfigurationInfo);
+AT_EXPORT Boolean AudioComponentInstanceCanDo (AudioComponentInstance inInstance, SInt16 inSelectorID);
+AT_EXPORT AudioComponent AudioComponentRegister(const AudioComponentDescription * inDesc, CFStringRef inName, UInt32 inVersion, AudioComponentFactoryFunction inFactory);
+AT_EXPORT OSStatus AudioComponentValidate(AudioComponent inComponent, CFDictionaryRef _Nullable inValidationParameters, AudioComponentValidationResult *outValidationResult);
+AT_EXPORT OSStatus AudioComponentValidateWithResults(AudioComponent inComponent, CFDictionaryRef _Nullable inValidationParameters, void (^inCompletionHandler)(AudioComponentValidationResult, CFDictionaryRef));
 #pragma clang assume_nonnull end
 __END_DECLS
 #endif

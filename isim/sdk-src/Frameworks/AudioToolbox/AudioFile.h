@@ -73,6 +73,19 @@ AT_EXPORT OSStatus AudioFileGetPropertyInfo(AudioFileID inAudioFile, AudioFilePr
                                             UInt32 *_Nullable isWritable);
 AT_EXPORT OSStatus AudioFileGetProperty(AudioFileID inAudioFile, AudioFilePropertyID inPropertyID, UInt32 *ioDataSize, void *outPropertyData);
 AT_EXPORT OSStatus AudioFileSetProperty(AudioFileID inAudioFile, AudioFilePropertyID inPropertyID, UInt32 inDataSize, const void *inPropertyData);
+/* issue #856 (AudioFunctions.swift) */
+AT_EXPORT OSStatus AudioFileCountUserData (AudioFileID inAudioFile, UInt32 inUserDataID, UInt32 *outNumberItems);
+AT_EXPORT OSStatus AudioFileGetGlobalInfo(AudioFilePropertyID inPropertyID, UInt32 inSpecifierSize, void * _Nullable inSpecifier, UInt32 *ioDataSize, void *outPropertyData);
+AT_EXPORT OSStatus AudioFileGetGlobalInfoSize(AudioFilePropertyID inPropertyID, UInt32 inSpecifierSize, void * _Nullable inSpecifier, UInt32 *outDataSize);
+AT_EXPORT OSStatus AudioFileGetUserData (AudioFileID inAudioFile, UInt32 inUserDataID, UInt32 inIndex, UInt32 *ioUserDataSize, void *outUserData);
+AT_EXPORT OSStatus AudioFileGetUserDataAtOffset (AudioFileID inAudioFile, UInt32 inUserDataID, UInt32 inIndex, SInt64 inOffset, UInt32 *ioUserDataSize, void *outUserData);
+AT_EXPORT OSStatus AudioFileGetUserDataSize (AudioFileID inAudioFile, UInt32 inUserDataID, UInt32 inIndex, UInt32 *outUserDataSize);
+AT_EXPORT OSStatus AudioFileGetUserDataSize64 (AudioFileID inAudioFile, UInt32 inUserDataID, UInt32 inIndex, UInt64 *outUserDataSize);
+AT_EXPORT OSStatus AudioFileInitializeWithCallbacks (void * inClientData, AudioFile_ReadProc inReadFunc, AudioFile_WriteProc inWriteFunc, AudioFile_GetSizeProc inGetSizeFunc, AudioFile_SetSizeProc inSetSizeFunc, AudioFileTypeID inFileType, const AudioStreamBasicDescription *inFormat, AudioFileFlags inFlags, AudioFileID _Nullable * _Nonnull outAudioFile);
+AT_EXPORT OSStatus AudioFileOpenWithCallbacks (void * inClientData, AudioFile_ReadProc inReadFunc, AudioFile_WriteProc _Nullable inWriteFunc, AudioFile_GetSizeProc inGetSizeFunc, AudioFile_SetSizeProc _Nullable inSetSizeFunc, AudioFileTypeID inFileTypeHint, AudioFileID _Nullable * _Nonnull outAudioFile);
+AT_EXPORT OSStatus AudioFileRemoveUserData (AudioFileID inAudioFile, UInt32 inUserDataID, UInt32 inIndex);
+AT_EXPORT OSStatus AudioFileSetUserData (AudioFileID inAudioFile, UInt32 inUserDataID, UInt32 inIndex, UInt32 inUserDataSize, const void *inUserData);
+AT_EXPORT OSStatus AudioFileWritePacketsWithDependencies (AudioFileID inAudioFile, Boolean inUseCache, UInt32 inNumBytes, const AudioStreamPacketDescription * _Nullable inPacketDescriptions, const AudioStreamPacketDependencyDescription * inPacketDependencies, SInt64 inStartingPacket, UInt32 * ioNumPackets, const void * inBuffer);
 #pragma clang assume_nonnull end
 __END_DECLS
 #endif

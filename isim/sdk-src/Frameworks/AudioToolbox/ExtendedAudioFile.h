@@ -33,6 +33,8 @@ AT_EXPORT OSStatus ExtAudioFileGetProperty(ExtAudioFileRef inExtAudioFile, ExtAu
                                            void *outPropertyData);
 AT_EXPORT OSStatus ExtAudioFileSetProperty(ExtAudioFileRef inExtAudioFile, ExtAudioFilePropertyID inPropertyID, UInt32 inPropertyDataSize,
                                            const void *inPropertyData);
+/* issue #856 (AudioFunctions.swift) */
+AT_EXPORT OSStatus ExtAudioFileWrapAudioFileID(AudioFileID inFileID, Boolean inForWriting, ExtAudioFileRef _Nullable * _Nonnull outExtAudioFile);
 #pragma clang assume_nonnull end
 __END_DECLS
 #endif

@@ -68,6 +68,19 @@ def test_audio_engine(launch, device_data):
         f"AAC encode into AVAudioCompressedBuffers and decode (host libavcodec): {line('aac')}"
     assert has(r"declarations unit 8 flags true info 104 caf 8 slice 112 event 2 room 4 m4a true schedule 3300 preset version"), \
         f"Apple's AudioToolbox C declarations from Swift (issue #856): {line('declarations')}"
+    # issue #856: the rest of AudioToolbox's C functions
+    assert has(r"format info 0 frame 4 name 16-bit little-endian signed integer, 2 channels, 44100 Hz encoders 1 aac true"), \
+        f"AudioFormatGetProperty: FormatInfo, FormatName, EncodeFormatIDs: {line('format info')}"
+    assert has(r"file types readable 9 caf true wave WAVE markers 88 display true"), \
+        f"AudioFileGetGlobalInfo; Apple's inline helpers: {line('file types')}"
+    assert has(r"user data count 1 text hello"), f"Audio File user data, written as a CAF chunk and read back: {line('user data')}"
+    assert has(r"callbacks bytes 244 riff RIFF open 0 packets 100"), f"AudioFileInitializeWithCallbacks / OpenWithCallbacks: {line('callbacks')}"
+    assert has(r"listener heard true value 0\.25 format 1\.235"), f"AUListener told by AUParameterSet; AUParameterFormatValue: {line('listener')}"
+    assert has(r"codec init 0 0 packets true decoded true tone 4[34]0"), f"AudioCodec AAC encoder and decoder (host libavcodec): {line('codec init')}"
+    assert has(r"offline render 0 bytes 100 first 1000"), \
+        f"AudioQueueOfflineRender of a buffer enqueued with 10 frames trimmed (ramp 0, 100, ...): {line('offline render')}"
+    assert has(r"graph interactions 1 node 1 connection true dest true show true uisound 0"), \
+        f"AUGraph interactions, CAShowFile, AudioServicesSetProperty: {line('graph interactions')}"
     assert has(r"unit classes timeeffect true varispeed true generator true"), f"AVAudioUnitTimeEffect, AVAudioUnitGenerator: {line('unit classes')}"
     m = re.search(r"realtime tap true rms before ([\d.]+) after lowpass ([\d.]+) playerTime ([\d.]+)", log)
     assert m and float(m[1]) > 0.3 and float(m[2]) < float(m[1]) * 0.5 and 0.8 <= float(m[3]) <= 1.1, \
