@@ -68,5 +68,6 @@ usr/lib/swift/libswiftNaturalLanguage.dylib 0.34.0
 usr/lib/swift/libswiftAccelerate.dylib 0.34.0
 # 0.35.0 (issue #850): AppIntents has Apple's value model: AppEntity and AppEnum refine _IntentValue (ValueType /
 # UnwrappedType), which Apple's IntentParameter / EntityProperty / IntentParameterContext overloads are constrained on.
+# CSSearchableIndexDescription moved to CoreSpotlight as a class, as in Apple's SDK (issue #859).
 # Swift apps built with 0.34 or earlier that use AppIntents must be rebuilt.
 usr/lib/swift/libswiftAppIntents.dylib 0.35.0

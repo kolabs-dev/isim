@@ -1063,7 +1063,7 @@ AccessorySetupKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftCoreBl
 NearbyInteraction -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftsimd -framework Foundation
 WorkoutKit -lswiftObjectiveC -lswiftFoundation -lswiftHealthKit -lswiftDispatch -lswift_Concurrency -framework Foundation
 WidgetKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftAppIntents -lswiftActivityKit -lswiftIntents -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -framework Intents -lisim_host
-CoreSpotlight -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUniformTypeIdentifiers -framework Foundation
+CoreSpotlight -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUniformTypeIdentifiers -lswiftFoundationModels -lswiftObservation -framework Foundation
 AppClip -lswiftObjectiveC -lswiftFoundation -lswiftCoreLocation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 SecureElementCredential -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundation -framework UIKit
 MarketplaceKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundation -framework UIKit

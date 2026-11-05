@@ -6,6 +6,7 @@
 // the attributes of .spnote documents written to Documents. Every step is logged ("sp ...").
 import UIKit
 import CoreSpotlight
+import FoundationModels
 
 func log(_ s: String) { NSLog("sp %@", s) }
 
@@ -54,7 +55,7 @@ final class NotesViewController: UIViewController {
         index.indexDelegate = delegate
         var y: CGFloat = 110
         for (id, t) in [("index", "Index Notes"), ("query", "Search: coffee"), ("filters", "Search: rated, recent"), ("bad", "Bad Query"),
-                        ("user", "User Query: “co”"), ("update", "Update Rating"), ("document", "Write Document"), ("remove", "Delete Everything")] {
+                        ("user", "User Query: “co”"), ("update", "Update Rating"), ("document", "Write Document"), ("remove", "Delete Everything"), ("tool", "Search Tool: coffee")] {
             let b = UIButton(type: .system)
             b.setTitle(t, for: .normal)
             b.frame = CGRect(x: 20, y: y, width: 300, height: 36)
@@ -120,8 +121,32 @@ final class NotesViewController: UIViewController {
             show("wrote packing.spnote")
         case "remove":
             index.deleteAllSearchableItems { [weak self] _ in self?.show("deleted everything") }
+        case "tool":
+            guard #available(iOS 27.0, *) else { show("the search tool needs iOS 27"); return }
+            Task { await searchTool() }
         default: break
         }
+    }
+
+    /// SpotlightSearchTool (iOS 27, issue #859): the tool a model calls, run here directly; a custom stage counts the results
+    @available(iOS 27.0, *)
+    func searchTool() async {
+        let tool = SpotlightSearchTool(configuration: .init(sources: [.coreSpotlight(CoreSpotlightSource(fetchAttributes: [.title, .rating]))],
+                                                            guide: .focused(.documents), contactResolver: Me()))
+        let counting = SpotlightSearchTool(configuration: .init(sources: [.coreSpotlight], customStages: [CountStage()]))
+        do {
+            let text = try await tool.call(arguments: GeneratedContent(properties: ["query": "coffee"]))
+            var found = "-"
+            for await reply in tool.searchResults {
+                if case .items(let items) = reply.content {
+                    found = items.map { "\($0.item.uniqueIdentifier) \($0.item.attributeSet.rating ?? 0)" }.joined(separator: ",") + " status \(reply.status == .complete)"
+                }
+                break
+            }
+            let counted = try await counting.call(arguments: GeneratedContent(properties: ["query": "notes"]))
+            log("tool name \(tool.name) me \(tool.description.contains("Ana Lima")) domain \(tool.description.contains("documents"))")
+            show("search tool: \(found); summary \(text.split(separator: "\n").first ?? ""); counted \(counted)")
+        } catch { show("search tool error \(error)") }
     }
 
     @available(iOS 18.0, *)
@@ -144,4 +169,19 @@ final class NotesViewController: UIViewController {
         if let first = items.first { q.userEngaged(first, visibleItems: items, interaction: .select) }
         show("user query: \(items.map(\.item.uniqueIdentifier).joined(separator: ", ")); suggestions: \(suggestions.joined(separator: ", "))")
     }
+}
+
+@available(iOS 27.0, *)
+struct Me: ContactResolver {
+    func userIdentity() -> ResolvedContact { ResolvedContact(displayName: "Ana Lima") }
+}
+/// a custom stage: the number of items
+@available(iOS 27.0, *)
+@Generable
+struct CountStage: CustomStage {
+    static var name: String { "count" }
+    static var description: String { "counts the results" }
+    static var inputTypes: [SearchPipelineDataType] { [.items] }
+    static var outputType: SearchPipelineDataType { .count }
+    func execute(items: [SearchableItem]) async throws -> SearchPipelineData { .count(items.count) }
 }
