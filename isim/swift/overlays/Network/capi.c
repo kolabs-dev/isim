@@ -17,6 +17,7 @@ EXPORT const nw_send_completion_t _nw_connection_send_idempotent_content = ^(voi
 EXPORT const CFStringRef kNWErrorDomainPOSIX = CFSTR("kNWErrorDomainPOSIX");
 EXPORT const CFStringRef kNWErrorDomainDNS = CFSTR("kNWErrorDomainDNS");
 EXPORT const CFStringRef kNWErrorDomainTLS = CFSTR("kNWErrorDomainTLS");
+EXPORT const CFStringRef kNWErrorDomainWiFiAware = CFSTR("kNWErrorDomainWiFiAware");
 
 EXPORT void *_nw_content_context_default_message;
 EXPORT void *_nw_content_context_final_send;

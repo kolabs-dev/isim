@@ -125,6 +125,8 @@ public final class NWListener: CustomDebugStringConvertible, @unchecked Sendable
     public var stateUpdateHandler: (@Sendable (State) -> Void)?
     public var newConnectionHandler: (@Sendable (NWConnection) -> Void)?
     public var serviceRegistrationUpdateHandler: (@Sendable (ServiceRegistrationChange) -> Void)?
+    /// groups of QUIC streams from one peer (iOS 15): never called on isim (no QUIC listeners yet)
+    public var newConnectionGroupHandler: (@Sendable (NWConnectionGroup) -> Void)?
     public var newConnectionLimit: Int = Int.max
     public static let InfiniteConnectionLimit = Int.max
     public private(set) var queue: DispatchQueue?

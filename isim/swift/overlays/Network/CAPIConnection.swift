@@ -68,6 +68,9 @@ final class _NWCContext: NSObject {
     var expiration: UInt64 = 0
     var priority: Double = 0.5
     var antecedent: _NWCContext?
+    /// protocol metadata set from C, and the group message a received context stands for
+    var metadata: [NWProtocolMetadata] = []
+    var groupMessage: NWConnectionGroup.Message?
     /// the shared contexts of Apple's macros map to NWConnection.ContentContext's
     let shared: NWConnection.ContentContext?
     var cIdentifier: UnsafeMutablePointer<CChar>?
@@ -76,12 +79,12 @@ final class _NWCContext: NSObject {
     }
     convenience init(_ c: NWConnection.ContentContext) {
         self.init(identifier: c.identifier, isFinal: c.isFinal)
-        expiration = c.expirationMilliseconds; priority = c.relativePriority
+        expiration = c.expirationMilliseconds; priority = c.relativePriority; metadata = c.protocolMetadata
     }
     var context: NWConnection.ContentContext {
-        if let shared, shared.isFinal == isFinal { return shared }
+        if let shared, shared.isFinal == isFinal, metadata.isEmpty { return shared }
         return NWConnection.ContentContext(identifier: identifier, expiration: expiration, priority: priority, isFinal: isFinal,
-                                           antecedent: antecedent?.context)
+                                           antecedent: antecedent?.context, metadata: metadata)
     }
     deinit { free(cIdentifier) }
 }
@@ -115,18 +118,21 @@ final class _NWCListener: _NWCQueued {
 }
 final class _NWCAdvertiseDescriptor: NSObject {
     var service: NWListener.Service
+    var applicationService: UnsafeMutablePointer<CChar>?          /* nw_advertise_descriptor_create_application_service */
     init(_ s: NWListener.Service) { service = s }
+    deinit { free(applicationService) }
 }
 final class _NWCBrowseDescriptor: NSObject {
     let type: String, domain: String?
     var includeTXT = false
     var cType: UnsafeMutablePointer<CChar>, cDomain: UnsafeMutablePointer<CChar>?
+    var applicationService: UnsafeMutablePointer<CChar>?          /* nw_browse_descriptor_create_application_service */
     init(type: String, domain: String?) {
         self.type = type; self.domain = domain
         cType = strdup(type); cDomain = domain.map { strdup($0) }
     }
     var descriptor: NWBrowser.Descriptor { includeTXT ? .bonjourWithTXTRecord(type: type, domain: domain) : .bonjour(type: type, domain: domain) }
-    deinit { free(cType); free(cDomain) }
+    deinit { free(cType); free(cDomain); free(applicationService) }
 }
 final class _NWCBrowser: _NWCQueued {
     let browser: NWBrowser
