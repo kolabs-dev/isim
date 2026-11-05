@@ -90,7 +90,18 @@ final class EngineViewController: UIViewController {
         e.stop()
         return out
     }
+    /// Apple's AudioToolbox C declarations as Swift imports them (issue #856): enums, option sets, C layouts
+    func declarationChecks() {
+        var info = AudioUnitParameterInfo()
+        info.unit = .hertz
+        info.flags = [.flag_IsReadable, .flag_CanRamp]
+        report("declarations unit \(info.unit.rawValue) flags \(info.flags.contains(.flag_CanRamp)) info \(MemoryLayout<AudioUnitParameterInfo>.size) " +
+               "caf \(MemoryLayout<CAFFileHeader>.size) slice \(MemoryLayout<ScheduledAudioSlice>.size) " +
+               "event \(AURenderEventType.parameterRamp.rawValue) room \(AUReverbRoomType.reverbRoomType_LargeHall.rawValue) " +
+               "m4a \(kAudioFileM4AType == 0x6d346166) schedule \(kAudioUnitProperty_ScheduleAudioSlice) preset \(kAUPresetVersionKey)")
+    }
     func offlineChecks() {
+        declarationChecks()
         let mono = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1)!
         // varispeed rate 2: twice as fast and an octave up
         var variEnd = -1.0

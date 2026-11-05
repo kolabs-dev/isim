@@ -66,6 +66,8 @@ def test_audio_engine(launch, device_data):
     m = re.search(r"aac format true packets (\d+) bytes true cookie true bitrate 128000 decoded true freq (\d+) rms ([\d.]+)", log)
     assert m and 43 <= int(m[1]) <= 47 and 430 <= int(m[2]) <= 450 and 0.3 <= float(m[3]) <= 0.4, \
         f"AAC encode into AVAudioCompressedBuffers and decode (host libavcodec): {line('aac')}"
+    assert has(r"declarations unit 8 flags true info 104 caf 8 slice 112 event 2 room 4 m4a true schedule 3300 preset version"), \
+        f"Apple's AudioToolbox C declarations from Swift (issue #856): {line('declarations')}"
     assert has(r"unit classes timeeffect true varispeed true generator true"), f"AVAudioUnitTimeEffect, AVAudioUnitGenerator: {line('unit classes')}"
     m = re.search(r"realtime tap true rms before ([\d.]+) after lowpass ([\d.]+) playerTime ([\d.]+)", log)
     assert m and float(m[1]) > 0.3 and float(m[2]) < float(m[1]) * 0.5 and 0.8 <= float(m[3]) <= 1.1, \

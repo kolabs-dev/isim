@@ -13,6 +13,7 @@
 static int failures, checks;
 #define CHECK(cond) do { checks++; if (cond) printf("PASS  %s\n", #cond); else { failures++; printf("FAIL  %s  (line %d)\n", #cond, __LINE__); } } while (0)
 int plain_c_checks(int *checks);
+int decl_checks(int *checks);
 
 /// Waits for `cond` (the main run loop keeps running, for main-queue callbacks), up to `seconds`.
 #define WAIT_FOR(cond, seconds) do { NSDate *_end = [NSDate dateWithTimeIntervalSinceNow:(seconds)]; \
@@ -221,6 +222,7 @@ int main(void) {
 
         // ---- Audio Converter: sample rate conversion through an input proc (plain C covers ConvertBuffer) ----
         failures += plain_c_checks(&checks);
+        failures += decl_checks(&checks);
 
         // ---- Audio Queues: an output queue whose callback refills its buffers on the audio thread ----
         AudioStreamBasicDescription qfmt = {44100, kAudioFormatLinearPCM, kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked, 4, 1, 4, 2, 16, 0};
