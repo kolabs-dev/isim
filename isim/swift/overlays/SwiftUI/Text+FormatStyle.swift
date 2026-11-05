@@ -44,7 +44,18 @@ extension AttributeScopes {
         public let kern: KerningAttribute
         public let tracking: TrackingAttribute
         public let baselineOffset: BaselineOffsetAttribute
+        /// paragraph layout (iOS 26): the Core Text attributes
+        public let alignment: AttributeScopes.CoreTextAttributes.TextAlignmentAttribute
+        public let lineHeight: AttributeScopes.CoreTextAttributes.LineHeightAttribute
+        @available(iOS 18.0, *)
+        public var adaptiveImageGlyph: AdaptiveImageGlyphAttribute { fatalError("only used in key paths") }
+        public let accessibility: AttributeScopes.AccessibilityAttributes
         public let foundation: AttributeScopes.FoundationAttributes
+        @available(iOS 18.0, *)
+        public enum AdaptiveImageGlyphAttribute: CodableAttributedStringKey {
+            public typealias Value = AttributedString.AdaptiveImageGlyph
+            public static let name = "SwiftUI.AdaptiveImageGlyph"
+        }
         public enum FontAttribute: AttributedStringKey { public typealias Value = Font; public static let name = "SwiftUI.Font" }
         public enum ForegroundColorAttribute: AttributedStringKey { public typealias Value = Color; public static let name = "SwiftUI.ForegroundColor" }
         public enum BackgroundColorAttribute: AttributedStringKey { public typealias Value = Color; public static let name = "SwiftUI.BackgroundColor" }
