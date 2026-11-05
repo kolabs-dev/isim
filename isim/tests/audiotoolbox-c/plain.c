@@ -2,6 +2,7 @@
 // component list. Called from main.m; returns the number of failed checks and counts them in *checks.
 #include <AudioToolbox/AudioToolbox.h>
 #include <stdio.h>
+#include <string.h>
 
 static Float32 ramp[480];
 static int inputCalls;
@@ -51,5 +52,23 @@ int plain_c_checks(int *checks) {
     Boolean b = true;
     OSStatus s = noErr;
     CCHECK(b && s == 0 && sizeof(Float64) == 8 && sizeof(SInt64) == 8);
+    return failures;
+}
+
+// Apple's declarations from the generated header (issue #856), as plain C: values and C layouts
+int decl_checks(int *checks) {
+    int failures = 0;
+    CCHECK(kAudioUnitProperty_ScheduleAudioSlice == 3300 && kAudioUnitProperty_ScheduledFileRegion == 3311);
+    CCHECK(kAudioUnitParameterUnit_Hertz == 8 && kAudioUnitParameterUnit_Decibels == 13);
+    CCHECK(kAudioUnitParameterFlag_IsReadable == (1UL << 30) && kAudioUnitParameterFlag_IsWritable == (1UL << 31));
+    CCHECK(kAudioFileM4AType == 'm4af' && kAudioFile3GPType == '3gpp' && kAudioFileCAFType == 'caff');
+    CCHECK(kAudioComponentErr_InstanceTimedOut == -66754 && kAudioUnitErr_RenderTimeout == -66745);
+    CCHECK(sizeof(AudioUnitParameterInfo) == 104 && sizeof(CAFFileHeader) == 8 && sizeof(CAFChunkHeader) == 12);
+    CCHECK(sizeof(ScheduledAudioSlice) == 112 && sizeof(AudioFileMarker) == 40);
+    CCHECK(AUDIO_TOOLBOX_VERSION == 1060 && strcmp(kAUPresetVersionKey, "version") == 0);
+    AudioUnitParameterInfo info = {0};
+    info.unit = kAudioUnitParameterUnit_Seconds;
+    info.flags = kAudioUnitParameterFlag_IsReadable | kAudioUnitParameterFlag_CanRamp;
+    CCHECK(info.unit == 4 && (info.flags & kAudioUnitParameterFlag_CanRamp) != 0);
     return failures;
 }

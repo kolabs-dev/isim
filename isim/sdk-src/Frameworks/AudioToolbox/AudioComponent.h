@@ -5,13 +5,6 @@
 #if !defined(__swift__)
 __BEGIN_DECLS
 #pragma clang assume_nonnull begin
-typedef CF_OPTIONS(UInt32, AudioComponentFlags) {
-    kAudioComponentFlag_Unsearchable = 1,
-    kAudioComponentFlag_SandboxSafe = 2,
-    kAudioComponentFlag_IsV3AudioUnit = 4,
-    kAudioComponentFlag_RequiresAsyncInstantiation = 8,
-    kAudioComponentFlag_CanLoadInProcess = 0x10,
-};
 typedef CF_OPTIONS(UInt32, AudioComponentInstantiationOptions) {
     kAudioComponentInstantiation_LoadOutOfProcess = 1,
     kAudioComponentInstantiation_LoadInProcess = 2,

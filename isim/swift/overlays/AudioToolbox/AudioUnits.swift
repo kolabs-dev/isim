@@ -20,7 +20,6 @@ public typealias AudioUnitScope = UInt32
 public typealias AudioUnitElement = UInt32
 public typealias AudioUnitParameterID = UInt32
 public typealias AudioUnitParameterValue = Float32
-public typealias AUParameterEventType = UInt32
 
 public struct AudioComponentInstantiationOptions: OptionSet, Sendable {
     public let rawValue: UInt32

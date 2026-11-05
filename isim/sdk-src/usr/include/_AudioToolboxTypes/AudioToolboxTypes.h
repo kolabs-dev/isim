@@ -404,3 +404,6 @@ typedef void (*CAClockListenerProc)(void *userData, CAClockMessage message, cons
 
 #pragma clang assume_nonnull end
 __END_DECLS
+
+/* Apple's other AudioToolbox C declarations (issue #856) */
+#include <_AudioToolboxTypes/AudioToolboxDecls.h>
