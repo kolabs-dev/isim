@@ -15,6 +15,7 @@ def test_dragdrop(launch):
     app.wait_log(r"drag began with 1 item")                          # long press lifts the drag item
     app.wait_log(r"^zone entered")
     app.wait_log(r"^dropped: Swift at 86,50")
+    app.wait_log(r"^drag transferred 1 item")                       # sessionDidTransferItems (#872)
     app.wait_log(r"^drag ended with copy")                           # drop interaction: enter + performDrop
 
     app.send("longdrag 200 222 200 310 0.7 0.5")
@@ -33,6 +34,7 @@ def test_dragdrop(launch):
     app.wait_view(r"id=row-Swift\b")
 
     app.send("longdrag 95 105 95 700 0.7 0.3")
+    app.wait_log(r"^drag item cancel animation")                    # item:willAnimateCancelWith (#872)
     app.wait_log(r"isim: drag cancelled")
     app.wait_log(r"^drag ended with cancel")                         # drop on nothing cancels
     assert app.quit() == 0

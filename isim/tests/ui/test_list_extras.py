@@ -41,6 +41,7 @@ def test_list_extras(launch, ios):
     x2, y2 = target.center
     app.send(f"longdrag {x1:.0f} {y1:.0f} {x2 + 4:.0f} {y2:.0f} 0.8 1.0")
     app.wait_log(r"interactive movement of 0-4 began")
+    app.wait_log(r"^lx move target asked from 4$")                       # targetIndexPathForMoveOfItemFromOriginalIndexPath (#872)
     app.wait_log(r"^lx moved 5 to 6 order 1,2,3,4,6,7,5,8$")
     app.wait_tap_id("add")
     app.wait_log(r"^lx update items 0$")

@@ -104,6 +104,18 @@ public protocol UIDragInteractionDelegate: AnyObject {
     func dragInteraction(_ interaction: UIDragInteraction, session: UIDragSession, willEndWith operation: UIDropOperation)
     func dragInteraction(_ interaction: UIDragInteraction, session: UIDragSession, didEndWith operation: UIDropOperation)
     func dragInteraction(_ interaction: UIDragInteraction, sessionAllowsMoveOperation session: UIDragSession) -> Bool
+    // adding items to a session in progress (a tap on another draggable view while dragging; isim: not offered)
+    func dragInteraction(_ interaction: UIDragInteraction, itemsForAddingTo session: UIDragSession, withTouchAt point: CGPoint) -> [UIDragItem]
+    func dragInteraction(_ interaction: UIDragInteraction, sessionForAddingItems sessions: [UIDragSession], withTouchAt point: CGPoint) -> UIDragSession?
+    func dragInteraction(_ interaction: UIDragInteraction, session: UIDragSession, willAdd items: [UIDragItem], for addingInteraction: UIDragInteraction)
+    /// the drop took the items (after a copy or move)
+    func dragInteraction(_ interaction: UIDragInteraction, sessionDidTransferItems session: UIDragSession)
+    func dragInteraction(_ interaction: UIDragInteraction, prefersFullSizePreviewsFor session: UIDragSession) -> Bool
+    /// isim drags within the app only, so sessions stay restricted to it whatever this answers
+    func dragInteraction(_ interaction: UIDragInteraction, sessionIsRestrictedToDraggingApplication session: UIDragSession) -> Bool
+    // a cancelled drag: the preview that flies back (isim: not asked), and each item's animation (sent)
+    func dragInteraction(_ interaction: UIDragInteraction, previewForCancelling item: UIDragItem, withDefault defaultPreview: UITargetedDragPreview) -> UITargetedDragPreview?
+    func dragInteraction(_ interaction: UIDragInteraction, item: UIDragItem, willAnimateCancelWith animator: UIDragAnimating)
 }
 extension UIDragInteractionDelegate {
     public func dragInteraction(_ interaction: UIDragInteraction, previewForLifting item: UIDragItem, session: UIDragSession) -> UITargetedDragPreview? { nil }
@@ -113,6 +125,14 @@ extension UIDragInteractionDelegate {
     public func dragInteraction(_ interaction: UIDragInteraction, session: UIDragSession, willEndWith operation: UIDropOperation) {}
     public func dragInteraction(_ interaction: UIDragInteraction, session: UIDragSession, didEndWith operation: UIDropOperation) {}
     public func dragInteraction(_ interaction: UIDragInteraction, sessionAllowsMoveOperation session: UIDragSession) -> Bool { true }
+    public func dragInteraction(_ interaction: UIDragInteraction, itemsForAddingTo session: UIDragSession, withTouchAt point: CGPoint) -> [UIDragItem] { [] }
+    public func dragInteraction(_ interaction: UIDragInteraction, sessionForAddingItems sessions: [UIDragSession], withTouchAt point: CGPoint) -> UIDragSession? { nil }
+    public func dragInteraction(_ interaction: UIDragInteraction, session: UIDragSession, willAdd items: [UIDragItem], for addingInteraction: UIDragInteraction) {}
+    public func dragInteraction(_ interaction: UIDragInteraction, sessionDidTransferItems session: UIDragSession) {}
+    public func dragInteraction(_ interaction: UIDragInteraction, prefersFullSizePreviewsFor session: UIDragSession) -> Bool { false }
+    public func dragInteraction(_ interaction: UIDragInteraction, sessionIsRestrictedToDraggingApplication session: UIDragSession) -> Bool { false }
+    public func dragInteraction(_ interaction: UIDragInteraction, previewForCancelling item: UIDragItem, withDefault defaultPreview: UITargetedDragPreview) -> UITargetedDragPreview? { defaultPreview }
+    public func dragInteraction(_ interaction: UIDragInteraction, item: UIDragItem, willAnimateCancelWith animator: UIDragAnimating) {}
 }
 public protocol UIDropInteractionDelegate: AnyObject {
     func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool
@@ -451,6 +471,8 @@ final class _IsimDragController {
             let animator = _IsimDragAnimator()
             i.delegate?.dragInteraction(i, willAnimateLiftWith: animator, session: session)
             animator.run()
+            _ = i.delegate?.dragInteraction(i, prefersFullSizePreviewsFor: session)
+            _ = i.delegate?.dragInteraction(i, sessionIsRestrictedToDraggingApplication: session)
             i.delegate?.dragInteraction(i, sessionWillBegin: session)
         }
         // the lifted preview: a snapshot above everything, slightly larger, with a shadow
@@ -612,8 +634,16 @@ final class _IsimDragController {
                     } else { d.collectionView(cv, performDropWith: _IsimCollectionCoordinator(coordinator)) }
                 }
             }
+            if case .interaction(let i) = source { i.delegate?.dragInteraction(i, sessionDidTransferItems: session) }
         } else {
             if let t = target, case .interaction(let i) = t { i.delegate?.dropInteraction(i, sessionDidExit: session) }
+            if case .interaction(let i) = source {                // each item's cancel animation
+                for item in session.items {
+                    let a = _IsimDragAnimator()
+                    i.delegate?.dragInteraction(i, item: item, willAnimateCancelWith: a)
+                    a.run()
+                }
+            }
             print("isim: drag cancelled")
         }
         if let t = target, case .interaction(let i) = t { i.delegate?.dropInteraction(i, sessionDidEnd: session) }

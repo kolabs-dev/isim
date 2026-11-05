@@ -103,6 +103,9 @@ final class DragDropViewController: UIViewController, UIDragInteractionDelegate,
         item.localObject = "local"
         return [item]
     }
+    // #872: the drop took the items; each item's cancel animation
+    func dragInteraction(_ interaction: UIDragInteraction, sessionDidTransferItems session: UIDragSession) { print("drag transferred \(session.items.count) item") }
+    func dragInteraction(_ interaction: UIDragInteraction, item: UIDragItem, willAnimateCancelWith animator: UIDragAnimating) { print("drag item cancel animation") }
     func dragInteraction(_ interaction: UIDragInteraction, session: UIDragSession, didEndWith operation: UIDropOperation) {
         print("drag ended with \(operation == .copy ? "copy" : operation == .move ? "move" : "cancel")")
     }
