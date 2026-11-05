@@ -4,7 +4,7 @@
 // NWParameters, and what the application protocol allows decides which send and receive methods a NetworkChannel has.
 // Adapted: TLV frames are a big-endian type and length (UInt32 each by default) before the value; Coder frames each
 // encoded message with a 4-byte big-endian length on streams (one datagram per message on UDP), so isim peers talk to
-// each other. Not on isim: QUIC streams and datagrams (isim's QUIC is a stub), Wi-Fi Aware, Framer stacks.
+// each other. DTLS, Framer and QUIC stacks: Structured27.swift and QUIC.swift. Not on isim: Wi-Fi Aware.
 import Foundation
 
 // MARK: - protocol stack
@@ -16,11 +16,15 @@ public final class _NWStack: @unchecked Sendable {
     var udp: NWProtocolUDP.Options?
     var tls: NWProtocolTLS.Options?
     var webSocket: NWProtocolWebSocket.Options?
+    var framer: NWProtocolFramer.Options?
+    var quic: NWProtocolQUIC.Options?
     init() {}
     func parameters() -> NWParameters {
-        let p = udp != nil ? NWParameters(dtls: tls, udp: udp!) : NWParameters(tls: tls, tcp: tcp ?? NWProtocolTCP.Options())
+        let p = quic.map { NWParameters(quic: $0) }
+            ?? (udp != nil ? NWParameters(dtls: tls, udp: udp!) : NWParameters(tls: tls, tcp: tcp ?? NWProtocolTCP.Options()))
         p.defaultProtocolStack.internetProtocol = ip
         if let ws = webSocket { p.defaultProtocolStack.applicationProtocols.insert(ws, at: 0) }
+        if let f = framer { p.defaultProtocolStack.applicationProtocols.insert(f, at: 0) }
         return p
     }
 }
@@ -76,7 +80,7 @@ public struct IP: NetworkProtocolOptions, Sendable {
     private func with(_ f: (NWProtocolIP.Options) -> Void) -> IP {
         let o = NWProtocolIP.Options(); o.version = options.version; o.hopLimit = options.hopLimit; o.useMinimumMTU = options.useMinimumMTU
         o.disableFragmentation = options.disableFragmentation; o.shouldCalculateReceiveTime = options.shouldCalculateReceiveTime
-        o.localAddressPreference = options.localAddressPreference
+        o.localAddressPreference = options.localAddressPreference; o.disableMulticastLoopback = options.disableMulticastLoopback
         f(o); var c = self; c.options = o; return c
     }
     public func version(_ version: NWProtocolIP.Options.Version) -> IP { with { $0.version = version } }
@@ -84,7 +88,9 @@ public struct IP: NetworkProtocolOptions, Sendable {
     public func minimumMTU(_ on: Bool) -> IP { with { $0.useMinimumMTU = on } }
     public func fragmentationDisabled(_ on: Bool) -> IP { with { $0.disableFragmentation = on } }
     public func receiveTimeCalculated(_ on: Bool) -> IP { with { $0.shouldCalculateReceiveTime = on } }
-    public func multicastLoopbackDisabled(_ on: Bool) -> IP { self }
+    public func multicastLoopbackDisabled(_ on: Bool) -> IP { with { $0.disableMulticastLoopback = on } }
+    /// iOS 26: which local IPv6 address connections use
+    public func localAddressPreference(_ preference: NWProtocolIP.Options.AddressPreference) -> IP { with { $0.localAddressPreference = preference } }
     public func _apply(to stack: _NWStack) { stack.ip = options }
 }
 
@@ -172,6 +178,9 @@ public struct TLS: StreamProtocol, OneToOneProtocol, Sendable {
     }
     public func ticketsEnabled(_ on: Bool) -> TLS { self }
     public func earlyDataEnabled(_ on: Bool) -> TLS { self }
+    /// the cipher suites to offer (kept: the host's OpenSSL picks from its own)
+    public func cipherSuites(_ suites: [tls_ciphersuite_t]) -> TLS { with { o in for s in suites { sec_protocol_options_append_tls_ciphersuite(o, s) } } }
+    public func cipherSuiteGroups(_ groups: [tls_ciphersuite_group_t]) -> TLS { with { o in for g in groups { sec_protocol_options_append_tls_ciphersuite_group(o, g) } } }
     public func _apply(to stack: _NWStack) { tcp._apply(to: stack); stack.tls = options }
 }
 
@@ -315,12 +324,12 @@ extension NWParametersProvider {
     public func prohibitedInterfaceTypes(_ types: [NWInterface.InterfaceType]) -> Self { with { $0.prohibitedInterfaceTypes = types } }
     public func expensivePathsProhibited(_ on: Bool) -> Self { with { $0.prohibitExpensivePaths = on } }
     public func constrainedPathsProhibited(_ on: Bool) -> Self { with { $0.prohibitConstrainedPaths = on } }
-    public func ultraConstrainedPathsAllowed(_ on: Bool) -> Self { self }
+    public func ultraConstrainedPathsAllowed(_ on: Bool) -> Self { with { $0.allowUltraConstrainedPaths = on } }
     public func noProxiesPreferred(_ on: Bool) -> Self { with { $0.preferNoProxies = on } }
     public func serviceClass(_ serviceClass: NWParameters.ServiceClass) -> Self { with { $0.serviceClass = serviceClass } }
     public func multipathServiceType(_ type: NWParameters.MultipathServiceType) -> Self { with { $0.multipathServiceType = type } }
     public func expiredDNSBehavior(_ behavior: NWParameters.ExpiredDNSBehavior) -> Self { with { $0.expiredDNSBehavior = behavior } }
-    public func dnssecValidationRequired(_ on: Bool) -> Self { self }
+    public func dnssecValidationRequired(_ on: Bool) -> Self { with { $0.requiresDNSSECValidation = on } }
 }
 
 /// a protocol stack and the parameters around it
@@ -365,13 +374,18 @@ final class _NWChannelCore: @unchecked Sendable {
     var buffer = Data()
     var stateWaiters: [CheckedContinuation<Void, Error>] = []
     var stateHandlers: [@Sendable (NWConnection.State) -> Void] = []
+    var pendingReport: NWConnection.PendingDataTransferReport?
     init(_ c: NWConnection) {
         conn = c
         c.stateUpdateHandler = { [weak self] s in self?.stateChanged(s) }
     }
     func start() {
         lock.lock(); let go = !started; started = true; lock.unlock()
-        if go { conn.start(queue: DispatchQueue(label: "isim.NetworkConnection")) }
+        if go {
+            let r = conn.startDataTransferReport()
+            lock.lock(); pendingReport = r; lock.unlock()
+            conn.start(queue: DispatchQueue(label: "isim.NetworkConnection"))
+        }
     }
     func stateChanged(_ s: NWConnection.State) {
         lock.lock()
@@ -533,7 +547,9 @@ extension NetworkChannel where ApplicationProtocol: DatagramProtocol {
     }
     public func receive() async throws -> ApplicationProtocol.Message<Data> {
         let (d, _) = try await core.readMessage()
-        return (d, NWProtocolUDP.Metadata() as! ApplicationProtocol.Metadata)
+        if let m = NWProtocolUDP.Metadata() as? ApplicationProtocol.Metadata { return (d, m) }
+        if let m = core.conn.metadata(definition: NWProtocolTLS.definition) as? ApplicationProtocol.Metadata { return (d, m) }   /* DTLS */
+        throw NWError.posix(.EINVAL)
     }
 }
 

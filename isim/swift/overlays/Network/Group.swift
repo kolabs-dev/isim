@@ -5,18 +5,26 @@
 // but fails: isim has no QUIC.
 @_exported import Foundation
 
-public protocol NWGroupDescriptor {}
+public protocol NWGroupDescriptor {
+    /// the group's endpoints (iOS 14)
+    var members: [NWEndpoint] { get }
+}
+extension NWGroupDescriptor { public var members: [NWEndpoint] { [] } }
 
-public struct NWMulticastGroup: NWGroupDescriptor, Equatable, CustomDebugStringConvertible, Sendable {
+/// a multicast group (a class, as in Apple's SDK)
+public final class NWMulticastGroup: NWGroupDescriptor, Equatable, CustomDebugStringConvertible, @unchecked Sendable {
     public private(set) var members: [NWEndpoint]
-    public var disableUnicast: Bool
+    /// the one sender whose messages the group takes (source-specific multicast), if any
+    public let sourceFilter: NWEndpoint?
+    /// whether replies and sends to one member are refused
+    public let isUnicastDisabled: Bool
     var sources: [NWEndpoint?] = []
     /// group addresses are hostPort endpoints with multicast addresses (224.0.0.0/4, ff00::/8), all on one port
     public init(for groupAddresses: [NWEndpoint], from sourceEndpoint: NWEndpoint? = nil, disableUnicast: Bool = false) throws {
-        members = []; self.disableUnicast = disableUnicast
+        members = []; isUnicastDisabled = disableUnicast; sourceFilter = sourceEndpoint
         for g in groupAddresses { try joinGroup(on: g, from: sourceEndpoint) }
     }
-    public mutating func joinGroup(on endpoint: NWEndpoint, from sourceEndpoint: NWEndpoint? = nil) throws {
+    public func joinGroup(on endpoint: NWEndpoint, from sourceEndpoint: NWEndpoint? = nil) throws {
         guard case .hostPort(let h, _) = endpoint else { throw NWError.posix(.EINVAL) }
         switch h {
         case .ipv4(let a) where a.isMulticast: break
@@ -26,29 +34,65 @@ public struct NWMulticastGroup: NWGroupDescriptor, Equatable, CustomDebugStringC
         members.append(endpoint); sources.append(sourceEndpoint)
     }
     public var debugDescription: String { members.map(\.debugDescription).joined(separator: ", ") }
-    public static func == (a: NWMulticastGroup, b: NWMulticastGroup) -> Bool { a.members == b.members && a.disableUnicast == b.disableUnicast }
+    public static func == (a: NWMulticastGroup, b: NWMulticastGroup) -> Bool { a.members == b.members && a.isUnicastDisabled == b.isUnicastDisabled }
 }
 
-/// QUIC streams to one peer (iOS 15): isim has no QUIC, so a group with it fails with ENOTSUP
-public struct NWMultiplexGroup: NWGroupDescriptor, Sendable {
+/// QUIC streams to one peer (iOS 15; a class, as in Apple's SDK)
+public final class NWMultiplexGroup: NWGroupDescriptor, @unchecked Sendable {
     public let remoteEndpoint: NWEndpoint
+    public var members: [NWEndpoint] { [remoteEndpoint] }
     public init(to remoteEndpoint: NWEndpoint) { self.remoteEndpoint = remoteEndpoint }
 }
 
 public final class NWConnectionGroup: CustomDebugStringConvertible, @unchecked Sendable {
     public enum State: Equatable, Sendable { case setup, waiting(NWError), ready, failed(NWError), cancelled }
 
-    /// a received message: who sent it, to answer them
+    /// a message sent or received in a group, with who sent it, to answer them. Adapted: a class of its own (Apple's is a
+    /// ContentContext subclass; isim's ContentContext is final), with the same members
     public final class Message: @unchecked Sendable {
         public let remoteEndpoint: NWEndpoint?
         public let localEndpoint: NWEndpoint?
         public var isFinal = true
         public var expirationMilliseconds: UInt64 = 0
         public var relativePriority: Double = 0.5
+        let identifier: String
+        let antecedent: NWConnection.ContentContext?
+        let protocolMetadata: [NWProtocolMetadata]
         weak var group: NWConnectionGroup?
-        init(remote: NWEndpoint?, local: NWEndpoint?) { remoteEndpoint = remote; localEndpoint = local }
+        init(remote: NWEndpoint?, local: NWEndpoint?) {
+            remoteEndpoint = remote; localEndpoint = local; identifier = "isim.group.message"; antecedent = nil; protocolMetadata = []
+        }
+        /// a message to send, as a content context is made
+        public init(identifier: String, expiration: UInt64 = 0, priority: Double = 0.5, isFinal: Bool = true,
+                    antecedent: NWConnection.ContentContext? = nil, metadata: [NWProtocolMetadata]? = []) {
+            remoteEndpoint = nil; localEndpoint = nil; self.identifier = identifier
+            expirationMilliseconds = expiration; relativePriority = priority; self.isFinal = isFinal
+            self.antecedent = antecedent; protocolMetadata = metadata ?? []
+        }
+        /// a message from a C content context (iOS 17)
+        public convenience init(nw context: nw_content_context_t) {
+            let c = (context as? _NWCContext)?.context ?? .defaultMessage
+            self.init(identifier: c.identifier, expiration: c.expirationMilliseconds, priority: c.relativePriority, isFinal: c.isFinal,
+                      antecedent: c.antecedent, metadata: c.protocolMetadata)
+        }
         public static let `default` = Message(remote: nil, local: nil)
-        public func reply(content: Data?) { group?.reply(to: self, content: content) }
+        /// the path the message came over
+        public var path: NWPath? {
+            guard remoteEndpoint != nil else { return nil }
+            var p = NWPath._current(required: nil, prohibited: [])
+            p.localEndpoint = localEndpoint; p.remoteEndpoint = remoteEndpoint
+            return p
+        }
+        public func reply(content: Data?, message: NWConnectionGroup.Message = .default) { group?.reply(to: self, content: content) }
+        @_disfavoredOverload public func reply(content: Data?) { group?.reply(to: self, content: content) }
+        /// a connection to the sender (a UDP connection to it)
+        public func extractConnection() -> NWConnection? { NWConnection(message: self) }
+        public func metadata(definition: NWProtocolDefinition) -> NWProtocolMetadata? {
+            if let m = protocolMetadata.first(where: { $0._definition == definition }) { return m }
+            if definition == NWProtocolUDP.definition, remoteEndpoint != nil { return NWProtocolUDP.Metadata() }
+            if definition == NWProtocolIP.definition, remoteEndpoint != nil { return NWProtocolIP.Metadata() }
+            return nil
+        }
     }
 
     public let descriptor: NWGroupDescriptor
@@ -185,7 +229,7 @@ public final class NWConnectionGroup: CustomDebugStringConvertible, @unchecked S
         q.async { completion(err) }
     }
     public func reply(to message: Message, content: Data?) {
-        guard let r = message.remoteEndpoint else { return }
+        guard let r = message.remoteEndpoint, (descriptor as? NWMulticastGroup)?.isUnicastDisabled != true else { return }
         send(content: content, to: r) { _ in }
     }
     /// a connection to one member (iOS 15): a UDP connection to it
@@ -194,6 +238,13 @@ public final class NWConnectionGroup: CustomDebugStringConvertible, @unchecked S
         return NWConnection(to: e, using: .udp)
     }
     public func reinsert(connection: NWConnection) throws { connection.cancel() }
+    /// the group's protocol metadata (iOS 15): UDP and IP for a multicast group
+    public func metadata(definition: NWProtocolDefinition) -> NWProtocolMetadata? {
+        guard descriptor is NWMulticastGroup else { return nil }
+        if definition == NWProtocolUDP.definition { return NWProtocolUDP.Metadata() }
+        if definition == NWProtocolIP.definition { return NWProtocolIP.Metadata() }
+        return nil
+    }
 
     public func cancel() {
         lock.lock()

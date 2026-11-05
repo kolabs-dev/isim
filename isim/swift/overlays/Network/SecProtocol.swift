@@ -63,7 +63,7 @@ public func sec_trust_copy_ref(_ trust: sec_trust_t) -> Unmanaged<SecTrust> {
 
 public func sec_protocol_options_set_local_identity(_ options: sec_protocol_options_t, _ identity: sec_identity_t) { options.identity = identity }
 public func sec_protocol_options_set_max_tls_protocol_version(_ options: sec_protocol_options_t, _ version: tls_protocol_version_t) { options.maxVersion = version }
-public func sec_protocol_options_append_tls_ciphersuite(_ options: sec_protocol_options_t, _ ciphersuite: UInt16) {}
+public func sec_protocol_options_append_tls_ciphersuite(_ options: sec_protocol_options_t, _ ciphersuite: UInt16) { options.cipherSuites.append(ciphersuite) }
 public func sec_protocol_options_set_tls_resumption_enabled(_ options: sec_protocol_options_t, _ resumptionEnabled: Bool) {}
 public func sec_protocol_options_set_tls_tickets_enabled(_ options: sec_protocol_options_t, _ ticketsEnabled: Bool) {}
 public func sec_protocol_options_set_challenge_block(_ options: sec_protocol_options_t,

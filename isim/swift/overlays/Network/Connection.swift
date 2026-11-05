@@ -153,12 +153,25 @@ public enum NWProtocolIP {
         public var useMinimumMTU = false
         public var disableFragmentation = false
         public var shouldCalculateReceiveTime = false
-        public var localAddressPreference: Int = 0
+        /// which local IPv6 address a connection uses (iOS 14): kept with the options; the host's routing picks the address
+        public enum AddressPreference: Sendable, Hashable { case `default`, temporary, stable }
+        public var localAddressPreference: AddressPreference = .default
+        /// whether multicast sends skip this host (iOS 14)
+        public var disableMulticastLoopback = false
     }
+    /// explicit congestion notification (RFC 3168) of a packet
+    public enum ECN: Sendable, Hashable { case nonECT, ect0, ect1, ce }
     public final class Metadata: NWProtocolMetadata, @unchecked Sendable {
         public var ecnFlag: Int = 0
+        public var ecn: NWProtocolIP.ECN = .nonECT
         public var serviceClass: NWParameters.ServiceClass = .bestEffort
-        public override init() { super.init() }
+        /// when the packet arrived, in mach continuous time nanoseconds (shouldCalculateReceiveTime)
+        public internal(set) var receiveTime: UInt64 = 0
+        public override init() { super.init(); _definition = NWProtocolIP.definition }
+        /// iOS 26: the metadata, with this ECN marking
+        public func ecn(_ ecn: NWProtocolIP.ECN) -> Self { self.ecn = ecn; return self }
+        /// iOS 26: the metadata, with this service class
+        public func serviceClass(_ serviceClass: NWParameters.ServiceClass) -> Self { self.serviceClass = serviceClass; return self }
     }
 }
 public enum NWProtocolTCP {
@@ -185,6 +198,9 @@ public enum NWProtocolTCP {
     public final class Metadata: NWProtocolMetadata, @unchecked Sendable {
         public internal(set) var availableReceiveBuffer: UInt32 = 0
         public internal(set) var availableSendBuffer: UInt32 = 0
+        /// the most bytes a second the connection sends (iOS 27); nil removes the limit. Recorded: the host's sockets pace
+        public internal(set) var _maximumPacingRate: UInt64?
+        public func setMaximumPacingRateBytesPerSecond(_ maximumPacingRateBytesPerSecond: UInt64?) { _maximumPacingRate = maximumPacingRateBytesPerSecond }
     }
 }
 public enum NWProtocolUDP {
@@ -209,6 +225,7 @@ public final class sec_protocol_options_t: @unchecked Sendable {
     var maxVersion: tls_protocol_version_t?
     var challengeBlock: ((sec_protocol_metadata_t, @escaping (sec_identity_t?) -> Void) -> Void)?
     var challengeQueue: DispatchQueue?
+    var cipherSuites: [UInt16] = [], cipherSuiteGroups: [UInt16] = []
     init() {}
 }
 public final class sec_protocol_metadata_t: @unchecked Sendable {
@@ -253,13 +270,15 @@ public func sec_protocol_metadata_get_server_name(_ metadata: sec_protocol_metad
     metadata.serverName.map { UnsafePointer(strdup($0)) }
 }
 
-/// QUIC options and metadata (iOS 15), for apps to build against: isim has no QUIC, connections fail with ENOTSUP
+/// QUIC options and metadata (iOS 15): connections run over the host's QUIC library when it has one (QUIC.swift)
 public enum NWProtocolQUIC {
     public static let definition = NWProtocolDefinition("quic")
     public final class Options: NWProtocolOptions, @unchecked Sendable {
+        /// whether a stream carries data both ways
+        public enum Direction: Sendable, Hashable { case bidirectional, unidirectional }
         public let securityProtocolOptions = sec_protocol_options_t()
         public var alpn: [String]
-        public var direction: NWProtocolQUIC.Direction = .bidirectional
+        public var direction: NWProtocolQUIC.Options.Direction = .bidirectional
         public var isDatagram = false
         public var idleTimeout = 30_000
         public var maxUDPPayloadSize = 1452
@@ -273,17 +292,27 @@ public enum NWProtocolQUIC {
         public override init() { alpn = []; super.init() }
         public init(alpn: [String]) { self.alpn = alpn; super.init() }
     }
-    public enum Direction: Sendable { case bidirectional, unidirectional }
+    /// an error code and reason for closing a connection
+    public struct ApplicationError: Sendable, Hashable {
+        public let code: UInt64
+        public let reason: String?
+        public init(code: UInt64, reason: String? = nil) { self.code = code; self.reason = reason }
+    }
     public final class Metadata: NWProtocolMetadata, @unchecked Sendable {
+        /// whether the connection sends keepalives, and how often
+        public enum KeepAliveBehavior: Sendable, Hashable { case on, off, seconds(Int) }
         public internal(set) var streamIdentifier: UInt64 = 0
-        public var streamApplicationError: UInt64?
-        public var applicationError: (error: UInt64, reason: String?)?
-        public internal(set) var keepAlive = false
-        public var remoteMaxStreamsBidirectional: UInt64 = 0
-        public var remoteMaxStreamsUnidirectional: UInt64 = 0
-        public var remoteIdleTimeout: UInt64 = 0
-        public var maxDatagramSize: Int = 0
-        public var securityProtocolMetadata: sec_protocol_metadata_t { sec_protocol_metadata_t() }
+        public var streamApplicationErrorCode: UInt64 = 0
+        public var applicationError = ApplicationError(code: 0)
+        public var keepAlive: KeepAliveBehavior = .off
+        public internal(set) var negotiatedALPN: String?
+        public var localMaxStreamsBidirectional = 100
+        public var localMaxStreamsUnidirectional = 100
+        public internal(set) var remoteMaxStreamsBidirectional = 0
+        public internal(set) var remoteMaxStreamsUnidirectional = 0
+        public internal(set) var remoteIdleTimeout = 0
+        public internal(set) var usableDatagramFrameSize = 0
+        public internal(set) var securityProtocolMetadata = sec_protocol_metadata_t()
         override init() { super.init(); _definition = NWProtocolQUIC.definition }
     }
 }
@@ -303,7 +332,9 @@ public enum NWProtocolTLS {
 public final class NWParameters: CustomDebugStringConvertible, @unchecked Sendable {
     public enum ServiceClass: Sendable { case bestEffort, background, interactiveVideo, interactiveVoice, responsiveData, signaling }
     public enum MultipathServiceType: Sendable { case disabled, handover, interactive, aggregate }
-    public enum ExpiredDNSBehavior: Sendable { case systemDefault, allow, prohibit }
+    public enum ExpiredDNSBehavior: Sendable { case systemDefault, allow, prohibit, persistent }
+    /// who a connection's traffic is for (iOS 15): the app's own (developer) or what its user asked for
+    public enum Attribution: Sendable, Hashable { case developer, user }
     public final class ProtocolStack: @unchecked Sendable {
         public var applicationProtocols: [NWProtocolOptions] = []
         public var transportProtocol: NWProtocolOptions?
@@ -327,7 +358,14 @@ public final class NWParameters: CustomDebugStringConvertible, @unchecked Sendab
     public var serviceClass: ServiceClass = .bestEffort
     public var multipathServiceType: MultipathServiceType = .disabled
     public var expiredDNSBehavior: ExpiredDNSBehavior = .systemDefault
-    public var attribution: Int = 0
+    public var attribution: Attribution = .developer
+    /// whether paths the user limited the most (iOS 26) may be used
+    public var allowUltraConstrainedPaths = false
+    /// whether name resolution must be DNSSEC-validated (iOS 16): kept with the parameters; the host's resolver resolves
+    public var requiresDNSSECValidation = false
+    var privacyContext: PrivacyContext = .default
+    /// the privacy context of the connections and listeners made with these parameters (iOS 14)
+    public func setPrivacyContext(_ privacyContext: PrivacyContext) { self.privacyContext = privacyContext }
 
     public init() { tls = nil; isUDP = false; defaultProtocolStack.transportProtocol = NWProtocolTCP.Options() }
     public init(tls: NWProtocolTLS.Options?, tcp: NWProtocolTCP.Options = NWProtocolTCP.Options()) {
@@ -355,6 +393,8 @@ public final class NWParameters: CustomDebugStringConvertible, @unchecked Sendab
                       : NWParameters(tls: tls, tcp: (defaultProtocolStack.transportProtocol as? NWProtocolTCP.Options) ?? NWProtocolTCP.Options())
         p.allowLocalEndpointReuse = allowLocalEndpointReuse; p.requiredLocalEndpoint = requiredLocalEndpoint; p.includePeerToPeer = includePeerToPeer
         p.acceptLocalOnly = acceptLocalOnly; p.serviceClass = serviceClass
+        p.attribution = attribution; p.privacyContext = privacyContext; p.requiresDNSSECValidation = requiresDNSSECValidation
+        p.allowUltraConstrainedPaths = allowUltraConstrainedPaths; p.expiredDNSBehavior = expiredDNSBehavior
         p.defaultProtocolStack.applicationProtocols = defaultProtocolStack.applicationProtocols
         return p
     }
@@ -493,6 +533,8 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
     var acceptedFD: Int32 = -1
     /// a message protocol over the byte stream (WebSocket, a framer): Protocols.swift
     var layer: _NWMessageLayer?
+    /// what establishment and data transfer reports say (Reports.swift)
+    var _stats = _NWStats()
 
     public init(to endpoint: NWEndpoint, using parameters: NWParameters) {
         NWConnection.counter += 1; id = NWConnection.counter
@@ -514,6 +556,7 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
         if case .cancelled = _state { lock.unlock(); return }
         if _state == s { lock.unlock(); return }
         _state = s
+        if s == .ready, _stats.readyAt == nil { _stats.readyAt = DispatchTime.now() }
         let h = _stateHandler, q = queue
         lock.unlock()
         if let h { (q ?? .main).async { h(s) } }
@@ -523,6 +566,7 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
         lock.lock()
         guard self.queue == nil else { lock.unlock(); return }
         self.queue = queue
+        _stats.startedAt = DispatchTime.now()
         lock.unlock()
         setState(.preparing)
         if udpPeer != nil { setState(.ready); return }
@@ -548,11 +592,17 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
             setState(.failed(.posix(.ENOTSUP))); return
         }
         let udp = parameters.isUDP
+        let resolveStart = DispatchTime.now()
         switch _NWSock.resolve(endpoint, udp: udp) {
         case .failure(let e): setState(.waiting(e)); return
         case .success(let addrs):
+            lock.lock()
+            _stats.resolution = (_NWStats.seconds(since: resolveStart), addrs.count, addrs.first.map { a in a.0.withUnsafeBytes { _NWSock.endpoint($0.baseAddress!, a.0.count) } })
+            _stats.attemptAt = DispatchTime.now(); _stats.failedAttempts = 0
+            lock.unlock()
             var lastErr: Int32 = ECONNREFUSED
             for (sa, fam) in addrs {
+                let attemptStart = DispatchTime.now()
                 let s = socket(fam, udp ? SOCK_DGRAM : SOCK_STREAM, 0)
                 guard s >= 0 else { lastErr = errno; continue }
                 if !udp, let t = parameters.tcpOptions {
@@ -562,6 +612,10 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
                 }
                 let r = sa.withUnsafeBytes { Darwin_connect(s, $0.baseAddress!.assumingMemoryBound(to: sockaddr.self), socklen_t(sa.count)) }
                 if r == 0 {
+                    lock.lock()
+                    _stats.connectDuration = udp ? 0 : _NWStats.seconds(since: attemptStart)
+                    _stats.connected = sa.withUnsafeBytes { _NWSock.endpoint($0.baseAddress!, sa.count) }
+                    lock.unlock()
                     if !udp, let t = parameters.tcpOptions, t.connectionTimeout > 0 { _NWSock.setTimeout(s, SO_SNDTIMEO, seconds: 0) }
                     lock.lock(); let cancelled = _state == .cancelled; if !cancelled { fd = s }; lock.unlock()
                     if cancelled { close(s); return }
@@ -571,6 +625,7 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
                 }
                 lastErr = errno
                 close(s)
+                lock.lock(); _stats.failedAttempts += 1; lock.unlock()
             }
             setState(.waiting(_NWErrno.posix(lastErr == EINPROGRESS ? ETIMEDOUT : lastErr)))
         }
@@ -599,6 +654,8 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
         let alpn = o.alpn.joined(separator: ",")
         let pem = identity?.pem
         if identity != nil && pem == nil { print("isim: NWConnection TLS: the identity's private key cannot be exported"); setState(.failed(.tls(-9813))); return }
+        let tlsStart = DispatchTime.now()
+        defer { lock.lock(); _stats.tlsDuration = _NWStats.seconds(since: tlsStart); lock.unlock() }
         let t = isim_tls_start(fd, server ? 1 : 0, dtls ? 1 : 0, host, verify, alpn.isEmpty ? nil : alpn, Int32(o.minVersion.rawValue), pem, &err, Int32(err.count), &code)
         guard let t else {
             print("isim: NWConnection \(dtls ? "DTLS" : "TLS"): \(String(cString: err))")
@@ -675,7 +732,9 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
 
     // MARK: sending
     public func send(content: Data?, contentContext: ContentContext = .defaultMessage, isComplete: Bool = true, completion: SendCompletion) {
+        let sent = UInt64(content?.count ?? 0)
         let done: (NWError?) -> Void = { [weak self] e in
+            if e == nil, sent > 0, let self { self.lock.lock(); self._stats.sent += sent; self._stats.sends += 1; self.lock.unlock() }
             if case .contentProcessed(let f) = completion { (self?.queue ?? .main).async { f(e) } }
         }
         ioQueue.async { [self] in
@@ -708,6 +767,7 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
     // MARK: receiving
     public func receive(minimumIncompleteLength: Int, maximumLength: Int,
                         completion: @escaping @Sendable (Data?, ContentContext?, Bool, NWError?) -> Void) {
+        let completion = _counting(completion)
         readQueue.async { [self] in
             if let r = layerReceive() { (queue ?? .main).async { completion(r.0, r.1, r.2, r.3) }; return }
             let r = readSome(min: max(1, minimumIncompleteLength), max: max(1, maximumLength))
@@ -715,6 +775,7 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
         }
     }
     public func receiveMessage(completion: @escaping @Sendable (Data?, ContentContext?, Bool, NWError?) -> Void) {
+        let completion = _counting(completion)
         readQueue.async { [self] in
             if let r = layerReceive() { (queue ?? .main).async { completion(r.0, r.1, r.2, r.3) }; return }
             if parameters.isUDP {
