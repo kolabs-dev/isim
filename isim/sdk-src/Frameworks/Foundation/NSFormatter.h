@@ -19,11 +19,20 @@ typedef NS_ENUM(NSInteger, NSFormattingUnitStyle) {
 - (BOOL)getObjectValue:(out id _Nullable * _Nullable)obj forString:(NSString *)string errorDescription:(out NSString * _Nullable * _Nullable)error;
 @end
 
-typedef NS_ENUM(NSUInteger, NSDateFormatterStyle) NS_SWIFT_NAME(DateFormatter.Style) {
+typedef NS_ENUM(NSUInteger, NSDateFormatterStyle) {
     NSDateFormatterNoStyle NS_SWIFT_NAME(none) = 0, NSDateFormatterShortStyle NS_SWIFT_NAME(short) = 1, NSDateFormatterMediumStyle NS_SWIFT_NAME(medium) = 2,
     NSDateFormatterLongStyle NS_SWIFT_NAME(long) = 3, NSDateFormatterFullStyle NS_SWIFT_NAME(full) = 4
-};
+} NS_SWIFT_NAME(DateFormatter.Style);
+typedef NS_ENUM(NSUInteger, NSDateFormatterBehavior) {
+    NSDateFormatterBehaviorDefault NS_SWIFT_NAME(default) = 0, NSDateFormatterBehavior10_4 NS_SWIFT_NAME(behavior10_4) = 1040
+} NS_SWIFT_NAME(DateFormatter.Behavior);
 @interface NSDateFormatter : NSFormatter
+@property NSDateFormatterBehavior formatterBehavior;
+@property (class) NSDateFormatterBehavior defaultFormatterBehavior;
+@property (nullable, copy) NSDate *gregorianStartDate;
+@property (readonly, copy) NSArray<NSString *> *standaloneQuarterSymbols;
+@property (readonly, copy) NSArray<NSString *> *shortStandaloneQuarterSymbols;
+- (BOOL)getObjectValue:(out id _Nullable * _Nullable)obj forString:(NSString *)string range:(inout nullable NSRange *)rangep error:(out NSError **)error;
 @property (null_resettable, copy) NSString *dateFormat;
 @property NSDateFormatterStyle dateStyle;
 @property NSDateFormatterStyle timeStyle;
@@ -61,18 +70,42 @@ typedef NS_ENUM(NSUInteger, NSDateFormatterStyle) NS_SWIFT_NAME(DateFormatter.St
 @property (readonly, copy) NSArray<NSString *> *shortQuarterSymbols;
 @end
 
-typedef NS_ENUM(NSUInteger, NSNumberFormatterStyle) NS_SWIFT_NAME(NumberFormatter.Style) {
+typedef NS_ENUM(NSUInteger, NSNumberFormatterStyle) {
     NSNumberFormatterNoStyle NS_SWIFT_NAME(none) = 0, NSNumberFormatterDecimalStyle NS_SWIFT_NAME(decimal) = 1, NSNumberFormatterCurrencyStyle NS_SWIFT_NAME(currency) = 2,
     NSNumberFormatterPercentStyle NS_SWIFT_NAME(percent) = 3, NSNumberFormatterScientificStyle NS_SWIFT_NAME(scientific) = 4, NSNumberFormatterSpellOutStyle NS_SWIFT_NAME(spellOut) = 5,
     NSNumberFormatterOrdinalStyle NS_SWIFT_NAME(ordinal) = 6, NSNumberFormatterCurrencyISOCodeStyle NS_SWIFT_NAME(currencyISOCode) = 8,
     NSNumberFormatterCurrencyPluralStyle NS_SWIFT_NAME(currencyPlural) = 9, NSNumberFormatterCurrencyAccountingStyle NS_SWIFT_NAME(currencyAccounting) = 10
-};
-typedef NS_ENUM(NSUInteger, NSNumberFormatterRoundingMode) NS_SWIFT_NAME(NumberFormatter.RoundingMode) {
+} NS_SWIFT_NAME(NumberFormatter.Style);
+typedef NS_ENUM(NSUInteger, NSNumberFormatterRoundingMode) {
     NSNumberFormatterRoundCeiling NS_SWIFT_NAME(ceiling), NSNumberFormatterRoundFloor NS_SWIFT_NAME(floor), NSNumberFormatterRoundDown NS_SWIFT_NAME(down),
     NSNumberFormatterRoundUp NS_SWIFT_NAME(up), NSNumberFormatterRoundHalfEven NS_SWIFT_NAME(halfEven), NSNumberFormatterRoundHalfDown NS_SWIFT_NAME(halfDown),
     NSNumberFormatterRoundHalfUp NS_SWIFT_NAME(halfUp)
-};
+} NS_SWIFT_NAME(NumberFormatter.RoundingMode);
+typedef NS_ENUM(NSUInteger, NSNumberFormatterBehavior) {
+    NSNumberFormatterBehaviorDefault NS_SWIFT_NAME(default) = 0, NSNumberFormatterBehavior10_4 NS_SWIFT_NAME(behavior10_4) = 1040
+} NS_SWIFT_NAME(NumberFormatter.Behavior);
+typedef NS_ENUM(NSUInteger, NSNumberFormatterPadPosition) {
+    NSNumberFormatterPadBeforePrefix NS_SWIFT_NAME(beforePrefix), NSNumberFormatterPadAfterPrefix NS_SWIFT_NAME(afterPrefix),
+    NSNumberFormatterPadBeforeSuffix NS_SWIFT_NAME(beforeSuffix), NSNumberFormatterPadAfterSuffix NS_SWIFT_NAME(afterSuffix)
+} NS_SWIFT_NAME(NumberFormatter.PadPosition);
 @interface NSNumberFormatter : NSFormatter
+@property NSNumberFormatterBehavior formatterBehavior;
++ (NSNumberFormatterBehavior)defaultFormatterBehavior;
++ (void)setDefaultFormatterBehavior:(NSNumberFormatterBehavior)behavior;
+@property NSFormattingContext formattingContext;
+@property NSUInteger formatWidth;
+@property NSNumberFormatterPadPosition paddingPosition;
+@property NSInteger minimumGroupingDigits;
+@property BOOL alwaysShowsDecimalSeparator;
+@property (getter=isPartialStringValidationEnabled) BOOL partialStringValidationEnabled;
+@property (nullable, copy) NSDictionary<NSString *, id> *textAttributesForNegativeValues;
+@property (nullable, copy) NSDictionary<NSString *, id> *textAttributesForPositiveValues;
+@property (nullable, copy) NSDictionary<NSString *, id> *textAttributesForZero;
+@property (nullable, copy) NSDictionary<NSString *, id> *textAttributesForNil;
+@property (nullable, copy) NSDictionary<NSString *, id> *textAttributesForNotANumber;
+@property (nullable, copy) NSDictionary<NSString *, id> *textAttributesForPositiveInfinity;
+@property (nullable, copy) NSDictionary<NSString *, id> *textAttributesForNegativeInfinity;
+- (BOOL)getObjectValue:(out id _Nullable * _Nullable)obj forString:(NSString *)string range:(inout nullable NSRange *)rangep error:(out NSError **)error;
 @property NSNumberFormatterStyle numberStyle;
 @property (null_resettable, copy) NSLocale *locale;
 @property NSUInteger minimumFractionDigits;
@@ -110,7 +143,7 @@ typedef NS_ENUM(NSUInteger, NSNumberFormatterRoundingMode) NS_SWIFT_NAME(NumberF
 @property (null_resettable, copy) NSString *notANumberSymbol;
 @property (null_resettable, copy) NSString *positiveInfinitySymbol;
 @property (null_resettable, copy) NSString *negativeInfinitySymbol;
-@property (readonly, copy) NSString *paddingCharacter;
+@property (null_resettable, copy) NSString *paddingCharacter;
 @property (null_resettable, copy) NSString *positivePrefix;
 @property (null_resettable, copy) NSString *positiveSuffix;
 @property (null_resettable, copy) NSString *negativePrefix;

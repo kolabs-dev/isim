@@ -87,6 +87,14 @@ extension AttributeScopes {
     public let inflect: InflectionRuleAttribute
     public let morphology: MorphologyAttribute
     public let inflectionAlternative: InflectionAlternativeAttribute
+    /// the parts of formatted values (FormatStyleAttributes.swift, issue #864)
+    public let dateField: DateFieldAttribute
+    public let numberFormat: NumberFormatAttributes
+    public let measurement: MeasurementAttribute
+    public let byteCount: ByteCountAttribute
+    public let durationField: DurationFieldAttribute
+    public let personNameComponent: PersonNameComponentAttribute
+    public let listItemDelimiter: ListItemDelimiterAttribute
 
     /// where a run's text came from in the Markdown source (MarkdownParsingOptions.appliesSourcePositionAttributes)
     public enum MarkdownSourcePositionAttribute: AttributedStringKey {
@@ -145,6 +153,8 @@ extension AttributeScopes {
 public enum AttributeDynamicLookup {
   public subscript<T: AttributedStringKey>(_: T.Type) -> T { fatalError("AttributeDynamicLookup is only used in key paths") }
   public subscript<T: AttributedStringKey>(dynamicMember keyPath: KeyPath<AttributeScopes.FoundationAttributes, T>) -> T { self[T.self] }
+  /// the number attributes are a scope inside Foundation's (numberPart, numberSymbol)
+  public subscript<T: AttributedStringKey>(dynamicMember keyPath: KeyPath<AttributeScopes.FoundationAttributes.NumberFormatAttributes, T>) -> T { self[T.self] }
 }
 
 // Value conversions to / from Objective-C for keys we know about (by name).

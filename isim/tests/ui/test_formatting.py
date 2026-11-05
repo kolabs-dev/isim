@@ -86,3 +86,13 @@ def test_foundation_extras(runs):
     assert "x860 class true true signOf -7 ordered true" in us
     assert "x860 cocoa 1550 title xpc true alias true" in us
     assert "x860 bytes 3.5 MB parsed 5." in us
+    # issue #864: attributed format styles, the rest of the date symbols, formatter properties
+    assert "x864 number 1|int ,|int,groupingSeparator 234|int .|decimalSeparator 5|frac" in us, "number parts and symbols"
+    assert "x864 currency -|sign $|currency 19|int .|decimalSeparator 99|frac" in us, "currency: sign and currency symbol"
+    assert "x864 percent 42|int %|percent" in us
+    assert "x864 date Oct|month 6|day , 2026|year , 11|hour : 04|minute AM|amPM same true" in us, "date fields; same text as the plain style"
+    assert "x864 verbatim 2026-10 October Q4 11h runs 10" in us, "Date.VerbatimFormatStyle with standalone and verbatim-hour symbols"
+    assert "x864 measurement 12|int,value .|decimalSeparator,value 5|frac,value km|unit" in us, "Measurement.AttributedStyle"
+    assert "x864 bytes 3|int,value .|decimalSeparator,value 5|frac,value MB|unit-mb" in us, "ByteCountFormatStyle.Attributed"
+    assert "x864 formatter ******42 7. style 5 behavior true" in us, "NumberFormatter padding, alwaysShowsDecimalSeparator, Style"
+    assert "x864 quarters 1st quarter Q4 tz America/Los_Angeles GMT" in us, "standalone quarters, TimeZone(abbreviation:), localizedName"

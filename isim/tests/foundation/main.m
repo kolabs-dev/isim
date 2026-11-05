@@ -1273,6 +1273,27 @@ static void legacy_checks(void) {
 }
 
 /* CoreFoundation over the toll-free bridged Foundation classes (issue #216) */
+/* issue #864: the formatter properties (padding, grouping, always-shown decimal separator, behavior, ranges) */
+static void formatter864_checks(void) {
+    NSLocale *us = [NSLocale localeWithLocaleIdentifier:@"en_US"];
+    NSNumberFormatter *nf = [NSNumberFormatter new]; nf.locale = us; nf.numberStyle = NSNumberFormatterDecimalStyle;
+    nf.formatWidth = 6; nf.paddingCharacter = @"0"; nf.paddingPosition = NSNumberFormatterPadAfterPrefix;
+    CHECK_STR([nf stringFromNumber:@42], @"000042");
+    nf.formatWidth = 0; nf.alwaysShowsDecimalSeparator = YES;
+    CHECK_STR([nf stringFromNumber:@7], @"7.");
+    nf.alwaysShowsDecimalSeparator = NO; nf.minimumGroupingDigits = 2;
+    CHECK_STR([nf stringFromNumber:@1234], @"1234");
+    CHECK_STR([nf stringFromNumber:@12345], @"12,345");
+    CHECK(nf.formatterBehavior == NSNumberFormatterBehavior10_4 && NSNumberFormatter.defaultFormatterBehavior == NSNumberFormatterBehavior10_4);
+    nf.numberStyle = NSNumberFormatterSpellOutStyle; nf.formattingContext = NSFormattingContextBeginningOfSentence;
+    CHECK_STR([nf stringFromNumber:@3], @"Three");
+    id obj = nil; NSRange r = NSMakeRange(4, 3); NSError *err = nil;
+    nf.numberStyle = NSNumberFormatterDecimalStyle;
+    CHECK([nf getObjectValue:&obj forString:@"abc 1.5" range:&r error:&err] && [obj doubleValue] == 1.5);
+    NSDateFormatter *df = [NSDateFormatter new]; df.locale = us;
+    CHECK_STR(df.standaloneQuarterSymbols[0], @"1st quarter");
+    CHECK(df.formatterBehavior == NSDateFormatterBehavior10_4 && df.gregorianStartDate == nil);
+}
 static void test_corefoundation(void) {
     CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
     CHECK(fabs(now + kCFAbsoluteTimeIntervalSince1970 - [[NSDate date] timeIntervalSince1970]) < 5);
@@ -2001,6 +2022,7 @@ int main(int argc, char *argv[]) {
         if (getenv("ISIM_TEST_HTTP_PORT")) legacy_checks();
         physical_formatter_checks();
         locale_checks();
+        formatter864_checks();
 
         collection_checks();
 

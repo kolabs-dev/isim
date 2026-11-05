@@ -88,12 +88,12 @@ typedef void (^NSItemProviderLoadHandler)(_Null_unspecified NSItemProviderComple
 
 FOUNDATION_EXPORT NSString *const NSItemProviderPreferredImageSizeKey;
 FOUNDATION_EXPORT NSString *const NSItemProviderErrorDomain;
-typedef NS_ENUM(NSInteger, NSItemProviderErrorCode) NS_SWIFT_NAME(NSItemProvider.ErrorCode) {
+typedef NS_ENUM(NSInteger, NSItemProviderErrorCode) {
     NSItemProviderUnknownError = -1,
     NSItemProviderItemUnavailableError = -1000,
     NSItemProviderUnexpectedValueClassError = -1100,
     NSItemProviderUnavailableCoercionError = -1200,
-};
+} NS_SWIFT_NAME(NSItemProvider.ErrorCode);
 
 /* strings and URLs as item provider objects */
 @interface NSString (NSItemProvider) <NSItemProviderReading, NSItemProviderWriting>
