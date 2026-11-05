@@ -10,18 +10,24 @@
 #import <UIKit/UITargetedPreview.h>             /* UIAxis */
 #import <UIKit/UIControlExtras.h>               /* UIConfigurationColorTransformer */
 NS_ASSUME_NONNULL_BEGIN
-@class UIBezierPath, UIVisualEffect, UIMenu, UILayoutGuide;
+@class UIBezierPath, UIVisualEffect, UIMenu, UILayoutGuide, UIImageSymbolConfiguration;
 
 /* ---- list content ---- */
 typedef NS_ENUM(NSInteger, UIListContentTextTransform) { UIListContentTextTransformNone, UIListContentTextTransformUppercase,
-    UIListContentTextTransformLowercase, UIListContentTextTransformCapitalized } NS_SWIFT_NAME(UIListContentConfiguration.TextProperties.TextTransform) API_AVAILABLE(ios(14.0));
+    UIListContentTextTransformLowercase, UIListContentTextTransformCapitalized } API_AVAILABLE(ios(14.0));  /* Swift: UIListContentConfiguration.TextProperties.TextTransform (a typealias in the overlay) */
 @interface UIListContentTextProperties (UIListContentTextPropertiesExtras)
 @property (nonatomic) UIListContentTextTransform transform;
 @property (nonatomic, copy, nullable) UIConfigurationColorTransformer colorTransformer NS_REFINED_FOR_SWIFT;
 - (UIColor *)resolvedColor;
+@property (nonatomic) BOOL adjustsFontForContentSizeCategory;      /* YES */
+@property (nonatomic) BOOL adjustsFontSizeToFitWidth;
+@property (nonatomic) CGFloat minimumScaleFactor;
+@property (nonatomic) BOOL allowsDefaultTighteningForTruncation;   /* YES */
+@property (nonatomic) NSLineBreakMode lineBreakMode;                /* by truncating the tail */
+@property (nonatomic) BOOL showsExpansionTextWhenTruncated;         /* isim: stored (no expansion text on touch) */
 @end
 /* the image's standard size (UIListContentConfiguration.ImageProperties.standardDimension) */
-UIKIT_EXTERN const CGFloat UIListContentImageStandardDimension NS_SWIFT_NAME(UIListContentConfiguration.ImageProperties.standardDimension) API_AVAILABLE(ios(14.0));
+UIKIT_EXTERN const CGFloat UIListContentImageStandardDimension API_AVAILABLE(ios(14.0));   /* Swift: the overlay's static */
 @interface UIListContentImageProperties (UIListContentImagePropertiesExtras)
 @property (nonatomic, copy, nullable) UIConfigurationColorTransformer tintColorTransformer NS_REFINED_FOR_SWIFT;
 - (UIColor *)resolvedTintColorForTintColor:(UIColor *)tintColor NS_SWIFT_NAME(resolvedTintColor(for:));
@@ -44,6 +50,10 @@ UIKIT_EXTERN const CGFloat UIListContentImageStandardDimension NS_SWIFT_NAME(UIL
 @property (nullable, nonatomic, copy) NSAttributedString *secondaryAttributedText;
 /* the gap between side-by-side text and secondary text */
 @property (nonatomic) CGFloat textToSecondaryTextHorizontalPadding;
+/* the gap between the image and the texts (-CGFLOAT_MAX, the default: the style's own, 16 pt) */
+@property (nonatomic) CGFloat imageToTextPadding;
+/* the content's opacity */
+@property (nonatomic) CGFloat alpha;
 @property (nonatomic) UIAxis axesPreservingSuperviewLayoutMargins;      /* isim: stored */
 @end
 @interface UIListContentView (UIListContentViewExtras)
@@ -144,7 +154,26 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(14.0)) NS_SWIFT_NAME(__UICellAccessoryPopUpM
 @end
 
 /* ---- content unavailable ---- */
+typedef NS_ENUM(NSInteger, UIContentUnavailableAlignment) { UIContentUnavailableAlignmentCenter, UIContentUnavailableAlignmentNatural }
+    NS_SWIFT_NAME(UIContentUnavailableConfiguration.Alignment) API_AVAILABLE(ios(17.0));
+@interface UIContentUnavailableTextProperties (UIContentUnavailableTextPropertiesExtras)
+@property (nonatomic) NSLineBreakMode lineBreakMode;                /* by truncating the tail */
+@property (nonatomic) BOOL adjustsFontSizeToFitWidth;
+@property (nonatomic) CGFloat minimumScaleFactor;
+@property (nonatomic) BOOL allowsDefaultTighteningForTruncation;   /* YES */
+@end
+@interface UIContentUnavailableImageProperties (UIContentUnavailableImagePropertiesExtras)
+@property (nullable, nonatomic, copy) UIImageSymbolConfiguration *preferredSymbolConfiguration;
+@property (nonatomic) BOOL accessibilityIgnoresInvertColors;
+@end
+@interface UIContentUnavailableButtonProperties (UIContentUnavailableButtonPropertiesExtras)
+@property (nonatomic) UIButtonRole role;
+@end
 @interface UIContentUnavailableConfiguration (UIContentUnavailableConfigurationExtras)
+/* centred (the default), or leading-aligned texts and buttons */
+@property (nonatomic) UIContentUnavailableAlignment alignment;
+/* the background behind the content (its colour and corner radius are drawn; clear by default) */
+@property (null_resettable, nonatomic, copy) UIBackgroundConfiguration *background;
 @property (nullable, nonatomic, copy) NSAttributedString *attributedText;
 @property (nullable, nonatomic, copy) NSAttributedString *secondaryAttributedText;
 @property (nonatomic) UIAxis axesPreservingSuperviewLayoutMargins;      /* isim: stored */

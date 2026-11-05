@@ -60,7 +60,7 @@ static CGFloat list_content(UIView *content, UIListContentConfiguration *cfg, NS
     NSAttributedString *atext = cfg.attributedText, *adetail = cfg.secondaryAttributedText;
     BOOL side = cfg.prefersSideBySideTextAndSecondaryText;
     CGFloat x = leading, right = W - trailing, imgW = 0;
-    if (img) { CGSize is = img.size; CGFloat k = img.isSymbolImage ? 22 / fmax(1, is.height) : fmin(1, 29 / fmax(1, fmax(is.width, is.height))); imgW = fmax(29, is.width * k); x += imgW + 16; }
+    if (img) { CGSize is = img.size; CGFloat k = img.isSymbolImage ? 22 / fmax(1, is.height) : fmin(1, 29 / fmax(1, fmax(is.width, is.height))); imgW = fmax(29, is.width * k); x += imgW + (cfg.imageToTextPadding == -CGFLOAT_MAX ? 16 : cfg.imageToTextPadding); }
     CGFloat avail = fmax(10, right - x);
     CGFloat hpad = cfg.textToSecondaryTextHorizontalPadding;
     CGSize ts = isim_ui_list_measure(atext, text, cfg.textProperties.font, side && detail.length ? avail * 0.6 : avail, cfg.textProperties.numberOfLines);
@@ -72,7 +72,7 @@ static CGFloat list_content(UIView *content, UIListContentConfiguration *cfg, NS
     if (apply) {
         CGFloat H = content.bounds.size.height, y = (H - (h + m.top + m.bottom)) / 2 + m.top;
         UILabel *tl = views[@"t"]; if (!tl) { tl = [UILabel new]; views[@"t"] = tl; [content addSubview:tl]; }
-        isim_ui_list_label(tl, atext, text, cfg.textProperties); tl.numberOfLines = cfg.textProperties.numberOfLines; tl.textAlignment = cfg.textProperties.alignment;
+        isim_ui_list_label(tl, atext, text, cfg.textProperties); tl.numberOfLines = cfg.textProperties.numberOfLines; tl.textAlignment = isim_ui_list_alignment(cfg.textProperties.alignment);
         tl.frame = CGRectMake(x, side ? y + (h - ts.height) / 2 : y, ts.width, ts.height); tl.hidden = !text.length;
         UILabel *dl = views[@"d"]; if (!dl && detail.length) { dl = [UILabel new]; views[@"d"] = dl; [content addSubview:dl]; }
         isim_ui_list_label(dl, adetail, detail, cfg.secondaryTextProperties); dl.numberOfLines = side ? 1 : 0;
@@ -83,6 +83,7 @@ static CGFloat list_content(UIView *content, UIListContentConfiguration *cfg, NS
         if (img) { CGSize is = img.size; CGFloat k = img.isSymbolImage ? 22 / fmax(1, is.height) : fmin(1, 29 / fmax(1, fmax(is.width, is.height)));
                    iv.frame = CGRectMake(leading + (imgW - is.width * k) / 2, (H - is.height * k) / 2, is.width * k, is.height * k);
                    if (cfg.imageProperties.cornerRadius > 0) { iv.layer.cornerRadius = cfg.imageProperties.cornerRadius; iv.clipsToBounds = YES; } }
+        tl.alpha = dl.alpha = iv.alpha = cfg.alpha;
     }
     return cfg._isim_kind >= 3 ? ceil(h + m.top + m.bottom) : fmax(44, h + m.top + m.bottom);
 }

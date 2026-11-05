@@ -371,6 +371,14 @@ def extract_symbol_graphs(sdk, modules, outdir):
                     into.add('~' + '/'.join([*pc[:-1], re.split(r'[(<]', pc[-1])[0]]).lower())   # without signature
                     if len(pc) > 1:
                         MEMBERS_OF.setdefault('/'.join(pc[:-1]).lower(), set()).add(member_key(pc[-1]))
+                    USRS[sym['identifier']['precise']] = path
+                    if sym.get('kind', {}).get('identifier') == 'swift.typealias':
+                        # `typealias ImageProperties = UIContentUnavailableImageProperties`: Apple documents the
+                        # aliased type's members under the alias (resolved in matches())
+                        target = [f.get('preciseIdentifier') for f in sym.get('declarationFragments', [])
+                                  if f.get('kind') == 'typeIdentifier']
+                        if len(target) == 1 and target[0]:
+                            ALIAS_USR[path] = target[0]
             for r in g.get('relationships', []):
                 if r.get('kind') in ('inheritsFrom', 'conformsTo'):
                     src = usr.get(r['source'])
@@ -385,6 +393,8 @@ def extract_symbol_graphs(sdk, modules, outdir):
 
 
 MEMBERS_OF = {}      # type path -> member keys (member_key), over every symbol graph read (for inherited members)
+USRS = {}            # precise identifier -> path, over every symbol graph read
+ALIAS_USR = {}       # typealias path -> the aliased type's precise identifier
 PARENTS = {}         # type path -> superclass and protocol paths
 
 
@@ -399,13 +409,20 @@ def inherits(owner, name, seen=None):
     return any(inherits(p, name, seen) for p in PARENTS.get(owner, ()))
 
 
-def matches(k, keys):
+def matches(k, keys, depth=0):
     """whether Apple's symbol with documentation key `k` (doc_key) is among isim's symbol-graph keys. A function or
     initializer matches only with the same argument labels: init(toseekagent:) is not the class function
     toseekagent(_:), and add(_:_:) is not add(multiplication:_:) (#729). A property, case or type matches by its name,
     which also covers documentation paths that leave out generic parameters."""
     if k in keys:
         return True
+    # a member documented under a typealias that names another type (UIContentUnavailableConfiguration.ImageProperties
+    # = UIContentUnavailableImageProperties): look it up under the aliased type
+    parts = k.split('/')
+    for i in range(len(parts) - 1, 0, -1):
+        target = USRS.get(ALIAS_USR.get('/'.join(parts[:i]), ''))
+        if target and target != '/'.join(parts[:i]) and depth < 4 and matches('/'.join([target, *parts[i:]]), keys, depth + 1):
+            return True
     own, _, last = k.rpartition('/')
     if '(' not in last and ('~' + re.split(r'[(<]', k)[0]) in keys:
         return True

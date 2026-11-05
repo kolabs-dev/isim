@@ -64,6 +64,16 @@ extension UITraitSystemPrefersReducedResourceUsage: UITraitDefinition { public s
 @available(iOS 27.2, *)
 extension UITraitNavigationTitleAlignment: UITraitDefinition { public static var defaultValue: UINavigationItem.TitleAlignment { .automatic } }
 
+@available(iOS 26.0, *)
+extension UITraitCollection {
+    public convenience init(resolvesNaturalAlignmentWithBaseWritingDirection: Bool) {
+        self.init(UITraitResolvesNaturalAlignmentWithBaseWritingDirection.self, value: resolvesNaturalAlignmentWithBaseWritingDirection)
+    }
+    public convenience init(systemPrefersReducedResourceUsage: Bool) {
+        self.init(UITraitSystemPrefersReducedResourceUsage.self, value: systemPrefersReducedResourceUsage)
+    }
+}
+
 // the typesetting language as a Locale.Language (stored as its identifier)
 @available(iOS 17.0, *)
 extension UITraitCollection {
@@ -101,8 +111,15 @@ nonisolated(unsafe) var _isimTraitTypes: [String: UITrait] = {
 }()
 /// what trait change registrations hand their handlers (the environment and its previous traits)
 @available(iOS 17.0, *)
-public protocol UITraitChangeObservable {
+@MainActor public protocol UITraitChangeObservable {
     typealias TraitChangeHandler<TraitEnvironment: UITraitEnvironment> = (TraitEnvironment, UITraitCollection) -> Void
+    @discardableResult
+    func registerForTraitChanges<TraitEnvironment: UITraitEnvironment>(_ traits: [UITrait], handler: @escaping TraitChangeHandler<TraitEnvironment>) -> any UITraitChangeRegistration
+    @discardableResult
+    func registerForTraitChanges(_ traits: [UITrait], target: Any, action: Selector) -> any UITraitChangeRegistration
+    @discardableResult
+    func registerForTraitChanges(_ traits: [UITrait], action: Selector) -> any UITraitChangeRegistration
+    func unregisterForTraitChanges(_ registration: any UITraitChangeRegistration)
 }
 @available(iOS 17.0, *) extension UIView: UITraitChangeObservable {}
 @available(iOS 17.0, *) extension UIViewController: UITraitChangeObservable {}
@@ -217,6 +234,14 @@ extension UITraitCollection {
     }
     public convenience init(mutations: (inout any UIMutableTraits) -> Void) {
         self.init(traitsFrom: [UITraitCollection._isim_traitCollection(traits: { m in var mm: any UIMutableTraits = m; mutations(&mm) })])
+    }
+    /// a collection that specifies one trait
+    public convenience init<T: UITraitDefinition>(_ trait: T.Type, value: T.Value) {
+        self.init(mutations: { $0[trait] = value })
+    }
+    /// a copy with one trait's value replaced
+    public func replacing<T: UITraitDefinition>(_ trait: T.Type, value: T.Value) -> UITraitCollection {
+        modifyingTraits { $0[trait] = value }
     }
     public func modifyingTraits(_ mutations: (inout any UIMutableTraits) -> Void) -> UITraitCollection {
         _isim_modifyingTraits { m in var mm: any UIMutableTraits = m; mutations(&mm) }

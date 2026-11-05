@@ -197,6 +197,9 @@ UIEdgeInsets isim_ui_flow_reference_insets(UIEdgeInsets in, UICollectionViewFlow
 void isim_ui_apply_ortho_properties(UIScrollView *band, NSCollectionLayoutSection *_Nullable sec);
 /* configuration extras (UIConfigurationExtras.m) */
 void isim_ui_copy_extras(id from, id to);
+static inline NSTextAlignment isim_ui_list_alignment(UIListContentTextAlignment a) {
+    return a == UIListContentTextAlignmentCenter ? NSTextAlignmentCenter : a == UIListContentTextAlignmentJustified ? NSTextAlignmentJustified : NSTextAlignmentNatural;
+}
 void isim_ui_list_label(UILabel *label, NSAttributedString *_Nullable attributed, NSString *_Nullable shown, UIListContentTextProperties *properties);
 CGSize isim_ui_list_measure(NSAttributedString *_Nullable attributed, NSString *_Nullable shown, UIFont *font, CGFloat width, NSInteger lines);
 BOOL isim_ui_draw_background_configuration(UIBackgroundConfiguration *cfg, UIView *view, UIColor *_Nullable fallback);
