@@ -60,7 +60,7 @@ public final class NWPathMonitor: @unchecked Sendable {
 
     let lock = NSLock()
     let required: NWInterface.InterfaceType?
-    let prohibited: [NWInterface.InterfaceType]
+    var prohibited: [NWInterface.InterfaceType]
     var handler: (@Sendable (NWPath) -> Void)?
     var path: NWPath?
     var timer: DispatchSourceTimer?

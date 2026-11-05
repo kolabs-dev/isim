@@ -377,6 +377,11 @@ public enum NWProtocolFramer {
             self.implementation = implementation
             super.init(implementation.label)
         }
+        /// a framer defined from C (nw_framer_create_definition): its name is the C identifier
+        init(implementation: NWProtocolFramerImplementation.Type, name: String) {
+            self.implementation = implementation
+            super.init(name)
+        }
     }
     public final class Options: NWProtocolOptions, @unchecked Sendable {
         public let definition: Definition

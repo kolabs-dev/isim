@@ -16,6 +16,8 @@ final class _NWCPathMonitor: NSObject {
     var update: ((NSObject) -> Void)?
     var cancelHandler: (() -> Void)?
     init(_ m: NWPathMonitor) { monitor = m }
+    /// nw_path_monitor_prohibit_interface_type (before the monitor starts)
+    func prohibit(_ t: Int32) { if let type = interfaceType(t) { monitor.prohibited.append(type) } }
     deinit { if let queue { dispatch_release(UnsafeMutableRawPointer(queue)) } }
 }
 final class _NWCPath: NSObject { let path: NWPath; init(_ p: NWPath) { path = p } }

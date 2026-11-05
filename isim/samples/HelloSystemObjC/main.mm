@@ -159,6 +159,61 @@ static void talk(nw_endpoint_t service, uint16_t port) {
     });
     nw_connection_start(c);
 }
+// Network's C API (#851): TXT records, protocol definitions and metadata, IP / WebSocket / QUIC options, a multicast
+// group descriptor, a proxy configuration and a framer definition
+static void networkCExtras(void) {
+    nw_txt_record_t txt = nw_txt_record_create_dictionary();
+    nw_txt_record_set_key(txt, "name", (const uint8_t *)"isim", 4);
+    nw_txt_record_set_key(txt, "flag", NULL, 0);
+    __block NSMutableString *seen = [NSMutableString string];
+    nw_txt_record_apply(txt, ^bool(const char *key, nw_txt_record_find_key_t found, const uint8_t *value, size_t len) {
+        [seen appendFormat:@"%s:%d ", key, found]; return true;
+    });
+    __block size_t raw = 0;
+    nw_txt_record_access_bytes(txt, ^bool(const uint8_t *bytes, size_t len) { raw = len; return true; });
+    nw_txt_record_t back = nw_txt_record_create_with_bytes((const uint8_t *)"\x09name=isim\x04""flag", 15);
+    say([NSString stringWithFormat:@"nw txt %@keys=%zu bytes=%zu equal=%d name=%d", seen, nw_txt_record_get_key_count(txt), raw,
+         nw_txt_record_is_equal(txt, back), nw_txt_record_find_key(back, "NAME")]);
+
+    nw_protocol_metadata_t ip = nw_ip_create_metadata();
+    nw_ip_metadata_set_ecn_flag(ip, nw_ip_ecn_flag_ce);
+    nw_ip_metadata_set_service_class(ip, nw_service_class_signaling);
+    nw_protocol_metadata_t ws = nw_ws_create_metadata(nw_ws_opcode_ping);
+    nw_ws_metadata_set_close_code(ws, nw_ws_close_code_going_away);
+    nw_protocol_definition_t def = nw_protocol_metadata_copy_definition(ws);
+    say([NSString stringWithFormat:@"nw metadata ip=%d ecn=%d class=%d ws=%d opcode=%d close=%d def=%d", nw_protocol_metadata_is_ip(ip),
+         nw_ip_metadata_get_ecn_flag(ip), nw_ip_metadata_get_service_class(ip), nw_protocol_metadata_is_ws(ws), nw_ws_metadata_get_opcode(ws),
+         nw_ws_metadata_get_close_code(ws), nw_protocol_definition_is_equal(def, nw_protocol_copy_ws_definition())]);
+
+    nw_protocol_options_t quic = nw_quic_create_options();
+    nw_quic_add_tls_application_protocol(quic, "h3");
+    nw_quic_set_idle_timeout(quic, 9000);
+    nw_quic_set_stream_is_datagram(quic, true);
+    nw_parameters_t p = nw_parameters_create_quic(^(nw_protocol_options_t options) { nw_quic_set_max_udp_payload_size(options, 1350); });
+    nw_parameters_set_attribution(p, nw_parameters_attribution_user);
+    say([NSString stringWithFormat:@"nw quic options=%d timeout=%u datagram=%d attribution=%d", nw_protocol_options_is_quic(quic),
+         nw_quic_get_idle_timeout(quic), nw_quic_get_stream_is_datagram(quic), nw_parameters_get_attribution(p)]);
+
+    nw_group_descriptor_t group = nw_group_descriptor_create_multicast(nw_endpoint_create_host("239.255.43.23", "5353"));
+    bool added = nw_group_descriptor_add_endpoint(group, nw_endpoint_create_host("239.255.43.24", "5353"));
+    bool unicast = nw_group_descriptor_add_endpoint(group, nw_endpoint_create_host("10.0.0.1", "5353"));
+    __block int members = 0;
+    nw_group_descriptor_enumerate_endpoints(group, ^bool(nw_endpoint_t e) { members++; return true; });
+    nw_proxy_config_t proxy = nw_proxy_config_create_socksv5(nw_endpoint_create_host("127.0.0.1", "1080"));
+    nw_proxy_config_add_match_domain(proxy, "example.com");
+    __block NSString *domain = @"";
+    nw_proxy_config_enumerate_match_domains(proxy, ^(const char *d) { domain = @(d); });
+    nw_protocol_definition_t framer = nw_framer_create_definition("isim.tlv", NW_FRAMER_CREATE_FLAGS_DEFAULT, ^nw_framer_start_result_t(nw_framer_t f) {
+        return nw_framer_start_result_ready;
+    });
+    nw_protocol_options_t framerOptions = nw_framer_create_options(framer);
+    nw_framer_options_set_object_value(framerOptions, "key", @"value");
+    nw_framer_message_t message = nw_framer_protocol_create_message(framer);
+    nw_framer_message_set_object_value(message, "kind", @7);
+    say([NSString stringWithFormat:@"nw group added=%d unicast=%d members=%d proxy=%@ framer=%@ message=%@ is=%d", added, unicast, members, domain,
+         nw_framer_options_copy_object_value(framerOptions, "key"), nw_framer_message_copy_object_value(message, "kind"),
+         nw_protocol_metadata_is_framer_message(message)]);
+}
 static void networkC(void) {
     nw_endpoint_t host = nw_endpoint_create_host("example.com", "https");
     nw_endpoint_t address = nw_endpoint_create_host("127.0.0.1", "8080");
@@ -472,6 +527,7 @@ static void network(void) {
     });
     nw_path_monitor_start(m);
     networkC();
+    networkCExtras();
     cfhost();
     cfstreams();
     CTTelephonyNetworkInfo *info = [CTTelephonyNetworkInfo new];

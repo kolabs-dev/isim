@@ -32,7 +32,10 @@ def test_system_objc(launch):
              "c\\+\\+ pi=3\\.142 hex=ff read=12,34\\.500,word regex=42 upper=Q", "c\\+\\+ cerr ok", r"path status=\d ipv4=\d",
              "nw endpoint host=example.com port=443 type=2 address=127.0.0.1 type=1", "nw listener ready port=1",
              "nw context second after first", "nw browse found isim echo _isimecho._tcp batch=1 browsing=_isimecho._tcp", "nw connected type=1 remote port=1", "nw sent error=0",
-             "nw echo hello over nw final=1", "nw tls failed domain=3"]
+             "nw echo hello over nw final=1", "nw tls failed domain=3",
+             "nw txt flag:2 name:4 keys=2 bytes=15 equal=1 name=4", "nw metadata ip=1 ecn=3 class=5 ws=1 opcode=9 close=1001 def=1",
+             "nw quic options=1 timeout=9000 datagram=1 attribution=2",
+             "nw group added=1 unicast=0 members=2 proxy=example.com framer=value message=7 is=1"]
     if has_host_jsc():
         lines += ["js 6\\*7=42 str=a\\+b", "js block twice\\(21\\)=42 native=hi:2", "js object name=isim list=1,2,3 ok=1",
                   "js export count=15", "js call=42", "js exception=TypeError", "js C api max=9"]
