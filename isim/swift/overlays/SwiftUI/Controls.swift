@@ -519,6 +519,6 @@ public struct ButtonMenuStyle: MenuStyle {
 extension MenuStyle where Self == DefaultMenuStyle { public static var automatic: DefaultMenuStyle { .init() } }
 extension MenuStyle where Self == ButtonMenuStyle { public static var button: ButtonMenuStyle { .init() } }
 extension View {
-    public func menuOrder(_ order: MenuOrder) -> some View { self }
+    public func menuOrder(_ order: MenuOrder) -> some View { environment(\.menuOrder, order) }
 }
 public struct MenuOrder: Sendable { public static let automatic = MenuOrder(), priority = MenuOrder(), fixed = MenuOrder() }
