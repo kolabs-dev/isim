@@ -2,6 +2,9 @@
  * ISIM_OBJC_AUDIT=1 on Google Mobile Ads): URL and path helpers, percent encoding, file-system URLs, bundle resource
  * URLs, NSValue with arbitrary bytes, dictionary initializers and description variants. */
 #import <Foundation/Foundation.h>
+/* Foundation implements the iOS 18 / 26 calendar units it declares */
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+#include "isim_locale.h"
 #include <ctype.h>
 #include <string.h>
 #include <math.h>
@@ -316,12 +319,19 @@ static BOOL builtin_bytes(NSValue *v, void *out, NSUInteger size) {
 - (NSString *)descriptionWithLocale:(id)locale { return self.description; }
 @end
 
-@implementation NSDate (IsimMore)
+@implementation NSDate (NSDateCreation)
 - (instancetype)initWithTimeIntervalSinceNow:(NSTimeInterval)s { return [self initWithTimeIntervalSinceReferenceDate:[NSDate date].timeIntervalSinceReferenceDate + s]; }
 - (instancetype)initWithTimeIntervalSince1970:(NSTimeInterval)s { return [self initWithTimeIntervalSinceReferenceDate:s - 978307200.0]; }
 - (instancetype)initWithTimeInterval:(NSTimeInterval)s sinceDate:(NSDate *)d { return [self initWithTimeIntervalSinceReferenceDate:d.timeIntervalSinceReferenceDate + s]; }
 + (instancetype)dateWithTimeInterval:(NSTimeInterval)s sinceDate:(NSDate *)d { return [[self alloc] initWithTimeInterval:s sinceDate:d]; }
-- (NSString *)descriptionWithLocale:(id)locale { return self.description; }
++ (NSDate *)now { return [self date]; }
+/* the full date and time in the locale (an NSLocale), like Date.description(with:) */
+- (NSString *)descriptionWithLocale:(id)locale {
+    if (![locale isKindOfClass:[NSLocale class]]) return self.description;
+    NSDateFormatter *f = [NSDateFormatter new];
+    f.locale = locale; f.dateStyle = NSDateFormatterFullStyle; f.timeStyle = NSDateFormatterFullStyle;
+    return [f stringFromDate:self];
+}
 @end
 
 @implementation NSURL (IsimMore)
@@ -443,9 +453,24 @@ static NSString *remove_dot_segments(NSString *path) {
 }
 @end
 
-@implementation NSTimeZone (IsimMore)
+@implementation NSTimeZone (NSTimeZoneNames)
 - (BOOL)isDaylightSavingTime { return [self isDaylightSavingTimeForDate:[NSDate date]]; }
-- (NSString *)localizedName:(NSInteger)style locale:(NSLocale *)locale { return self.name; }
+/* the zone's name through the date formatter's zone patterns, at a date in (or out of) daylight saving time */
+- (NSString *)localizedName:(NSTimeZoneNameStyle)style locale:(NSLocale *)locale {
+    static NSString *const patterns[] = { @"zzzz", @"z", @"zzzz", @"z", @"vvvv", @"v" };
+    if ((NSUInteger)style >= 6) return nil;
+    NSDate *jan = [NSDate dateWithTimeIntervalSince1970:1704067200], *jul = [NSDate dateWithTimeIntervalSince1970:1719792000];   /* 2024-01-01, 2024-07-01 */
+    BOOL wantDST = style == NSTimeZoneNameStyleDaylightSaving || style == NSTimeZoneNameStyleShortDaylightSaving;
+    NSDate *at = [self isDaylightSavingTimeForDate:jan] == wantDST ? jan : [self isDaylightSavingTimeForDate:jul] == wantDST ? jul : jan;
+    NSLocale *l = locale ?: [NSLocale currentLocale];
+    if (isim_icu_on()) {                                         /* CLDR's zone names ("Pacific Standard Time") */
+        NSString *s = isim_icu_date_format_string(isim_icu_locale_id(l), self.name, patterns[style], at);
+        if (s.length) return s;
+    }
+    NSDateFormatter *f = [NSDateFormatter new];
+    f.locale = l; f.timeZone = self; f.dateFormat = patterns[style];
+    return [f stringFromDate:at];
+}
 @end
 
 /* NSCalendar arithmetic: the Gregorian calendar in the calendar's time zone (adapted: other calendars count as Gregorian) */
@@ -462,7 +487,7 @@ static NSDate *cal_date(NSCalendar *cal, struct tm tm, double frac) {
     NSInteger off2 = [cal.timeZone secondsFromGMTForDate:d];
     return off2 == off ? d : [NSDate dateWithTimeIntervalSince1970:(double)(local - off2) + frac];
 }
-@implementation NSCalendar (IsimArithmetic)
+@implementation NSCalendar (NSCalendarCalculations)
 - (NSDateComponents *)components:(NSCalendarUnit)units fromDate:(NSDate *)date {
     struct tm tm = cal_tm(self, date);
     NSDateComponents *c = [NSDateComponents new];
@@ -480,6 +505,7 @@ static NSDate *cal_date(NSCalendar *cal, struct tm tm, double frac) {
     if (units & NSCalendarUnitWeekOfYear) c.weekOfYear = (tm.tm_yday + 7 - ((tm.tm_wday + 8 - (NSInteger)self.firstWeekday) % 7)) / 7 + 1;
     if (units & NSCalendarUnitWeekOfMonth) c.weekOfMonth = (tm.tm_mday - 1 + ((tm.tm_wday - (tm.tm_mday - 1) % 7 + 7 - ((NSInteger)self.firstWeekday - 1)) % 7)) / 7 + 1;
     if (units & NSCalendarUnitYearForWeekOfYear) c.yearForWeekOfYear = tm.tm_year + 1900;
+    if (units & NSCalendarUnitDayOfYear) c.dayOfYear = tm.tm_yday + 1;
     if (units & NSCalendarUnitCalendar) c.calendar = self;
     if (units & NSCalendarUnitTimeZone) c.timeZone = self.timeZone;
     return c;
@@ -496,7 +522,7 @@ static NSDate *cal_date(NSCalendar *cal, struct tm tm, double frac) {
     if (c.timeZone) { cal = [self copy]; cal.timeZone = c.timeZone; }
     return cal_date(cal, tm, frac);
 }
-- (NSDate *)dateByAddingComponents:(NSDateComponents *)c toDate:(NSDate *)date options:(NSUInteger)opts {
+- (NSDate *)dateByAddingComponents:(NSDateComponents *)c toDate:(NSDate *)date options:(NSCalendarOptions)opts {
     struct tm tm = cal_tm(self, date);
     double frac = date.timeIntervalSince1970 - floor(date.timeIntervalSince1970);
     #define A(x) (c.x == NSDateComponentUndefined ? 0 : (int)c.x)
@@ -513,7 +539,7 @@ static NSDate *cal_date(NSCalendar *cal, struct tm tm, double frac) {
     #undef A
     return cal_date(self, tm, frac);
 }
-- (NSDate *)dateByAddingUnit:(NSCalendarUnit)unit value:(NSInteger)value toDate:(NSDate *)date options:(NSUInteger)opts {
+- (NSDate *)dateByAddingUnit:(NSCalendarUnit)unit value:(NSInteger)value toDate:(NSDate *)date options:(NSCalendarOptions)opts {
     NSDateComponents *c = [NSDateComponents new];
     [c setValue:value forComponent:unit];
     return [self dateByAddingComponents:c toDate:date options:opts];
@@ -525,7 +551,7 @@ static NSDate *cal_date(NSCalendar *cal, struct tm tm, double frac) {
 }
 - (BOOL)isDate:(NSDate *)a inSameDayAsDate:(NSDate *)b { return [[self startOfDayForDate:a] isEqualToDate:[self startOfDayForDate:b]]; }
 - (BOOL)isDateInToday:(NSDate *)date { return [self isDate:date inSameDayAsDate:[NSDate date]]; }
-- (NSDateComponents *)components:(NSCalendarUnit)units fromDate:(NSDate *)from toDate:(NSDate *)to options:(NSUInteger)opts {
+- (NSDateComponents *)components:(NSCalendarUnit)units fromDate:(NSDate *)from toDate:(NSDate *)to options:(NSCalendarOptions)opts {
     NSDateComponents *c = [NSDateComponents new];
     NSDate *cur = from;
     static const NSCalendarUnit order[] = { NSCalendarUnitYear, NSCalendarUnitMonth, NSCalendarUnitDay, NSCalendarUnitHour, NSCalendarUnitMinute, NSCalendarUnitSecond };
@@ -560,6 +586,294 @@ static NSDate *cal_date(NSCalendar *cal, struct tm tm, double frac) {
     }
     return NSMakeRange(NSNotFound, NSNotFound);
 }
+@end
+
+/* NSCalendar: the rest of the arithmetic (adapted: the Gregorian calendar in the calendar's time zone) */
+static NSInteger cal_days_in_month(NSInteger y, NSInteger m) {
+    static const int d[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+    BOOL leap = y % 4 == 0 && (y % 100 != 0 || y % 400 == 0);
+    return m == 2 && leap ? 29 : d[(m - 1 + 12) % 12];
+}
+static const NSCalendarUnit CAL_FIELDS[] = { NSCalendarUnitEra, NSCalendarUnitYear, NSCalendarUnitQuarter, NSCalendarUnitMonth, NSCalendarUnitWeekOfYear,
+    NSCalendarUnitWeekOfMonth, NSCalendarUnitDay, NSCalendarUnitDayOfYear, NSCalendarUnitWeekday, NSCalendarUnitWeekdayOrdinal, NSCalendarUnitYearForWeekOfYear,
+    NSCalendarUnitHour, NSCalendarUnitMinute, NSCalendarUnitSecond, NSCalendarUnitNanosecond };
+@implementation NSCalendar (NSCalendarCalculationsMore)
+- (NSRange)minimumRangeOfUnit:(NSCalendarUnit)u {
+    switch (u) {
+    case NSCalendarUnitEra: return NSMakeRange(0, 2);
+    case NSCalendarUnitYear: case NSCalendarUnitYearForWeekOfYear: return NSMakeRange(1, 140742);
+    case NSCalendarUnitQuarter: return NSMakeRange(1, 4);
+    case NSCalendarUnitMonth: return NSMakeRange(1, 12);
+    case NSCalendarUnitDay: return NSMakeRange(1, 28);
+    case NSCalendarUnitDayOfYear: return NSMakeRange(1, 365);
+    case NSCalendarUnitWeekday: return NSMakeRange(1, 7);
+    case NSCalendarUnitWeekdayOrdinal: return NSMakeRange(1, 4);
+    case NSCalendarUnitWeekOfMonth: return NSMakeRange(1, 4);
+    case NSCalendarUnitWeekOfYear: return NSMakeRange(1, 52);
+    case NSCalendarUnitHour: return NSMakeRange(0, 24);
+    case NSCalendarUnitMinute: case NSCalendarUnitSecond: return NSMakeRange(0, 60);
+    case NSCalendarUnitNanosecond: return NSMakeRange(0, 1000000000);
+    default: return NSMakeRange(NSNotFound, NSNotFound);
+    }
+}
+- (NSRange)maximumRangeOfUnit:(NSCalendarUnit)u {
+    switch (u) {
+    case NSCalendarUnitYear: case NSCalendarUnitYearForWeekOfYear: return NSMakeRange(1, 144683);
+    case NSCalendarUnitDay: return NSMakeRange(1, 31);
+    case NSCalendarUnitDayOfYear: return NSMakeRange(1, 366);
+    case NSCalendarUnitWeekdayOrdinal: return NSMakeRange(1, 5);
+    case NSCalendarUnitWeekOfMonth: return NSMakeRange(1, 6);
+    case NSCalendarUnitWeekOfYear: return NSMakeRange(1, 53);
+    default: return [self minimumRangeOfUnit:u];
+    }
+}
+/* the start and length of the unit holding `date` */
+- (BOOL)rangeOfUnit:(NSCalendarUnit)unit startDate:(NSDate **)datep interval:(NSTimeInterval *)tip forDate:(NSDate *)date {
+    struct tm tm = cal_tm(self, date);
+    NSDate *start = nil, *end = nil;
+    switch (unit) {
+    case NSCalendarUnitEra: start = [NSDate distantPast]; end = [NSDate distantFuture]; break;
+    case NSCalendarUnitYear: case NSCalendarUnitYearForWeekOfYear:
+        tm.tm_mon = 0; tm.tm_mday = 1; tm.tm_hour = tm.tm_min = tm.tm_sec = 0; start = cal_date(self, tm, 0);
+        tm.tm_year += 1; end = cal_date(self, tm, 0); break;
+    case NSCalendarUnitQuarter:
+        tm.tm_mon -= tm.tm_mon % 3; tm.tm_mday = 1; tm.tm_hour = tm.tm_min = tm.tm_sec = 0; start = cal_date(self, tm, 0);
+        tm.tm_mon += 3; end = cal_date(self, tm, 0); break;
+    case NSCalendarUnitMonth:
+        tm.tm_mday = 1; tm.tm_hour = tm.tm_min = tm.tm_sec = 0; start = cal_date(self, tm, 0);
+        tm.tm_mon += 1; end = cal_date(self, tm, 0); break;
+    case NSCalendarUnitWeekOfYear: case NSCalendarUnitWeekOfMonth: {
+        int back = (tm.tm_wday + 1 - (int)self.firstWeekday + 7) % 7;
+        tm.tm_mday -= back; tm.tm_hour = tm.tm_min = tm.tm_sec = 0; start = cal_date(self, tm, 0);
+        tm.tm_mday += 7; end = cal_date(self, tm, 0); break;
+    }
+    case NSCalendarUnitDay: case NSCalendarUnitWeekday: case NSCalendarUnitWeekdayOrdinal: case NSCalendarUnitDayOfYear:
+        tm.tm_hour = tm.tm_min = tm.tm_sec = 0; start = cal_date(self, tm, 0);
+        tm.tm_mday += 1; end = cal_date(self, tm, 0); break;
+    case NSCalendarUnitHour: { double t = floor(date.timeIntervalSince1970 / 3600) * 3600; start = [NSDate dateWithTimeIntervalSince1970:t]; end = [start dateByAddingTimeInterval:3600]; break; }
+    case NSCalendarUnitMinute: { double t = floor(date.timeIntervalSince1970 / 60) * 60; start = [NSDate dateWithTimeIntervalSince1970:t]; end = [start dateByAddingTimeInterval:60]; break; }
+    case NSCalendarUnitSecond: { double t = floor(date.timeIntervalSince1970); start = [NSDate dateWithTimeIntervalSince1970:t]; end = [start dateByAddingTimeInterval:1]; break; }
+    case NSCalendarUnitNanosecond: start = date; end = [date dateByAddingTimeInterval:1e-9]; break;
+    default: return NO;
+    }
+    if (datep) *datep = start;
+    if (tip) *tip = [end timeIntervalSinceDate:start];
+    return YES;
+}
+- (NSUInteger)ordinalityOfUnit:(NSCalendarUnit)smaller inUnit:(NSCalendarUnit)larger forDate:(NSDate *)date {
+    struct tm tm = cal_tm(self, date);
+    if (smaller == NSCalendarUnitWeekday && (larger == NSCalendarUnitWeekOfYear || larger == NSCalendarUnitWeekOfMonth))
+        return (NSUInteger)((tm.tm_wday + 1 - (int)self.firstWeekday + 7) % 7 + 1);
+    if (smaller == NSCalendarUnitDay && larger == NSCalendarUnitMonth) return (NSUInteger)tm.tm_mday;
+    if (smaller == NSCalendarUnitDay && larger == NSCalendarUnitYear) return (NSUInteger)tm.tm_yday + 1;
+    if (smaller == NSCalendarUnitMonth && larger == NSCalendarUnitYear) return (NSUInteger)tm.tm_mon + 1;
+    if (smaller == NSCalendarUnitMonth && larger == NSCalendarUnitQuarter) return (NSUInteger)tm.tm_mon % 3 + 1;
+    if (smaller == NSCalendarUnitQuarter && larger == NSCalendarUnitYear) return (NSUInteger)tm.tm_mon / 3 + 1;
+    if (smaller == NSCalendarUnitHour && larger == NSCalendarUnitDay) return (NSUInteger)tm.tm_hour + 1;
+    if (smaller == NSCalendarUnitMinute && larger == NSCalendarUnitHour) return (NSUInteger)tm.tm_min + 1;
+    if (smaller == NSCalendarUnitSecond && larger == NSCalendarUnitMinute) return (NSUInteger)tm.tm_sec + 1;
+    if (smaller == NSCalendarUnitWeekOfYear && larger == NSCalendarUnitYear) return (NSUInteger)[self component:NSCalendarUnitWeekOfYear fromDate:date];
+    if (smaller == NSCalendarUnitWeekOfMonth && larger == NSCalendarUnitMonth) return (NSUInteger)[self component:NSCalendarUnitWeekOfMonth fromDate:date];
+    if (smaller == NSCalendarUnitYear && larger == NSCalendarUnitEra) return (NSUInteger)tm.tm_year + 1900;
+    /* otherwise: how many smaller units from the start of the larger one */
+    NSDate *start; NSTimeInterval len;
+    if (![self rangeOfUnit:larger startDate:&start interval:&len forDate:date]) return NSNotFound;
+    NSDateComponents *c = [self components:smaller fromDate:start toDate:date options:0];
+    NSInteger v = [c valueForComponent:smaller];
+    return v == NSDateComponentUndefined ? NSNotFound : (NSUInteger)v + 1;
+}
+- (void)getEra:(NSInteger *)era year:(NSInteger *)year month:(NSInteger *)month day:(NSInteger *)day fromDate:(NSDate *)date {
+    NSDateComponents *c = [self components:NSCalendarUnitEra | NSCalendarUnitYear | NSCalendarUnitMonth | NSCalendarUnitDay fromDate:date];
+    if (era) *era = c.era; if (year) *year = c.year; if (month) *month = c.month; if (day) *day = c.day;
+}
+- (void)getEra:(NSInteger *)era yearForWeekOfYear:(NSInteger *)year weekOfYear:(NSInteger *)week weekday:(NSInteger *)weekday fromDate:(NSDate *)date {
+    NSDateComponents *c = [self components:NSCalendarUnitEra | NSCalendarUnitYearForWeekOfYear | NSCalendarUnitWeekOfYear | NSCalendarUnitWeekday fromDate:date];
+    if (era) *era = c.era; if (year) *year = c.yearForWeekOfYear; if (week) *week = c.weekOfYear; if (weekday) *weekday = c.weekday;
+}
+- (void)getHour:(NSInteger *)hour minute:(NSInteger *)minute second:(NSInteger *)second nanosecond:(NSInteger *)ns fromDate:(NSDate *)date {
+    NSDateComponents *c = [self components:NSCalendarUnitHour | NSCalendarUnitMinute | NSCalendarUnitSecond | NSCalendarUnitNanosecond fromDate:date];
+    if (hour) *hour = c.hour; if (minute) *minute = c.minute; if (second) *second = c.second; if (ns) *ns = c.nanosecond;
+}
+- (NSDate *)dateWithEra:(NSInteger)era year:(NSInteger)y month:(NSInteger)m day:(NSInteger)d hour:(NSInteger)h minute:(NSInteger)mi second:(NSInteger)s nanosecond:(NSInteger)ns {
+    NSDateComponents *c = [NSDateComponents new];
+    c.era = era; c.year = y; c.month = m; c.day = d; c.hour = h; c.minute = mi; c.second = s; c.nanosecond = ns;
+    return [self dateFromComponents:c];
+}
+- (NSDate *)dateWithEra:(NSInteger)era yearForWeekOfYear:(NSInteger)y weekOfYear:(NSInteger)w weekday:(NSInteger)wd hour:(NSInteger)h minute:(NSInteger)mi second:(NSInteger)s nanosecond:(NSInteger)ns {
+    /* week 1 is the first week (starting on firstWeekday) with at least minimumDaysInFirstWeek days of the year */
+    struct tm jan1 = { 0 }; jan1.tm_year = (int)y - 1900; jan1.tm_mday = 1;
+    time_t t = timegm(&jan1); gmtime_r(&t, &jan1);
+    int offset = (jan1.tm_wday + 1 - (int)self.firstWeekday + 7) % 7;
+    int week1 = -offset + ((7 - offset) < (int)self.minimumDaysInFirstWeek ? 7 : 0);   /* day of year (0-based) week 1 starts on */
+    struct tm tm = { 0 };
+    tm.tm_year = (int)y - 1900; tm.tm_mon = 0;
+    tm.tm_mday = 1 + week1 + ((int)w - 1) * 7 + ((int)wd - (int)self.firstWeekday + 7) % 7;
+    tm.tm_hour = (int)h; tm.tm_min = (int)mi; tm.tm_sec = (int)s;
+    return cal_date(self, tm, ns / 1e9);
+}
+- (NSDateComponents *)componentsInTimeZone:(NSTimeZone *)tz fromDate:(NSDate *)date {
+    NSCalendar *cal = [self copy]; cal.timeZone = tz;
+    NSCalendarUnit all = NSCalendarUnitCalendar | NSCalendarUnitTimeZone;
+    for (size_t i = 0; i < sizeof CAL_FIELDS / sizeof *CAL_FIELDS; i++) all |= CAL_FIELDS[i];
+    return [cal components:all fromDate:date];
+}
+- (NSComparisonResult)compareDate:(NSDate *)a toDate:(NSDate *)b toUnitGranularity:(NSCalendarUnit)unit {
+    NSDate *sa, *sb;
+    if (![self rangeOfUnit:unit startDate:&sa interval:NULL forDate:a] || ![self rangeOfUnit:unit startDate:&sb interval:NULL forDate:b]) return [a compare:b];
+    return [sa compare:sb];
+}
+- (BOOL)isDate:(NSDate *)a equalToDate:(NSDate *)b toUnitGranularity:(NSCalendarUnit)unit { return [self compareDate:a toDate:b toUnitGranularity:unit] == NSOrderedSame; }
+- (BOOL)isDateInYesterday:(NSDate *)date { return [self isDate:date inSameDayAsDate:[self dateByAddingUnit:NSCalendarUnitDay value:-1 toDate:[NSDate date] options:0]]; }
+- (BOOL)isDateInTomorrow:(NSDate *)date { return [self isDate:date inSameDayAsDate:[self dateByAddingUnit:NSCalendarUnitDay value:1 toDate:[NSDate date] options:0]]; }
+/* adapted: the weekend is Saturday and Sunday in every region */
+- (BOOL)isDateInWeekend:(NSDate *)date { NSInteger wd = [self component:NSCalendarUnitWeekday fromDate:date]; return wd == 1 || wd == 7; }
+- (BOOL)rangeOfWeekendStartDate:(NSDate **)datep interval:(NSTimeInterval *)tip containingDate:(NSDate *)date {
+    if (![self isDateInWeekend:date]) return NO;
+    NSDate *day = [self startOfDayForDate:date];
+    if ([self component:NSCalendarUnitWeekday fromDate:date] == 1) day = [self dateByAddingUnit:NSCalendarUnitDay value:-1 toDate:day options:0];
+    if (datep) *datep = day;
+    if (tip) *tip = [[self dateByAddingUnit:NSCalendarUnitDay value:2 toDate:day options:0] timeIntervalSinceDate:day];
+    return YES;
+}
+- (BOOL)nextWeekendStartDate:(NSDate **)datep interval:(NSTimeInterval *)tip options:(NSCalendarOptions)options afterDate:(NSDate *)date {
+    BOOL back = (options & NSCalendarSearchBackwards) != 0;
+    NSDate *day = [self startOfDayForDate:date];
+    for (int i = 0; i < 14; i++) {
+        day = [self dateByAddingUnit:NSCalendarUnitDay value:back ? -1 : 1 toDate:day options:0];
+        if ([self component:NSCalendarUnitWeekday fromDate:day] == 7 && (back ? [day compare:date] == NSOrderedAscending : YES))
+            return [self rangeOfWeekendStartDate:datep interval:tip containingDate:day];
+    }
+    return NO;
+}
+- (NSDateComponents *)components:(NSCalendarUnit)units fromDateComponents:(NSDateComponents *)a toDateComponents:(NSDateComponents *)b options:(NSCalendarOptions)options {
+    NSDate *da = [self dateFromComponents:a], *db = [self dateFromComponents:b];
+    return da && db ? [self components:units fromDate:da toDate:db options:options] : [NSDateComponents new];
+}
+- (BOOL)date:(NSDate *)date matchesComponents:(NSDateComponents *)comps {
+    NSCalendarUnit all = 0;
+    for (size_t i = 0; i < sizeof CAL_FIELDS / sizeof *CAL_FIELDS; i++) all |= CAL_FIELDS[i];
+    NSDateComponents *c = [self components:all fromDate:date];
+    for (size_t i = 0; i < sizeof CAL_FIELDS / sizeof *CAL_FIELDS; i++) {
+        NSInteger want = [comps valueForComponent:CAL_FIELDS[i]];
+        if (want != NSDateComponentUndefined && want != [c valueForComponent:CAL_FIELDS[i]]) return NO;
+    }
+    return YES;
+}
+/* the next date after (or before) `date` matching the components: the days that match the day-level fields, then the
+ * times on them (unset time fields smaller than a set one run through their values; the others are their lowest) */
+- (NSDate *)nextDateAfterDate:(NSDate *)date matchingComponents:(NSDateComponents *)comps options:(NSCalendarOptions)options {
+    BOOL back = (options & NSCalendarSearchBackwards) != 0;
+    NSInteger H = comps.hour, M = comps.minute, S = comps.second;
+    BOOL anyTime = H != NSDateComponentUndefined || M != NSDateComponentUndefined || S != NSDateComponentUndefined;
+    NSDateComponents *dayComps = [comps copy];
+    dayComps.hour = dayComps.minute = dayComps.second = dayComps.nanosecond = NSDateComponentUndefined;
+    NSDate *day = [self startOfDayForDate:date];
+    for (int i = 0; i < 366 * 30; i++, day = [self dateByAddingUnit:NSCalendarUnitDay value:back ? -1 : 1 toDate:day options:0]) {
+        if (![self date:day matchesComponents:dayComps]) continue;
+        if (!anyTime) {
+            if (back ? [day compare:date] == NSOrderedAscending : [day compare:date] == NSOrderedDescending) return day;
+            continue;
+        }
+        NSInteger h0 = H != NSDateComponentUndefined ? H : 0, h1 = H != NSDateComponentUndefined ? H : (M != NSDateComponentUndefined || S != NSDateComponentUndefined ? 23 : 0);
+        NSInteger m0 = M != NSDateComponentUndefined ? M : 0, m1 = M != NSDateComponentUndefined ? M : (S != NSDateComponentUndefined ? 59 : 0);
+        NSInteger s0 = S != NSDateComponentUndefined ? S : 0, s1 = s0;
+        for (NSInteger hh = back ? h1 : h0; back ? hh >= h0 : hh <= h1; hh += back ? -1 : 1)
+            for (NSInteger mm = back ? m1 : m0; back ? mm >= m0 : mm <= m1; mm += back ? -1 : 1)
+                for (NSInteger ss = back ? s1 : s0; back ? ss >= s0 : ss <= s1; ss += back ? -1 : 1) {
+                    NSDate *d = [self dateBySettingHour:hh minute:mm second:ss ofDate:day options:0];
+                    if (!d) continue;
+                    if (back ? [d compare:date] == NSOrderedAscending : [d compare:date] == NSOrderedDescending) return d;
+                }
+    }
+    return nil;
+}
+- (NSDate *)nextDateAfterDate:(NSDate *)date matchingUnit:(NSCalendarUnit)unit value:(NSInteger)value options:(NSCalendarOptions)options {
+    NSDateComponents *c = [NSDateComponents new]; [c setValue:value forComponent:unit];
+    return [self nextDateAfterDate:date matchingComponents:c options:options];
+}
+- (NSDate *)nextDateAfterDate:(NSDate *)date matchingHour:(NSInteger)h minute:(NSInteger)m second:(NSInteger)s options:(NSCalendarOptions)options {
+    NSDateComponents *c = [NSDateComponents new]; c.hour = h; c.minute = m; c.second = s;
+    return [self nextDateAfterDate:date matchingComponents:c options:options];
+}
+- (void)enumerateDatesStartingAfterDate:(NSDate *)start matchingComponents:(NSDateComponents *)comps options:(NSCalendarOptions)opts usingBlock:(void (^)(NSDate *, BOOL, BOOL *))block {
+    NSDate *d = start;
+    BOOL stop = NO;
+    for (NSUInteger n = 0; !stop && n < 1000000; n++) {
+        d = [self nextDateAfterDate:d matchingComponents:comps options:opts];
+        if (!d) break;
+        block(d, YES, &stop);
+    }
+}
+- (NSDate *)dateBySettingUnit:(NSCalendarUnit)unit value:(NSInteger)v ofDate:(NSDate *)date options:(NSCalendarOptions)opts {
+    if ([self component:unit fromDate:date] == v) return date;
+    NSCalendarUnit all = NSCalendarUnitYear | NSCalendarUnitMonth | NSCalendarUnitDay | NSCalendarUnitHour | NSCalendarUnitMinute | NSCalendarUnitSecond | NSCalendarUnitNanosecond;
+    if (unit & all) {
+        NSDateComponents *c = [self components:all fromDate:date];
+        [c setValue:v forComponent:unit];
+        if (unit != NSCalendarUnitDay && c.day > cal_days_in_month(c.year, c.month)) c.day = cal_days_in_month(c.year, c.month);
+        return [self dateFromComponents:c];
+    }
+    /* weekday and the other derived fields: the next date with that value, keeping the time of day */
+    NSDate *n = [self nextDateAfterDate:[self startOfDayForDate:date] matchingUnit:unit value:v options:opts];
+    if (!n) return nil;
+    NSDateComponents *t = [self components:NSCalendarUnitHour | NSCalendarUnitMinute | NSCalendarUnitSecond fromDate:date];
+    return [self dateBySettingHour:t.hour minute:t.minute second:t.second ofDate:n options:opts];
+}
+- (NSDate *)dateBySettingHour:(NSInteger)h minute:(NSInteger)m second:(NSInteger)s ofDate:(NSDate *)date options:(NSCalendarOptions)opts {
+    if (h < 0 || h > 23 || m < 0 || m > 59 || s < 0 || s > 59) return nil;
+    struct tm tm = cal_tm(self, date);
+    tm.tm_hour = (int)h; tm.tm_min = (int)m; tm.tm_sec = (int)s;
+    return cal_date(self, tm, 0);
+}
+@end
+
+/* the calendars Apple added in iOS 26 */
+NSCalendarIdentifier const NSCalendarIdentifierBangla = @"bangla";
+NSCalendarIdentifier const NSCalendarIdentifierDangi = @"dangi";
+NSCalendarIdentifier const NSCalendarIdentifierGujarati = @"gujarati";
+NSCalendarIdentifier const NSCalendarIdentifierKannada = @"kannada";
+NSCalendarIdentifier const NSCalendarIdentifierMalayalam = @"malayalam";
+NSCalendarIdentifier const NSCalendarIdentifierMarathi = @"marathi";
+NSCalendarIdentifier const NSCalendarIdentifierOdia = @"odia";
+NSCalendarIdentifier const NSCalendarIdentifierTamil = @"tamil";
+NSCalendarIdentifier const NSCalendarIdentifierTelugu = @"telugu";
+NSCalendarIdentifier const NSCalendarIdentifierVietnamese = @"vietnamese";
+NSCalendarIdentifier const NSCalendarIdentifierVikram = @"vikram";
+
+/* NSTimeZone: data, equality, localized names, abbreviations */
+static NSMutableDictionary<NSString *, NSString *> *tz_abbreviations(void) {
+    static NSMutableDictionary *d;   /* (callers hold the class lock) */
+    if (!d) {
+        d = [@{ @"ADT": @"America/Halifax", @"AKDT": @"America/Juneau", @"AKST": @"America/Juneau", @"ART": @"America/Argentina/Buenos_Aires",
+                @"AST": @"America/Halifax", @"BDT": @"Asia/Dhaka", @"BRST": @"America/Sao_Paulo", @"BRT": @"America/Sao_Paulo", @"BST": @"Europe/London",
+                @"CAT": @"Africa/Harare", @"CDT": @"America/Chicago", @"CEST": @"Europe/Paris", @"CET": @"Europe/Paris", @"CLST": @"America/Santiago",
+                @"CLT": @"America/Santiago", @"COT": @"America/Bogota", @"CST": @"America/Chicago", @"EAT": @"Africa/Addis_Ababa", @"EDT": @"America/New_York",
+                @"EEST": @"Europe/Athens", @"EET": @"Europe/Athens", @"EST": @"America/New_York", @"GMT": @"GMT", @"GST": @"Asia/Dubai",
+                @"HKT": @"Asia/Hong_Kong", @"HST": @"Pacific/Honolulu", @"ICT": @"Asia/Bangkok", @"IRST": @"Asia/Tehran", @"IST": @"Asia/Kolkata",
+                @"JST": @"Asia/Tokyo", @"KST": @"Asia/Seoul", @"MDT": @"America/Denver", @"MSD": @"Europe/Moscow", @"MSK": @"Europe/Moscow",
+                @"MST": @"America/Denver", @"NDT": @"America/St_Johns", @"NST": @"America/St_Johns", @"NZDT": @"Pacific/Auckland",
+                @"NZST": @"Pacific/Auckland", @"PDT": @"America/Los_Angeles", @"PET": @"America/Lima", @"PHT": @"Asia/Manila", @"PKT": @"Asia/Karachi",
+                @"PST": @"America/Los_Angeles", @"SGT": @"Asia/Singapore", @"TRT": @"Europe/Istanbul", @"UTC": @"UTC", @"WAT": @"Africa/Lagos",
+                @"WEST": @"Europe/Lisbon", @"WET": @"Europe/Lisbon", @"WIT": @"Asia/Jakarta" } mutableCopy];
+    }
+    return d;
+}
+@implementation NSTimeZone (NSExtendedTimeZone)
++ (NSDictionary<NSString *, NSString *> *)abbreviationDictionary { @synchronized (self) { return [tz_abbreviations() copy]; } }
++ (void)setAbbreviationDictionary:(NSDictionary<NSString *, NSString *> *)dict { @synchronized (self) { [tz_abbreviations() setDictionary:dict]; } }
+/* the version of the host's tz database (tzdata.zi's first line), else the one isim was built against */
++ (NSString *)timeZoneDataVersion {
+    NSString *zi = [NSString stringWithContentsOfFile:@"/usr/share/zoneinfo/tzdata.zi" encoding:NSUTF8StringEncoding error:NULL];
+    if ([zi hasPrefix:@"# version "]) return [[zi substringWithRange:NSMakeRange(10, MIN((NSUInteger)8, zi.length - 10))] componentsSeparatedByString:@"\n"].firstObject;
+    return @"2024a";
+}
+- (NSData *)data {
+    NSData *d = [NSData dataWithContentsOfFile:[@"/usr/share/zoneinfo/" stringByAppendingString:self.name]];
+    return d ?: [NSData data];
+}
++ (instancetype)timeZoneWithName:(NSString *)name data:(NSData *)data { return [self timeZoneWithName:name]; }
+- (instancetype)initWithName:(NSString *)name data:(NSData *)data { return [self initWithName:name]; }
+- (BOOL)isEqualToTimeZone:(NSTimeZone *)tz { return [self isEqual:tz]; }
 @end
 
 /* the nil-terminated variadic initializers */

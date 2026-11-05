@@ -3,6 +3,7 @@
  * NSDateIntervalFormatter, NSByteCountFormatter, NSListFormatter, NSPersonNameComponents(+Formatter), NSCalendar
  * (minimal). Locale data comes from Locale.m (isim_locale.h); formats follow the device region like iOS. */
 #import <Foundation/Foundation.h>
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"   /* Foundation implements the iOS 18 / 26 units */
 #include <ctype.h>
 #include <float.h>
 #include <math.h>
@@ -566,7 +567,7 @@ NSCalendarIdentifier const NSCalendarIdentifierBuddhist = @"buddhist", NSCalenda
 + (NSCalendar *)calendarWithIdentifier:(NSCalendarIdentifier)ident { return [[NSCalendar alloc] initWithCalendarIdentifier:ident]; }
 - (instancetype)initWithCalendarIdentifier:(NSCalendarIdentifier)ident { if ((self = [super init])) { _ident = [ident copy]; _timeZone = NSTimeZone.defaultTimeZone; _locale = NSLocale.currentLocale; _firstWeekday = (NSUInteger)isim_region(isim_locale_ident(_locale))->firstWeekday; _minimumDaysInFirstWeek = 1; } return self; }
 - (NSCalendarIdentifier)calendarIdentifier { return _ident; }
-- (id)copyWithZone:(NSZone *)z { NSCalendar *c = [[NSCalendar alloc] initWithCalendarIdentifier:_ident]; c.timeZone = self.timeZone; c.locale = self.locale; c.firstWeekday = self.firstWeekday; return c; }
+- (id)copyWithZone:(NSZone *)z { NSCalendar *c = [[NSCalendar alloc] initWithCalendarIdentifier:_ident]; c.timeZone = self.timeZone; c.locale = self.locale; c.firstWeekday = self.firstWeekday; c.minimumDaysInFirstWeek = self.minimumDaysInFirstWeek; return c; }
 - (NSArray<NSString *> *)monthSymbols { NSDateFormatter *f = [NSDateFormatter new]; f.locale = self.locale; return f.monthSymbols; }
 - (NSArray<NSString *> *)shortMonthSymbols { NSDateFormatter *f = [NSDateFormatter new]; f.locale = self.locale; return f.shortMonthSymbols; }
 - (NSArray<NSString *> *)weekdaySymbols { NSDateFormatter *f = [NSDateFormatter new]; f.locale = self.locale; return f.weekdaySymbols; }
@@ -574,6 +575,40 @@ NSCalendarIdentifier const NSCalendarIdentifierBuddhist = @"buddhist", NSCalenda
 - (NSArray<NSString *> *)veryShortWeekdaySymbols { NSDateFormatter *f = [NSDateFormatter new]; f.locale = self.locale; return f.veryShortWeekdaySymbols; }
 - (NSString *)AMSymbol { NSDateFormatter *f = [NSDateFormatter new]; f.locale = self.locale; return f.AMSymbol; }
 - (NSString *)PMSymbol { NSDateFormatter *f = [NSDateFormatter new]; f.locale = self.locale; return f.PMSymbol; }
+- (NSDateFormatter *)_symbolFormatter { NSDateFormatter *f = [NSDateFormatter new]; f.locale = self.locale; f.calendar = self; return f; }
+- (NSArray<NSString *> *)eraSymbols { return [self _symbolFormatter].eraSymbols; }
+- (NSArray<NSString *> *)longEraSymbols { return [self _symbolFormatter].longEraSymbols; }
+- (NSArray<NSString *> *)veryShortMonthSymbols { return [self _symbolFormatter].veryShortMonthSymbols; }
+- (NSArray<NSString *> *)standaloneMonthSymbols { return [self _symbolFormatter].standaloneMonthSymbols; }
+- (NSArray<NSString *> *)shortStandaloneMonthSymbols { return [self _symbolFormatter].shortStandaloneMonthSymbols; }
+- (NSArray<NSString *> *)veryShortStandaloneMonthSymbols { return [self _symbolFormatter].veryShortStandaloneMonthSymbols; }
+- (NSArray<NSString *> *)standaloneWeekdaySymbols { return [self _symbolFormatter].standaloneWeekdaySymbols; }
+- (NSArray<NSString *> *)shortStandaloneWeekdaySymbols { return [self _symbolFormatter].shortStandaloneWeekdaySymbols; }
+- (NSArray<NSString *> *)veryShortStandaloneWeekdaySymbols { return [self _symbolFormatter].veryShortStandaloneWeekdaySymbols; }
+- (NSArray<NSString *> *)quarterSymbols { return [self _symbolFormatter].quarterSymbols; }
+- (NSArray<NSString *> *)shortQuarterSymbols { return [self _symbolFormatter].shortQuarterSymbols; }
+- (NSArray<NSString *> *)standaloneQuarterSymbols { return [self _symbolFormatter].standaloneQuarterSymbols; }
+- (NSArray<NSString *> *)shortStandaloneQuarterSymbols { return [self _symbolFormatter].shortStandaloneQuarterSymbols; }
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c {
+    [c encodeObject:_ident forKey:@"NS.identifier"]; [c encodeObject:self.timeZone forKey:@"NS.timezone"]; [c encodeObject:self.locale forKey:@"NS.locale"];
+    [c encodeInteger:(NSInteger)self.firstWeekday forKey:@"NS.firstwkdy"]; [c encodeInteger:(NSInteger)self.minimumDaysInFirstWeek forKey:@"NS.mindays"];
+}
+- (instancetype)initWithCoder:(NSCoder *)c {
+    NSString *ident = [c decodeObjectOfClass:[NSString class] forKey:@"NS.identifier"];
+    if (!(self = [self initWithCalendarIdentifier:ident ?: NSCalendarIdentifierGregorian])) return nil;
+    NSTimeZone *tz = [c decodeObjectOfClass:[NSTimeZone class] forKey:@"NS.timezone"]; if (tz) self.timeZone = tz;
+    NSLocale *l = [c decodeObjectOfClass:[NSLocale class] forKey:@"NS.locale"]; if (l) self.locale = l;
+    if ([c containsValueForKey:@"NS.firstwkdy"]) self.firstWeekday = (NSUInteger)[c decodeIntegerForKey:@"NS.firstwkdy"];
+    if ([c containsValueForKey:@"NS.mindays"]) self.minimumDaysInFirstWeek = (NSUInteger)[c decodeIntegerForKey:@"NS.mindays"];
+    return self;
+}
+- (BOOL)isEqual:(id)o {
+    if (![o isKindOfClass:[NSCalendar class]]) return NO;
+    NSCalendar *c = o;
+    return [_ident isEqualToString:c.calendarIdentifier] && [self.timeZone isEqual:c.timeZone] && self.firstWeekday == c.firstWeekday && self.minimumDaysInFirstWeek == c.minimumDaysInFirstWeek;
+}
+- (NSUInteger)hash { return _ident.hash ^ self.timeZone.hash; }
 @end
 
 /* ================= NSISO8601DateFormatter ================= */
@@ -811,7 +846,7 @@ static NSString *count_unit(NSString *lang, double n, int unit, int width, BOOL 
 
 @implementation NSDateComponents
 - (instancetype)init {
-    if ((self = [super init])) { _era = _year = _month = _day = _hour = _minute = _second = _nanosecond = _weekday = _weekdayOrdinal = _quarter = _weekOfMonth = _weekOfYear = _yearForWeekOfYear = NSDateComponentUndefined; }
+    if ((self = [super init])) { _era = _year = _month = _day = _hour = _minute = _second = _nanosecond = _weekday = _weekdayOrdinal = _quarter = _weekOfMonth = _weekOfYear = _yearForWeekOfYear = _dayOfYear = NSDateComponentUndefined; }
     return self;
 }
 - (id)copyWithZone:(NSZone *)z {
@@ -819,6 +854,7 @@ static NSString *count_unit(NSString *lang, double n, int unit, int width, BOOL 
     c.era = _era; c.year = _year; c.month = _month; c.day = _day; c.hour = _hour; c.minute = _minute; c.second = _second; c.nanosecond = _nanosecond;
     c.weekday = _weekday; c.weekdayOrdinal = _weekdayOrdinal; c.quarter = _quarter; c.weekOfMonth = _weekOfMonth; c.weekOfYear = _weekOfYear;
     c.yearForWeekOfYear = _yearForWeekOfYear; c.calendar = _calendar; c.timeZone = _timeZone;
+    c.dayOfYear = _dayOfYear; c.leapMonth = _leapMonth; c.repeatedDay = _repeatedDay;
     return c;
 }
 - (NSInteger)valueForComponent:(NSCalendarUnit)unit {
@@ -827,6 +863,8 @@ static NSString *count_unit(NSString *lang, double n, int unit, int width, BOOL 
     case NSCalendarUnitDay: return _day; case NSCalendarUnitHour: return _hour; case NSCalendarUnitMinute: return _minute;
     case NSCalendarUnitSecond: return _second; case NSCalendarUnitWeekday: return _weekday; case NSCalendarUnitWeekOfYear: return _weekOfYear;
     case NSCalendarUnitWeekOfMonth: return _weekOfMonth; case NSCalendarUnitNanosecond: return _nanosecond; case NSCalendarUnitQuarter: return _quarter;
+    case NSCalendarUnitWeekdayOrdinal: return _weekdayOrdinal; case NSCalendarUnitYearForWeekOfYear: return _yearForWeekOfYear;
+    case NSCalendarUnitDayOfYear: return _dayOfYear; case NSCalendarUnitIsLeapMonth: return _leapMonth; case NSCalendarUnitIsRepeatedDay: return _repeatedDay;
     default: return NSDateComponentUndefined;
     }
 }
@@ -836,9 +874,65 @@ static NSString *count_unit(NSString *lang, double n, int unit, int width, BOOL 
     case NSCalendarUnitDay: _day = v; break; case NSCalendarUnitHour: _hour = v; break; case NSCalendarUnitMinute: _minute = v; break;
     case NSCalendarUnitSecond: _second = v; break; case NSCalendarUnitWeekday: _weekday = v; break; case NSCalendarUnitWeekOfYear: _weekOfYear = v; break;
     case NSCalendarUnitWeekOfMonth: _weekOfMonth = v; break; case NSCalendarUnitNanosecond: _nanosecond = v; break; case NSCalendarUnitQuarter: _quarter = v; break;
+    case NSCalendarUnitWeekdayOrdinal: _weekdayOrdinal = v; break; case NSCalendarUnitYearForWeekOfYear: _yearForWeekOfYear = v; break;
+    case NSCalendarUnitDayOfYear: _dayOfYear = v; break; case NSCalendarUnitIsLeapMonth: _leapMonth = v != 0; break; case NSCalendarUnitIsRepeatedDay: _repeatedDay = v != 0; break;
     default: break;
     }
 }
+- (NSDate *)date {
+    if (!_calendar) return nil;
+    return [_calendar dateFromComponents:self];
+}
+- (BOOL)isValidDate { return _calendar ? [self isValidDateInCalendar:_calendar] : NO; }
+/* valid: the date these components give has the same components back */
+- (BOOL)isValidDateInCalendar:(NSCalendar *)calendar {
+    NSCalendar *cal = calendar;
+    if (_timeZone) { cal = [calendar copy]; cal.timeZone = _timeZone; }
+    NSDate *d = [cal dateFromComponents:self];
+    if (!d) return NO;
+    static const NSCalendarUnit units[] = { NSCalendarUnitEra, NSCalendarUnitYear, NSCalendarUnitMonth, NSCalendarUnitDay, NSCalendarUnitHour,
+        NSCalendarUnitMinute, NSCalendarUnitSecond, NSCalendarUnitWeekday, NSCalendarUnitWeekdayOrdinal, NSCalendarUnitQuarter,
+        NSCalendarUnitWeekOfMonth, NSCalendarUnitWeekOfYear, NSCalendarUnitYearForWeekOfYear };
+    NSCalendarUnit all = 0;
+    for (size_t i = 0; i < sizeof units / sizeof *units; i++) all |= units[i];
+    NSDateComponents *back = [cal components:all fromDate:d];
+    for (size_t i = 0; i < sizeof units / sizeof *units; i++) {
+        NSInteger v = [self valueForComponent:units[i]];
+        if (v != NSDateComponentUndefined && v != [back valueForComponent:units[i]]) return NO;
+    }
+    return YES;
+}
++ (BOOL)supportsSecureCoding { return YES; }
+static NSString *const DC_KEYS[] = { @"NS.era", @"NS.year", @"NS.month", @"NS.day", @"NS.hour", @"NS.minute", @"NS.second", @"NS.nanosec",
+    @"NS.weekday", @"NS.weekdayOrdinal", @"NS.quarter", @"NS.weekOfMonth", @"NS.weekOfYear", @"NS.yearForWOY", @"NS.dayOfYear" };
+static const NSCalendarUnit DC_UNITS[] = { NSCalendarUnitEra, NSCalendarUnitYear, NSCalendarUnitMonth, NSCalendarUnitDay, NSCalendarUnitHour,
+    NSCalendarUnitMinute, NSCalendarUnitSecond, NSCalendarUnitNanosecond, NSCalendarUnitWeekday, NSCalendarUnitWeekdayOrdinal, NSCalendarUnitQuarter,
+    NSCalendarUnitWeekOfMonth, NSCalendarUnitWeekOfYear, NSCalendarUnitYearForWeekOfYear, NSCalendarUnitDayOfYear };
+- (void)encodeWithCoder:(NSCoder *)c {
+    for (size_t i = 0; i < sizeof DC_UNITS / sizeof *DC_UNITS; i++) {
+        NSInteger v = [self valueForComponent:DC_UNITS[i]];
+        if (v != NSDateComponentUndefined) [c encodeInteger:v forKey:DC_KEYS[i]];
+    }
+    if (_leapMonth) [c encodeBool:YES forKey:@"NS.isLeapMonth"];
+    if (_calendar) [c encodeObject:_calendar forKey:@"NS.calendar"];
+    if (_timeZone) [c encodeObject:_timeZone forKey:@"NS.timezone"];
+}
+- (instancetype)initWithCoder:(NSCoder *)c {
+    if (!(self = [self init])) return nil;
+    for (size_t i = 0; i < sizeof DC_UNITS / sizeof *DC_UNITS; i++)
+        if ([c containsValueForKey:DC_KEYS[i]]) [self setValue:[c decodeIntegerForKey:DC_KEYS[i]] forComponent:DC_UNITS[i]];
+    _leapMonth = [c decodeBoolForKey:@"NS.isLeapMonth"];
+    _calendar = [c decodeObjectOfClass:[NSCalendar class] forKey:@"NS.calendar"];
+    _timeZone = [c decodeObjectOfClass:[NSTimeZone class] forKey:@"NS.timezone"];
+    return self;
+}
+- (BOOL)isEqual:(id)o {
+    if (![o isKindOfClass:[NSDateComponents class]]) return NO;
+    for (size_t i = 0; i < sizeof DC_UNITS / sizeof *DC_UNITS; i++) if ([self valueForComponent:DC_UNITS[i]] != [o valueForComponent:DC_UNITS[i]]) return NO;
+    NSDateComponents *x = o;
+    return _leapMonth == x.isLeapMonth && (_calendar == x.calendar || [_calendar isEqual:x.calendar]) && (_timeZone == x.timeZone || [_timeZone isEqual:x.timeZone]);
+}
+- (NSUInteger)hash { return (NSUInteger)(_year * 372 + _month * 31 + _day) ^ (NSUInteger)(_hour * 3600 + _minute * 60 + _second); }
 @end
 
 /* ================= NSDateComponentsFormatter ================= */

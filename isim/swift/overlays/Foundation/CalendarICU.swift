@@ -78,6 +78,7 @@ extension Calendar {
         if components.contains(.yearForWeekOfYear) { c.yearForWeekOfYear = v(.yearForWeekOfYear) }
         if #available(iOS 18.0, *), components.contains(.dayOfYear) { c._dayOfYear = v(.dayOfYear) }
         if components.contains(.isLeapMonth) { c.isLeapMonth = v(.isLeapMonth) != 0 }
+        if #available(iOS 26.0, *), components.contains(.isRepeatedDay) { c.isRepeatedDay = false }
         return c
     }
     func _icuDate(from c: DateComponents) -> Date? {
