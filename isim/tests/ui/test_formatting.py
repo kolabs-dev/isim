@@ -96,3 +96,12 @@ def test_foundation_extras(runs):
     assert "x864 bytes 3|int,value .|decimalSeparator,value 5|frac,value MB|unit-mb" in us, "ByteCountFormatStyle.Attributed"
     assert "x864 formatter ******42 7. style 5 behavior true" in us, "NumberFormatter padding, alwaysShowsDecimalSeparator, Style"
     assert "x864 quarters 1st quarter Q4 tz America/Los_Angeles GMT" in us, "standalone quarters, TimeZone(abbreviation:), localizedName"
+    x864b = "\n".join(l for l in us.splitlines() if "x864b" in l)
+    assert "x864b discrete after 60 before true" in us, f"DiscreteFormatStyle: the next and previous minute: {x864b}"
+    assert "x864b anchored in 3 days" in us, f"Date.AnchoredRelativeFormatStyle, allowedFields [.day]: {x864b}"
+    assert "x864b relative true" in us, f"RelativeFormatStyle.allowedFields: {x864b}"
+    assert "x864b regex 1234.5 true" in us, f"FloatingPointFormatStyle and ISO8601FormatStyle inside a Regex: {x864b}"
+    assert "x864b components 2026-10-06T11:04:05Z back 6 valid true http Tue, 06 Oct 2026 11:04:05 GMT" in us, \
+        f"DateComponents.ISO8601FormatStyle / HTTPFormatStyle, isValidDate(in:): {x864b}"
+    assert "x864b calendar [6, 13, 20] [11, 12] range 1..<29 1..<32 matches true" in us, \
+        f"Calendar.dates(byAdding:) / dates(byMatching:), minimumRange / maximumRange, date(_:matchesComponents:): {x864b}"

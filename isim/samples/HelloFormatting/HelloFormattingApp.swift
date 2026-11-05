@@ -109,6 +109,47 @@ func formatStyles864() {
           "tz \(TimeZone(abbreviation: "PST")?.identifier ?? "-") \(utc.localizedName(for: .shortStandard, locale: us) ?? "-")")
 }
 
+/// Discrete format styles, anchored relative dates, format styles inside regexes, DateComponents styles, Calendar
+/// sequences (issue #864): fixed to en_US, UTC
+func formatStyles864b() {
+    let us = Locale(identifier: "en_US")
+    let utc = TimeZone(identifier: "UTC")!
+    var cal = Calendar(identifier: .gregorian); cal.timeZone = utc
+    let date = Date(timeIntervalSince1970: 1_791_284_645)        // 2026-10-06 11:04:05 UTC
+    // the next input that formats differently: the next minute for a time to the minute
+    let minutes = Date.FormatStyle(date: .omitted, time: .shortened, locale: us, timeZone: utc)
+    let after = minutes.discreteInput(after: date).map { Int($0.timeIntervalSince1970) - 1_791_284_640 } ?? -1
+    let before = minutes.discreteInput(before: date).map { Int($0.timeIntervalSince1970) - 1_791_284_640 } ?? 1
+    print("x864b discrete after \(after) before \(before < 0 && before >= -1)")
+    let anchored = Date.AnchoredRelativeFormatStyle(anchor: date, allowedFields: [.day], presentation: .numeric, locale: us, calendar: cal)
+    print("x864b anchored \(anchored.format(date.addingTimeInterval(3 * 86400)))")
+    let relative = Date.RelativeFormatStyle(allowedFields: [.hour], presentation: .numeric, locale: us, calendar: cal)
+    print("x864b relative \(relative.allowedFields == [.hour])")
+    // a date and an amount inside a regex
+    let text = "paid 1,234.5 on 2026-10-06T11:04:05Z"
+    let regex = Regex {
+        "paid "
+        Capture { FloatingPointFormatStyle<Double>(locale: us) }
+        " on "
+        Capture { Date.ISO8601FormatStyle() }
+    }
+    if let m = text.firstMatch(of: regex) {
+        print("x864b regex \(m.1) \(Int(m.2.timeIntervalSince1970) == 1_791_284_645)")
+    } else {
+        print("x864b regex no match")
+    }
+    var comps = DateComponents(year: 2026, month: 10, day: 6, hour: 11, minute: 4, second: 5)
+    comps.timeZone = utc
+    let iso = comps.formatted(.iso8601)
+    let back = try? DateComponents(iso, strategy: .iso8601)
+    print("x864b components \(iso) back \(back?.day ?? -1) valid \(comps.isValidDate(in: cal)) " +
+          "http \(comps.formatted(.http))")
+    let weekly = cal.dates(byAdding: .day, value: 7, startingAt: date).prefix(3).map { cal.component(.day, from: $0) }
+    let firsts = cal.dates(byMatching: DateComponents(day: 1), startingAt: date).prefix(2).map { cal.component(.month, from: $0) }
+    print("x864b calendar \(weekly) \(firsts) range \(cal.minimumRange(of: .day).map { "\($0)" } ?? "-") " +
+          "\(cal.maximumRange(of: .day).map { "\($0)" } ?? "-") matches \(cal.date(date, matchesComponents: DateComponents(month: 10, day: 6)))")
+}
+
 let sampleText = "Order 66 shipped 2026-10-05 to 12 Main St; order 7 on 1999-01-02."
 
 @main
@@ -120,6 +161,7 @@ struct HelloFormattingApp: App {
         for (_, rows) in formattedRows() { for r in rows { print("fmt \(r.id)=\(r.value)") } }
         foundationExtras()
         formatStyles864()
+        formatStyles864b()
     }
     var body: some Scene { WindowGroup { FormattingView() } }
 }
