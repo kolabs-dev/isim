@@ -60,6 +60,30 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     log("x872 traits \(traits) defaults \(defaults) list \(list) unavailable \(unavailable)")
 }
 
+// #872: list cell accessories with Apple's option types and placement positions
+@MainActor func x872AccessoryChecks() {
+    let cell = UICollectionViewListCell(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
+    let badge = UIView(frame: CGRect(x: 0, y: 0, width: 20, height: 20))
+    let check = UICellAccessory.checkmark(options: .init(reservedLayoutWidth: .custom(60)))
+    let label = UICellAccessory.label(text: "New", options: .init(font: .boldSystemFont(ofSize: 13)))
+    let badgeAccessory = UICellAccessory.customView(configuration: .init(customView: badge,
+        placement: .trailing(at: UICellAccessory.Placement.position(after: check))))
+    cell.accessories = [label, check, badgeAccessory, .reorder(options: .init(showsVerticalSeparator: false))]
+    let kinds = cell.accessories.map { a -> String in
+        switch a.accessoryType {
+        case .label: return "label"
+        case .checkmark: return "checkmark"
+        case .customView(let v): return v === badge ? "badge" : "view"
+        case .reorder: return "reorder"
+        default: return "other"
+        }
+    }
+    let options = UICellAccessory.OutlineDisclosureOptions(style: .header)
+    let defaults = UICellAccessory.DisclosureIndicatorOptions().isHidden == false && UICellAccessory.DisclosureIndicatorOptions().reservedLayoutWidth == .standard
+        && options.style == .header && UICellAccessory.ReorderOptions().showsVerticalSeparator && UICellAccessory.LabelOptions().adjustsFontForContentSizeCategory
+    log("x872 accessories \(kinds.joined(separator: ",")) defaults \(defaults)")
+}
+
 // MARK: - Table
 final class NameCell: UITableViewCell {
     override func willTransition(to state: UITableViewCell.StateMask) { super.willTransition(to: state); if textLabel?.text == "Ada" { log("cell will transition \(state.rawValue)") } }
@@ -70,7 +94,7 @@ final class TableViewController: UITableViewController {
     @objc final class Person: NSObject { @objc let name: String; init(_ n: String) { name = n } }
     override func viewDidLoad() {
         super.viewDidLoad()
-        x872Checks()
+        x872Checks(); x872AccessoryChecks()
         title = "People"
         tableView.register(NameCell.self, forCellReuseIdentifier: "c")
         tableView.separatorInsetReference = .fromCellEdges; tableView.separatorInset = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)

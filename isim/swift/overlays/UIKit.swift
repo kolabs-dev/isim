@@ -428,27 +428,114 @@ extension UICollectionView {
 // MARK: - List cell accessories (a struct in Swift, ObjC objects underneath)
 public struct UICellAccessory {
     public typealias DisplayedState = __UICellAccessory.DisplayedState
-    public enum LayoutDimension: Equatable { case standard, actual, custom(CGFloat) }
-    /// Options shared by the accessory kinds (each kind reads the fields it has on iOS).
-    public struct _Options {
-        public var isHidden: Bool?
-        public var reservedLayoutWidth: LayoutDimension?
-        public var tintColor: UIColor?
-        public var backgroundColor: UIColor?
-        public var font: UIFont?
-        public init(isHidden: Bool? = nil, reservedLayoutWidth: LayoutDimension? = nil, tintColor: UIColor? = nil, backgroundColor: UIColor? = nil, font: UIFont? = nil) {
-            self.isHidden = isHidden; self.reservedLayoutWidth = reservedLayoutWidth; self.tintColor = tintColor; self.backgroundColor = backgroundColor; self.font = font
+    /// the width an accessory reserves: the system's standard width, its own width, or a custom width
+    public enum LayoutDimension: Equatable {
+        case standard, actual, custom(CGFloat)
+        var _value: CGFloat {
+            switch self { case .standard: return UICellAccessoryStandardDimension; case .actual: return 0; case .custom(let w): return w }
         }
-        /// the reorder grip's line next to the content (isim: stored)
-        public var showsVerticalSeparator: Bool = true
     }
-    public typealias InsertOptions = _Options
-    public typealias MultiselectOptions = _Options
-    public typealias PopUpMenuOptions = _Options
     public typealias ActionHandler = () -> Void
     public typealias MenuSelectedElementDidChangeHandler = (UIMenu) -> Void
+
+    // the options of each kind of accessory (Apple's types; isHidden false and reservedLayoutWidth .standard by default)
+    public struct DisclosureIndicatorOptions {
+        public var isHidden: Bool
+        public var reservedLayoutWidth: LayoutDimension
+        public var tintColor: UIColor?
+        public init(isHidden: Bool? = nil, reservedLayoutWidth: LayoutDimension? = nil, tintColor: UIColor? = nil) {
+            self.isHidden = isHidden ?? false; self.reservedLayoutWidth = reservedLayoutWidth ?? .standard; self.tintColor = tintColor
+        }
+    }
+    public struct CheckmarkOptions {
+        public var isHidden: Bool
+        public var reservedLayoutWidth: LayoutDimension
+        public var tintColor: UIColor?
+        public init(isHidden: Bool? = nil, reservedLayoutWidth: LayoutDimension? = nil, tintColor: UIColor? = nil) {
+            self.isHidden = isHidden ?? false; self.reservedLayoutWidth = reservedLayoutWidth ?? .standard; self.tintColor = tintColor
+        }
+    }
+    public struct DetailOptions {
+        public var isHidden: Bool
+        public var reservedLayoutWidth: LayoutDimension
+        public var tintColor: UIColor?
+        public init(isHidden: Bool? = nil, reservedLayoutWidth: LayoutDimension? = nil, tintColor: UIColor? = nil) {
+            self.isHidden = isHidden ?? false; self.reservedLayoutWidth = reservedLayoutWidth ?? .standard; self.tintColor = tintColor
+        }
+    }
+    public struct PopUpMenuOptions {
+        public var isHidden: Bool
+        public var reservedLayoutWidth: LayoutDimension
+        public var tintColor: UIColor?
+        public init(isHidden: Bool? = nil, reservedLayoutWidth: LayoutDimension? = nil, tintColor: UIColor? = nil) {
+            self.isHidden = isHidden ?? false; self.reservedLayoutWidth = reservedLayoutWidth ?? .standard; self.tintColor = tintColor
+        }
+    }
+    public struct DeleteOptions {
+        public var isHidden: Bool
+        public var reservedLayoutWidth: LayoutDimension
+        public var tintColor: UIColor?
+        public var backgroundColor: UIColor?
+        public init(isHidden: Bool? = nil, reservedLayoutWidth: LayoutDimension? = nil, tintColor: UIColor? = nil, backgroundColor: UIColor? = nil) {
+            self.isHidden = isHidden ?? false; self.reservedLayoutWidth = reservedLayoutWidth ?? .standard; self.tintColor = tintColor; self.backgroundColor = backgroundColor
+        }
+    }
+    public struct InsertOptions {
+        public var isHidden: Bool
+        public var reservedLayoutWidth: LayoutDimension
+        public var tintColor: UIColor?
+        public var backgroundColor: UIColor?
+        public init(isHidden: Bool? = nil, reservedLayoutWidth: LayoutDimension? = nil, tintColor: UIColor? = nil, backgroundColor: UIColor? = nil) {
+            self.isHidden = isHidden ?? false; self.reservedLayoutWidth = reservedLayoutWidth ?? .standard; self.tintColor = tintColor; self.backgroundColor = backgroundColor
+        }
+    }
+    public struct MultiselectOptions {
+        public var isHidden: Bool
+        public var reservedLayoutWidth: LayoutDimension
+        public var tintColor: UIColor?
+        public var backgroundColor: UIColor?
+        public init(isHidden: Bool? = nil, reservedLayoutWidth: LayoutDimension? = nil, tintColor: UIColor? = nil, backgroundColor: UIColor? = nil) {
+            self.isHidden = isHidden ?? false; self.reservedLayoutWidth = reservedLayoutWidth ?? .standard; self.tintColor = tintColor; self.backgroundColor = backgroundColor
+        }
+    }
+    public struct ReorderOptions {
+        public var isHidden: Bool
+        public var reservedLayoutWidth: LayoutDimension
+        public var tintColor: UIColor?
+        /// a line between the content and the grip
+        public var showsVerticalSeparator: Bool
+        public init(isHidden: Bool? = nil, reservedLayoutWidth: LayoutDimension? = nil, tintColor: UIColor? = nil, showsVerticalSeparator: Bool? = nil) {
+            self.isHidden = isHidden ?? false; self.reservedLayoutWidth = reservedLayoutWidth ?? .standard; self.tintColor = tintColor
+            self.showsVerticalSeparator = showsVerticalSeparator ?? true
+        }
+    }
+    public struct OutlineDisclosureOptions {
+        public enum Style { case automatic, header, cell }
+        public var style: Style
+        public var isHidden: Bool
+        public var reservedLayoutWidth: LayoutDimension
+        public var tintColor: UIColor?
+        public init(style: Style? = nil, isHidden: Bool? = nil, reservedLayoutWidth: LayoutDimension? = nil, tintColor: UIColor? = nil) {
+            self.style = style ?? .automatic; self.isHidden = isHidden ?? false; self.reservedLayoutWidth = reservedLayoutWidth ?? .standard; self.tintColor = tintColor
+        }
+    }
+    public struct LabelOptions {
+        public var isHidden: Bool
+        public var reservedLayoutWidth: LayoutDimension
+        public var tintColor: UIColor?
+        public var font: UIFont
+        public var adjustsFontForContentSizeCategory: Bool
+        public init(isHidden: Bool? = nil, reservedLayoutWidth: LayoutDimension? = nil, tintColor: UIColor? = nil, font: UIFont? = nil,
+                    adjustsFontForContentSizeCategory: Bool? = nil) {
+            self.isHidden = isHidden ?? false; self.reservedLayoutWidth = reservedLayoutWidth ?? .standard; self.tintColor = tintColor
+            self.font = font ?? UIFont.preferredFont(forTextStyle: .body); self.adjustsFontForContentSizeCategory = adjustsFontForContentSizeCategory ?? true
+        }
+    }
+
     /// what kind of accessory it is
-    public enum AccessoryType: Hashable { case disclosureIndicator, outlineDisclosure, checkmark, delete, insert, reorder, multiselect, detail, popUpMenu, label, customView }
+    public enum AccessoryType {
+        case disclosureIndicator, outlineDisclosure, checkmark, delete, insert, reorder, multiselect, detail, popUpMenu, label, customView(UIView)
+    }
     public var accessoryType: AccessoryType {
         switch object {
         case is __UICellAccessoryDisclosureIndicator: return .disclosureIndicator
@@ -461,81 +548,129 @@ public struct UICellAccessory {
         case is __UICellAccessoryDetail: return .detail
         case is __UICellAccessoryPopUpMenu: return .popUpMenu
         case is __UICellAccessoryLabel: return .label
-        default: return .customView
+        case let c as __UICellAccessoryCustomView: return .customView(c.customView)
+        default: return .label
         }
     }
     public var displayedState: DisplayedState { object.displayedState }
-    public typealias DisclosureIndicatorOptions = _Options
-    public typealias CheckmarkOptions = _Options
-    public typealias DetailOptions = _Options
-    public typealias DeleteOptions = _Options
-    public typealias ReorderOptions = _Options
-    public typealias OutlineDisclosureOptions = _Options
-    public typealias LabelOptions = _Options
-    public enum Placement { case leading(displayed: DisplayedState = .always), trailing(displayed: DisplayedState = .always) }
+
+    /// where a custom view goes: the leading or trailing edge, at a position among that edge's accessories
+    public enum Placement {
+        /// the index to insert at, given the accessories already on that edge (in order from the content outwards)
+        public typealias Position = ([UICellAccessory]) -> Int
+        case leading(displayed: DisplayedState = .always, at: Position = { _ in 0 })
+        case trailing(displayed: DisplayedState = .always, at: Position = { _ in 0 })
+        /// just before (nearer the content than) the first accessory of the same kind as `accessory`; first when there is none
+        public static func position(before accessory: UICellAccessory) -> Position {
+            { list in list.firstIndex { $0._kind == accessory._kind } ?? 0 }
+        }
+        /// just after (further from the content than) the last accessory of the same kind as `accessory`; last when there is none
+        public static func position(after accessory: UICellAccessory) -> Position {
+            { list in list.lastIndex { $0._kind == accessory._kind }.map { $0 + 1 } ?? list.count }
+        }
+    }
     public struct CustomViewConfiguration {
         public var customView: UIView
         public var placement: Placement
-        public var isHidden: Bool?
-        public var reservedLayoutWidth: LayoutDimension?
+        public var isHidden: Bool
+        public var reservedLayoutWidth: LayoutDimension
         public var tintColor: UIColor?
-        public var maintainsFixedSize: Bool?
+        public var maintainsFixedSize: Bool
         public init(customView: UIView, placement: Placement, isHidden: Bool? = nil, reservedLayoutWidth: LayoutDimension? = nil,
                     tintColor: UIColor? = nil, maintainsFixedSize: Bool? = nil) {
-            self.customView = customView; self.placement = placement; self.isHidden = isHidden; self.reservedLayoutWidth = reservedLayoutWidth
-            self.tintColor = tintColor; self.maintainsFixedSize = maintainsFixedSize
+            self.customView = customView; self.placement = placement; self.isHidden = isHidden ?? false
+            self.reservedLayoutWidth = reservedLayoutWidth ?? .standard; self.tintColor = tintColor; self.maintainsFixedSize = maintainsFixedSize ?? false
         }
     }
     let object: __UICellAccessory
+    /// a custom view's position among its edge's accessories (applied when the accessories are set)
+    var _position: Placement.Position? = nil
+    init(object: __UICellAccessory, position: Placement.Position? = nil) { self.object = object; self._position = position }
+    var _kind: ObjectIdentifier { object is __UICellAccessoryCustomView ? ObjectIdentifier((object as! __UICellAccessoryCustomView).customView) : ObjectIdentifier(type(of: object)) }
+    /// whether it sits on the leading edge (delete, insert, multiselect, leading custom views)
+    var _leading: Bool {
+        switch object {
+        case is __UICellAccessoryDelete, is __UICellAccessoryInsert, is __UICellAccessoryMultiselect: return true
+        case let c as __UICellAccessoryCustomView: return c.placement == 0
+        default: return false
+        }
+    }
 
-    static func make(_ o: __UICellAccessory, _ displayed: DisplayedState, _ options: _Options) -> UICellAccessory {
+    static func make(_ o: __UICellAccessory, _ displayed: DisplayedState, isHidden: Bool, reserved: LayoutDimension, tint: UIColor?) -> UICellAccessory {
         o.displayedState = displayed
-        o.isHidden = options.isHidden ?? false
-        o.tintColor = options.tintColor
+        o.isHidden = isHidden
+        o.tintColor = tint
+        o.reservedLayoutWidth = reserved._value
         return UICellAccessory(object: o)
     }
     public static func disclosureIndicator(displayed: DisplayedState = .always, options: DisclosureIndicatorOptions = .init()) -> UICellAccessory {
-        make(__UICellAccessoryDisclosureIndicator(), displayed, options)
+        make(__UICellAccessoryDisclosureIndicator(), displayed, isHidden: options.isHidden, reserved: options.reservedLayoutWidth, tint: options.tintColor)
     }
     public static func checkmark(displayed: DisplayedState = .always, options: CheckmarkOptions = .init()) -> UICellAccessory {
-        make(__UICellAccessoryCheckmark(), displayed, options)
+        make(__UICellAccessoryCheckmark(), displayed, isHidden: options.isHidden, reserved: options.reservedLayoutWidth, tint: options.tintColor)
     }
-    public static func detail(displayed: DisplayedState = .always, options: DetailOptions = .init(), actionHandler: (() -> Void)? = nil) -> UICellAccessory {
-        let o = __UICellAccessoryDetail(); o.actionHandler = actionHandler; return make(o, displayed, options)
+    public static func detail(displayed: DisplayedState = .always, options: DetailOptions = .init(), actionHandler: ActionHandler? = nil) -> UICellAccessory {
+        let o = __UICellAccessoryDetail(); o.actionHandler = actionHandler
+        return make(o, displayed, isHidden: options.isHidden, reserved: options.reservedLayoutWidth, tint: options.tintColor)
     }
-    public static func delete(displayed: DisplayedState = .whenEditing, options: DeleteOptions = .init(), actionHandler: (() -> Void)? = nil) -> UICellAccessory {
-        let o = __UICellAccessoryDelete(); o.actionHandler = actionHandler; return make(o, displayed, options)
+    public static func delete(displayed: DisplayedState = .whenEditing, options: DeleteOptions = .init(), actionHandler: ActionHandler? = nil) -> UICellAccessory {
+        let o = __UICellAccessoryDelete(); o.actionHandler = actionHandler
+        return make(o, displayed, isHidden: options.isHidden, reserved: options.reservedLayoutWidth, tint: options.tintColor)
     }
     public static func reorder(displayed: DisplayedState = .whenEditing, options: ReorderOptions = .init()) -> UICellAccessory {
-        make(__UICellAccessoryReorder(), displayed, options)
+        let o = __UICellAccessoryReorder(); o.showsVerticalSeparator = options.showsVerticalSeparator
+        return make(o, displayed, isHidden: options.isHidden, reserved: options.reservedLayoutWidth, tint: options.tintColor)
     }
-    public static func outlineDisclosure(displayed: DisplayedState = .always, options: OutlineDisclosureOptions = .init(), actionHandler: (() -> Void)? = nil) -> UICellAccessory {
-        let o = __UICellAccessoryOutlineDisclosure(); o.actionHandler = actionHandler; return make(o, displayed, options)
+    public static func outlineDisclosure(displayed: DisplayedState = .always, options: OutlineDisclosureOptions = .init(), actionHandler: ActionHandler? = nil) -> UICellAccessory {
+        let o = __UICellAccessoryOutlineDisclosure(); o.actionHandler = actionHandler
+        switch options.style { case .automatic: o.style = .automatic; case .header: o.style = .header; case .cell: o.style = .cell }
+        return make(o, displayed, isHidden: options.isHidden, reserved: options.reservedLayoutWidth, tint: options.tintColor)
     }
     public static func insert(displayed: DisplayedState = .whenEditing, options: InsertOptions = .init(), actionHandler: ActionHandler? = nil) -> UICellAccessory {
-        let o = __UICellAccessoryInsert(); o.actionHandler = actionHandler; o.backgroundColor = options.backgroundColor; return make(o, displayed, options)
+        let o = __UICellAccessoryInsert(); o.actionHandler = actionHandler; o.backgroundColor = options.backgroundColor
+        return make(o, displayed, isHidden: options.isHidden, reserved: options.reservedLayoutWidth, tint: options.tintColor)
     }
     public static func multiselect(displayed: DisplayedState = .whenEditing, options: MultiselectOptions = .init()) -> UICellAccessory {
-        let o = __UICellAccessoryMultiselect(); o.backgroundColor = options.backgroundColor; return make(o, displayed, options)
+        let o = __UICellAccessoryMultiselect(); o.backgroundColor = options.backgroundColor
+        return make(o, displayed, isHidden: options.isHidden, reserved: options.reservedLayoutWidth, tint: options.tintColor)
     }
     /// the selected item of a menu, with up / down chevrons; a tap shows the menu, choosing an item selects it
     public static func popUpMenu(_ menu: UIMenu, displayed: DisplayedState = .always, options: PopUpMenuOptions = .init(),
                                  selectedElementDidChangeHandler: MenuSelectedElementDidChangeHandler? = nil) -> UICellAccessory {
-        let o = __UICellAccessoryPopUpMenu(menu: menu); o.selectedElementDidChangeHandler = selectedElementDidChangeHandler; return make(o, displayed, options)
+        let o = __UICellAccessoryPopUpMenu(menu: menu); o.selectedElementDidChangeHandler = selectedElementDidChangeHandler
+        return make(o, displayed, isHidden: options.isHidden, reserved: options.reservedLayoutWidth, tint: options.tintColor)
     }
     public static func label(text: String, displayed: DisplayedState = .always, options: LabelOptions = .init()) -> UICellAccessory {
-        make(__UICellAccessoryLabel(text: text), displayed, options)
+        let o = __UICellAccessoryLabel(text: text); o.font = options.font; o.adjustsFontForContentSizeCategory = options.adjustsFontForContentSizeCategory
+        return make(o, displayed, isHidden: options.isHidden, reserved: options.reservedLayoutWidth, tint: options.tintColor)
     }
     public static func customView(configuration c: CustomViewConfiguration) -> UICellAccessory {
-        let displayed: DisplayedState, placement: Int
-        switch c.placement { case .leading(let d): displayed = d; placement = 0; case .trailing(let d): displayed = d; placement = 1 }
-        return make(__UICellAccessoryCustomView(customView: c.customView, placement: placement), displayed, _Options(isHidden: c.isHidden, tintColor: c.tintColor))
+        let displayed: DisplayedState, placement: Int, position: Placement.Position
+        switch c.placement {
+        case .leading(let d, let p): displayed = d; placement = 0; position = p
+        case .trailing(let d, let p): displayed = d; placement = 1; position = p
+        }
+        var a = make(__UICellAccessoryCustomView(customView: c.customView, placement: placement), displayed,
+                     isHidden: c.isHidden, reserved: c.reservedLayoutWidth, tint: c.tintColor)
+        a._position = position
+        return a
+    }
+
+    /// the accessories in drawing order: each custom view inserted at its position among its edge's other accessories
+    /// (leading accessories are listed from the leading edge, trailing ones as they are drawn from the content outwards)
+    static func _arranged(_ list: [UICellAccessory]) -> [UICellAccessory] {
+        var leading = list.filter { $0._leading && $0._position == nil }, trailing = list.filter { !$0._leading && $0._position == nil }
+        for a in list where a._position != nil {
+            if a._leading { leading.insert(a, at: min(max(0, a._position!(leading)), leading.count)) }
+            else { trailing.insert(a, at: min(max(0, a._position!(trailing)), trailing.count)) }
+        }
+        return leading + trailing
     }
 }
 extension UICollectionViewListCell {
     public var accessories: [UICellAccessory] {
         get { __accessories.map { UICellAccessory(object: $0) } }
-        set { __accessories = newValue.map(\.object) }
+        set { __accessories = UICellAccessory._arranged(newValue).map(\.object) }
     }
 }
 
