@@ -61,6 +61,7 @@ final class MediaViewController: UIViewController {
     // MARK: AVAudioPlayer + AVAudioSession
     func startPlayer() {
         errorChecks()
+        if #available(iOS 18.0, *) { DispatchQueue.global().async { captionChecks() } }
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback)
         try? session.setActive(true)
@@ -523,4 +524,47 @@ func errorChecks() {
     let ns = e as NSError
     log("x877 errors codes \(codes.joined(separator: ",")) size \(e.fileSize ?? 0) finished \(e.recordingSuccessfullyFinished ?? false) time \(e.time?.seconds ?? 0) "
         + "pid \(e.processID ?? 0) media \(e.mediaType == .video) type \(e.fileType == .mov) domain \(ns.domain == AVFoundationErrorDomain) code \(ns.code)")
+}
+
+// #877: captions: styled ranges, regions, the grouper, the renderer, the CEA-608 conformer and the validator
+@available(iOS 18.0, *)
+func captionChecks() {
+    func range(_ a: Double, _ b: Double) -> CMTimeRange { CMTimeRange(start: CMTime(seconds: a, preferredTimescale: 600), end: CMTime(seconds: b, preferredTimescale: 600)) }
+    let m = AVMutableCaption(text: "Hello world", timeRange: range(0, 2))
+    m.setFontWeight(.bold, in: NSRange(location: 0, length: 5))
+    m.setTextColor(UIColor.yellow.cgColor, in: NSRange(location: 6, length: 5))
+    m.setDecoration(.underline, in: NSRange(location: 2, length: 6))
+    m.removeDecoration(in: NSRange(location: 4, length: 2))                   // splits the underline: 2..<4 and 6..<8
+    m.region = AVCaptionRegion.appleITTTop
+    let i6 = m.text.index(m.text.startIndex, offsetBy: 6), i4 = m.text.index(m.text.startIndex, offsetBy: 4)
+    let (w, wr) = m.fontWeight(at: m.text.startIndex), (color, cr) = m.textColor(at: i6), (dec, _) = m.decoration(at: i4), (dec6, dr6) = m.decoration(at: i6)
+    let caption = m.copy() as! AVCaption
+    let parts = ["bold \(w == .bold) \(m.text[wr])", "color \(color != nil) \(m.text[cr])", "underline gap \(dec.isEmpty) \(dec6.contains(.underline)) \(m.text[dr6])",
+                 "region \(caption.region?.identifier ?? "none")"]
+    // grouping: 0-2 "Hello world" and 1-3 "Second" make 0-1, 1-2, 2-3
+    let g = AVCaptionGrouper()
+    g.add(caption); g.add(AVCaption("Second", timeRange: range(1, 3)))
+    let groups = g.flushAddedCaptions(upTo: CMTime(seconds: 10, preferredTimescale: 600)).map { "\($0.captions.count)" }.joined(separator: ",")
+    // rendering into a 320x180 bitmap: the region (top 15%) has light pixels at 1 s
+    let r = AVCaptionRenderer(); r.captions = [caption]; r.bounds = CGRect(x: 0, y: 0, width: 320, height: 180)
+    let ctx = CGContext(data: nil, width: 320, height: 180, bitsPerComponent: 8, bytesPerRow: 320 * 4, space: CGColorSpaceCreateDeviceRGB(),
+                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    ctx.setFillColor(UIColor.black.cgColor); ctx.fill(CGRect(x: 0, y: 0, width: 320, height: 180))
+    ctx.translateBy(x: 0, y: 180); ctx.scaleBy(x: 1, y: -1)                    // UIKit's top-left origin
+    r.render(in: ctx, for: CMTime(seconds: 1, preferredTimescale: 600))
+    let px = ctx.data!.assumingMemoryBound(to: UInt8.self)
+    var top = 0, bottom = 0
+    for y in 0..<180 { for x in 0..<320 where px[(y * 320 + x) * 4] > 128 { if y < 30 { top += 1 } else if y > 150 { bottom += 1 } } }
+    let scenes = r.captionSceneChanges(in: range(0, 4)).map { $0.hasActiveCaptions ? "on" : "off" }.joined(separator: ",")
+    // CEA-608: rows are cut to 32 characters; the validator warns about the long row and the caption past the range
+    let settings: [AVCaptionSettingsKey: Any] = [.mediaType: AVMediaType.closedCaption.rawValue, .mediaSubType: NSNumber(value: 0x6336_3038 as UInt32)]
+    let long = AVCaption(String(repeating: "x", count: 40), timeRange: range(3, 6))
+    let conformed = (try? AVCaptionFormatConformer(conversionSettings: settings).conformedCaption(for: long))?.text.count ?? 0
+    let v = AVCaptionConversionValidator(captions: [caption, long], timeRange: range(0, 5), conversionSettings: settings)
+    let done = DispatchSemaphore(value: 0)
+    v.validateCaptionConversion { w in if w == nil { done.signal() } }
+    done.wait()
+    let adjusted = v.warnings.compactMap { $0.adjustment as? AVCaptionConversionTimeRangeAdjustment }.map { "\($0.durationOffset.seconds)" }.joined(separator: ",")
+    log("x877 captions " + parts.joined(separator: " ") + " groups \(groups) drawn \(top > 20) \(bottom == 0) scenes \(scenes) cea608 \(conformed) "
+        + "warnings \(v.warnings.count) \(v.status == .completed) adjust \(adjusted)")
 }
