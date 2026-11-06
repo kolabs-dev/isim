@@ -52,6 +52,9 @@ def test_media(launch, ios, device_data):
     app.wait_log(r"route change reason=2")
     app.send("audio bogus")
     app.wait_log(r"unknown audio command")
+    assert app.wait_log(r"x877 movie .*$", timeout=30).group(0) == (
+        "x877 movie tracks true 2 duration 1.00 edited 1.50 modified true segments 2 written 1.50 colors red blue"), \
+        "AVMutableMovie: red, blue appended, the first half second removed, written and read back (#877)"
     app.wait_log(r"editing done", timeout=30)
     for line in (r"queue input frames", r"queue output callbacks", r"converter out=", r"audiofile caf",
                  r"extaudiofile read", r"writer thumb", r"export without outputURL", r"m4a export",

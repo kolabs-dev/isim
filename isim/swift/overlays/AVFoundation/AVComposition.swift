@@ -186,7 +186,7 @@ func _path(_ u: URL) -> String { u.isFileURL ? u.path : u.absoluteString }
         guard timeRange.duration.isNumeric, timeRange.duration.seconds > 0 else { return }
         let target = CMTimeRange(start: startTime.isNumeric ? startTime : timeRange.end, duration: timeRange.duration)
         var new: [AVCompositionTrackSegment] = []
-        if let ct = track as? AVCompositionTrack {          // flatten a composition's segments
+        if let ct = track._compTrack {          // flatten a composition's segments
             for s in ct._segments {
                 let r = s._target.intersection(timeRange)
                 guard r.duration.seconds > 0 else { continue }
@@ -525,7 +525,7 @@ public let AVAssetExportPresetAppleM4A = "AVAssetExportPresetAppleM4A"
             composed = sink
         }
         let fr = videoComposition.map { $0.frameDuration.seconds > 0 ? 1 / $0.frameDuration.seconds : 30 } ?? 30
-        if let comp = asset as? AVComposition {
+        if let comp = asset._comp {
             let (inputs, graph, vlabel, alabel) = _compositionGraph(comp, from: r0, to: r1, video: video && composed == nil, audio: _wantAudio, audioTrackIDs: _audioTrackIDs)
             args += inputs
             if let composed { maps += ["-map", "\(inputs.filter { $0 == "-i" }.count):v"]; args += composed.inputArgs(fps: fr) }
@@ -562,7 +562,7 @@ public let AVAssetExportPresetAppleM4A = "AVAssetExportPresetAppleM4A"
         if _lossless {
             if video { args += ["-c:v", "ffv1", "-pix_fmt", "bgra"] }
             args += ["-c:a", "pcm_f32le", "-ar", "48000"]
-        } else if presetName == AVAssetExportPresetPassthrough && !(asset is AVComposition) && composed == nil {
+        } else if presetName == AVAssetExportPresetPassthrough && asset._comp == nil && composed == nil {
             args += ["-c", "copy"]
         } else {
             if video { args += _FFmpeg.videoCodecArgs(presetName.contains("HEVC") ? .hevc : .h264, bitrate: _bitrate) }
@@ -896,13 +896,13 @@ final class _PassthroughStream: _ReaderStream {
     public init(track: AVAssetTrack, outputSettings: [String: Any]?) { self.track = track; self.outputSettings = outputSettings }
     override func _open(_ range: CMTimeRange) -> _ReaderStream? {
         guard let asset = track.asset ?? _reader?.asset else { return nil }
-        if outputSettings == nil && !(asset is AVComposition) {
+        if outputSettings == nil && asset._comp == nil {
             guard let u = asset._url else { return nil }
             let ordinal = asset.tracks(withMediaType: track.mediaType).firstIndex { $0.trackID == track.trackID } ?? 0
             return _PassthroughStream(url: u, mediaType: track.mediaType, ordinal: ordinal, range: range)
         }
         let video = track.mediaType == .video
-        guard let u = asset is AVComposition ? _reader?._render(video: video, audioTrackIDs: video ? nil : [track.trackID], audioMix: nil, videoComposition: nil)
+        guard let u = asset._comp != nil ? _reader?._render(video: video, audioTrackIDs: video ? nil : [track.trackID], audioMix: nil, videoComposition: nil)
                                              : asset._url else { return nil }
         return _DecodedStream(url: u, video: video, range: range, settings: outputSettings ?? [:], size: track.naturalSize == .zero ? asset.naturalSize : track.naturalSize,
                               fps: Double(track.nominalFrameRate))
@@ -955,7 +955,7 @@ final class _PassthroughStream: _ReaderStream {
     public init(asset: AVAsset) throws {
         self.asset = asset
         super.init()
-        if !(asset is AVComposition) { try asset._check() }
+        if asset._comp == nil { try asset._check() }
     }
     deinit { for u in _renders.values { try? FileManager.default.removeItem(at: u) } }
     open func canAdd(_ output: AVAssetReaderOutput) -> Bool { status == .unknown && !outputs.contains(output) }

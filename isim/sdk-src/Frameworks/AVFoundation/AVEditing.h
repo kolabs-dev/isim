@@ -19,6 +19,7 @@ FOUNDATION_EXPORT NSString * const AVAssetExportPresetPassthrough, * const AVAss
     * const AVAssetExportPresetHEVC1920x1080, * const AVAssetExportPresetHEVC3840x2160, * const AVAssetExportPresetAppleM4A;
 
 // MARK: tracks and compositions
+@class AVMutableMovieTrack;
 @interface AVAssetTrack (AVAssetTrackEditing)
 @property (nonatomic, readonly) CMPersistentTrackID trackID;
 @property (nonatomic, readonly, weak, nullable) AVAsset *asset;
@@ -269,6 +270,32 @@ typedef NS_ENUM(NSInteger, AVAssetWriterStatus) {
 - (void)endSessionAtSourceTime:(CMTime)endTime;                                           // AVFoundation.m
 - (void)cancelWriting;
 - (void)finishWritingWithCompletionHandler:(void (^)(void))handler;
+@end
+
+/* movies (issue #877, part 3; the overlay's AVMovie.swift): opening, editing state and writing. The time-range edits
+   take CMTimeRange values and are Swift-only in isim. */
+typedef NS_OPTIONS(NSUInteger, AVMovieWritingOptions) { AVMovieWritingAddMovieHeaderToDestination = 0, AVMovieWritingTruncateDestinationToMovieHeaderOnly = 1 << 0 };
+@interface AVMovie : AVAsset <NSCopying, NSMutableCopying>
++ (NSArray<AVFileType> *)movieTypes;
++ (instancetype)movieWithURL:(NSURL *)URL options:(nullable NSDictionary<NSString *, id> *)options;
+@property (nonatomic, readonly, nullable) NSURL *URL;
+@property (nonatomic, readonly, nullable) NSData *data;
+- (BOOL)isCompatibleWithFileType:(AVFileType)fileType;
+- (BOOL)writeMovieHeaderToURL:(NSURL *)URL fileType:(AVFileType)fileType options:(AVMovieWritingOptions)options error:(NSError * _Nullable * _Nullable)outError;
+@end
+@interface AVMovieTrack : AVAssetTrack
+@property (nonatomic, readonly) NSInteger alternateGroupID;
+@end
+@interface AVMutableMovie : AVMovie
++ (nullable instancetype)movieWithURL:(NSURL *)URL options:(nullable NSDictionary<NSString *, id> *)options error:(NSError * _Nullable * _Nullable)outError;
+@property (nonatomic, getter=isModified) BOOL modified;
+@property (nonatomic, readonly) NSArray<AVMutableMovieTrack *> *tracks;
+- (CMPersistentTrackID)unusedTrackID;
+- (void)removeTrack:(AVMovieTrack *)track;
+@end
+@interface AVMutableMovieTrack : AVMovieTrack
+@property (nonatomic, getter=isEnabled) BOOL enabled;
+@property (nonatomic) NSInteger layer;
 @end
 
 /* captions (issue #877, part 2; the overlay's AVCaption.swift). The CMTime-valued members (time ranges, rendering) are
