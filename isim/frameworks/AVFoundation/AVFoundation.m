@@ -43,6 +43,13 @@ NSString * const AVAudioSessionInterruptionTypeKey = @"AVAudioSessionInterruptio
 NSString * const AVAudioSessionInterruptionOptionKey = @"AVAudioSessionInterruptionOptionKey";
 NSString * const AVAudioSessionRouteChangeReasonKey = @"AVAudioSessionRouteChangeReasonKey";
 NSString * const AVAudioSessionRouteChangePreviousRouteKey = @"AVAudioSessionRouteChangePreviousRouteKey";
+/* AVError.h (issue #877): the same strings as the Swift overlay's */
+NSErrorDomain const AVFoundationErrorDomain = @"AVFoundationErrorDomain";
+NSString * const AVErrorDeviceKey = @"AVErrorDeviceKey", * const AVErrorTimeKey = @"AVErrorTimeKey", * const AVErrorFileSizeKey = @"AVErrorFileSizeKey",
+    * const AVErrorPIDKey = @"AVErrorPIDKey", * const AVErrorRecordingSuccessfullyFinishedKey = @"AVErrorRecordingSuccessfullyFinishedKey",
+    * const AVErrorMediaTypeKey = @"AVErrorMediaTypeKey", * const AVErrorMediaSubTypeKey = @"AVErrorMediaSubTypeKey",
+    * const AVErrorPresentationTimeStampKey = @"AVErrorPresentationTimeStampKey", * const AVErrorPersistentTrackIDKey = @"AVErrorPersistentTrackIDKey",
+    * const AVErrorFileTypeKey = @"AVErrorFileTypeKey";
 AVMediaType const AVMediaTypeVideo = @"vide";
 AVMediaType const AVMediaTypeAudio = @"soun";
 AVMediaType const AVMediaTypeText = @"text";
