@@ -270,5 +270,53 @@ typedef NS_ENUM(NSInteger, AVAssetWriterStatus) {
 - (void)cancelWriting;
 - (void)finishWritingWithCompletionHandler:(void (^)(void))handler;
 @end
+
+/* captions (issue #877, part 2; the overlay's AVCaption.swift). The CMTime-valued members (time ranges, rendering) are
+   Swift-only in isim. */
+typedef NS_ENUM(NSInteger, AVCaptionTextAlignment) { AVCaptionTextAlignmentStart = 0, AVCaptionTextAlignmentEnd, AVCaptionTextAlignmentCenter,
+    AVCaptionTextAlignmentLeft, AVCaptionTextAlignmentRight } API_AVAILABLE(ios(18.0));
+typedef NS_ENUM(NSInteger, AVCaptionFontWeight) { AVCaptionFontWeightUnknown = 0, AVCaptionFontWeightNormal, AVCaptionFontWeightBold } API_AVAILABLE(ios(18.0));
+typedef NS_ENUM(NSInteger, AVCaptionFontStyle) { AVCaptionFontStyleUnknown = 0, AVCaptionFontStyleNormal, AVCaptionFontStyleItalic } API_AVAILABLE(ios(18.0));
+typedef NS_OPTIONS(NSUInteger, AVCaptionDecoration) { AVCaptionDecorationNone = 0, AVCaptionDecorationUnderline = 1 << 0,
+    AVCaptionDecorationLineThrough = 1 << 1, AVCaptionDecorationOverline = 1 << 2 } API_AVAILABLE(ios(18.0));
+API_AVAILABLE(ios(18.0))
+@interface AVCaptionRegion : NSObject <NSCopying, NSMutableCopying, NSSecureCoding>
+@property (class, nonatomic, readonly) AVCaptionRegion *appleITTTopRegion, *appleITTBottomRegion, *appleITTLeftRegion, *appleITTRightRegion, *subRipTextBottomRegion;
+@property (nonatomic, readonly, nullable) NSString *identifier;
+@end
+API_AVAILABLE(ios(18.0))
+@interface AVMutableCaptionRegion : AVCaptionRegion
+- (instancetype)initWithIdentifier:(NSString *)identifier;
+@end
+API_AVAILABLE(ios(18.0))
+@interface AVCaption : NSObject <NSCopying, NSMutableCopying, NSSecureCoding>
+@property (nonatomic, readonly) NSString *text;
+@property (nonatomic, readonly, nullable) AVCaptionRegion *region;
+@property (nonatomic, readonly) AVCaptionTextAlignment textAlignment;
+@end
+API_AVAILABLE(ios(18.0))
+@interface AVMutableCaption : AVCaption
+@property (nonatomic, copy) NSString *text;
+@property (nonatomic, copy, nullable) AVCaptionRegion *region;
+@property (nonatomic) AVCaptionTextAlignment textAlignment;
+- (void)setTextColor:(CGColorRef)color inRange:(NSRange)range;
+- (void)removeTextColorInRange:(NSRange)range;
+- (void)setBackgroundColor:(CGColorRef)color inRange:(NSRange)range;
+- (void)removeBackgroundColorInRange:(NSRange)range;
+- (void)setFontWeight:(AVCaptionFontWeight)fontWeight inRange:(NSRange)range;
+- (void)removeFontWeightInRange:(NSRange)range;
+- (void)setFontStyle:(AVCaptionFontStyle)fontStyle inRange:(NSRange)range;
+- (void)removeFontStyleInRange:(NSRange)range;
+- (void)setDecoration:(AVCaptionDecoration)decoration inRange:(NSRange)range;
+- (void)removeDecorationInRange:(NSRange)range;
+@end
+API_AVAILABLE(ios(18.0))
+@interface AVCaptionGroup : NSObject
+@property (nonatomic, readonly) NSArray<AVCaption *> *captions;
+@end
+API_AVAILABLE(ios(18.0))
+@interface AVCaptionGrouper : NSObject
+- (void)addCaption:(AVCaption *)input;
+@end
 NS_ASSUME_NONNULL_END
 #endif

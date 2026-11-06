@@ -36,6 +36,10 @@ def test_media(launch, ios, device_data):
                       "ISIM_AUDIO_INPUT": str(app_dir / "tone.wav"), "ISIM_MICROPHONE_PERMISSION": "allow"})
     assert app.wait_log(r"x877 errors .*$").group(0) == ("x877 errors codes -11858,-11845,-11878,-11831 size 1024 finished true time 1.5 "
                                                          "pid 42 media true type true domain true code -11811"), "AVError codes, statics, userInfo values (#877)"
+    if int(str(ios[0] or "18").split(".")[0]) >= 18:
+        assert app.wait_log(r"x877 captions .*$").group(0) == (
+            "x877 captions bold true Hello color true world underline gap true true wo region top groups 1,2,1 drawn true true "
+            "scenes on,off cea608 32 warnings 2 true adjust -1.0"), "AVCaption styled runs, grouper, renderer, CEA-608 conformer, validator (#877)"
     app.wait_log(r"^.*meter avg")
     app.send("audio interrupt begin")
     app.wait_log(r"interruption began")
