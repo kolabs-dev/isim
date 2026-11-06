@@ -60,6 +60,7 @@ final class MediaViewController: UIViewController {
 
     // MARK: AVAudioPlayer + AVAudioSession
     func startPlayer() {
+        errorChecks()
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback)
         try? session.setActive(true)
@@ -511,4 +512,15 @@ final class RateProbe {
         if dr > 0.45 { start = b; schedule(); return }   // sampled too late to tell the wraps apart: again from here
         done(wrapped(b.p - a.p) / dr)
     }
+}
+
+// #877: AVError's codes (Apple's raw values), its static shortcuts and its userInfo values
+func errorChecks() {
+    let e = AVError(.maximumFileSizeReached, userInfo: [AVErrorFileSizeKey: NSNumber(value: Int64(1024)), AVErrorRecordingSuccessfullyFinishedKey: true,
+                                                         AVErrorTimeKey: NSValue(time: CMTime(value: 3, timescale: 2)), AVErrorPIDKey: NSNumber(value: 42),
+                                                         AVErrorMediaTypeKey: AVMediaType.video.rawValue, AVErrorFileTypeKey: AVFileType.mov.rawValue])
+    let codes = [AVError.videoCompositorFailed, AVError.displayWasDisabled, AVError.operationCancelled, AVError.contentIsProtected].map { String($0.rawValue) }
+    let ns = e as NSError
+    log("x877 errors codes \(codes.joined(separator: ",")) size \(e.fileSize ?? 0) finished \(e.recordingSuccessfullyFinished ?? false) time \(e.time?.seconds ?? 0) "
+        + "pid \(e.processID ?? 0) media \(e.mediaType == .video) type \(e.fileType == .mov) domain \(ns.domain == AVFoundationErrorDomain) code \(ns.code)")
 }

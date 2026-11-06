@@ -8,6 +8,7 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <CoreMedia/CoreMedia.h>
+#import <AVFoundation/AVError.h>
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
 @class AVAssetTrack, AVPlayerItem;
