@@ -123,7 +123,32 @@ final class MediaViewController: UIViewController {
         DispatchQueue.main.async { self.thumbs[i].image = UIImage(cgImage: img) }
         return "\(img.width)x\(img.height)"
     }
+    // #877: movies: red as an AVMutableMovie, blue appended, its first half second removed, written and read back
+    func movieChecks(_ redURL: URL, _ blueURL: URL) {
+        func color(_ a: AVAsset, _ t: Double) -> String {
+            guard let img = try? AVAssetImageGenerator(asset: a).copyCGImage(at: CMTime(seconds: t, preferredTimescale: 600), actualTime: nil) else { return "none" }
+            var px = [UInt8](repeating: 0, count: 4)
+            let ctx = CGContext(data: &px, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4, space: CGColorSpaceCreateDeviceRGB(),
+                                bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)!
+            ctx.draw(img, in: CGRect(x: -CGFloat(img.width) / 2, y: -CGFloat(img.height) / 2, width: CGFloat(img.width), height: CGFloat(img.height)))
+            return colorName(b: px[0], g: px[1], r: px[2])
+        }
+        do {
+            let plain = AVMovie(url: redURL)
+            let m = try AVMutableMovie(url: redURL, options: nil, error: ())
+            let start = m.duration.seconds
+            try m.insertTimeRange(CMTimeRange(start: .zero, duration: sec(1, 1)), of: AVURLAsset(url: blueURL), at: m.duration, copySampleData: false)
+            m.removeTimeRange(CMTimeRange(start: .zero, duration: sec(1, 2)))
+            let vt = m.tracks.first { $0.mediaType == .video } as? AVMutableMovieTrack
+            let out = fresh("movie.mov")
+            try m.writeHeader(to: out, fileType: .mov, options: [])
+            let back = AVURLAsset(url: out)
+            log("x877 movie tracks \(plain.tracks.allSatisfy { $0 is AVMovieTrack }) \(m.tracks.count) duration \(f2(start)) edited \(f2(m.duration.seconds)) "
+                + "modified \(m.isModified) segments \(vt?.segments.count ?? 0) written \(f2(back.duration.seconds)) colors \(color(back, 0.25)) \(color(back, 1.25))")
+        } catch { log("x877 movie error \(error)") }
+    }
     func editing() {
+        movieChecks(res.appendingPathComponent("red.mp4"), res.appendingPathComponent("blue.mp4"))
         let red = AVURLAsset(url: res.appendingPathComponent("red.mp4")), blue = AVURLAsset(url: res.appendingPathComponent("blue.mp4"))
         let one = CMTimeRange(start: .zero, duration: sec(1, 1))
         do {

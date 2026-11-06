@@ -102,6 +102,8 @@ public protocol AVAsynchronousKeyValueLoading {
     }
     open func cancelLoading() {}
     func _check() throws { if _media?.ok != true { throw _avLoadError(self) } }
+    /// the composition this asset edits: compositions themselves, and mutable movies (AVMovie.swift)
+    var _comp: AVComposition? { self as? AVComposition }
     /// the media file and time within it that shows this asset's video at time t (compositions map their segments)
     func _videoSource(at t: Double) -> (URL, Double)? {
         guard let u = _url, isPlayable else { return nil }
@@ -153,6 +155,8 @@ public let NSLocalizedFailureReasonErrorKey = "NSLocalizedFailureReason"
     }
     open func statusOfValue(forKey key: String, error outError: UnsafeMutablePointer<NSError?>?) -> AVKeyValueStatus { .loaded }
     open func loadValuesAsynchronously(forKeys keys: [String], completionHandler handler: (@Sendable () -> Void)? = nil) { DispatchQueue.global().async { handler?() } }
+    /// the composition track behind this track: composition tracks, and mutable movie tracks (AVMovie.swift)
+    var _compTrack: AVCompositionTrack? { self as? AVCompositionTrack }
 }
 public struct AVMediaCharacteristic: RawRepresentable, Hashable, Sendable {
     public let rawValue: String

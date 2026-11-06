@@ -876,7 +876,7 @@ extension AVAssetExportSession {
         if size == .zero { size = CGSize(width: 640, height: 360) }
         let w = max(2, Int(size.width)), h = max(2, Int(size.height))
         var present: (Double) -> Bool = { _ in true }
-        if let ct = track as? AVCompositionTrack {
+        if let ct = track._compTrack {
             let segs = ct._segments.filter { $0._url != nil }.map { ($0._target.start.seconds, $0._target.end.seconds) }
             present = { t in segs.contains { t >= $0.0 - 1e-6 && t < $0.1 - 1e-6 } }
         } else {
@@ -886,13 +886,13 @@ extension AVAssetExportSession {
         }
         let s = _AVSourceFrames(trackID: track.trackID, width: w, height: h, format: format, present: present)
         let ordinal = asset.tracks(withMediaType: .video).firstIndex { $0.trackID == track.trackID } ?? 0
-        if !(asset is AVComposition), ordinal == 0, let u = asset._url {
+        if asset._comp == nil, ordinal == 0, let u = asset._url {
             s.handle = isim_media_reader_open(_path(u), 0, r0, r1 - r0, Int32(w), Int32(h), fps, 0)
             return s.handle > 0 ? s : nil
         }
         let tmp = URL(fileURLWithPath: NSTemporaryDirectory() + "isim-track-\(UUID().uuidString).mkv")
         s.temp = tmp
-        if asset is AVComposition {
+        if asset._comp != nil {
             guard let sub = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else { return nil }
             let plain = AVMutableVideoComposition()
             plain.renderSize = CGSize(width: w, height: h); plain.frameDuration = CMTime(seconds: 1 / fps, preferredTimescale: 6000)
