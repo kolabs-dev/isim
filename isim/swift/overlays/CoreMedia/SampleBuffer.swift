@@ -103,6 +103,7 @@ public final class CMFormatDescription: @unchecked Sendable, Hashable {
 }
 public typealias CMVideoFormatDescription = CMFormatDescription
 public typealias CMAudioFormatDescription = CMFormatDescription
+public typealias CMMetadataFormatDescription = CMFormatDescription
 
 public final class CMBlockBuffer: @unchecked Sendable {
     public var _bytes: [UInt8]

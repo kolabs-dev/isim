@@ -111,6 +111,9 @@ def test_capture_audio_movie_live(launch, media):
     app.wait_log(r"running=true")
     app.wait_log(r"audio buffers=60 peak=0\.3[4-6] level=-1[1-3]dB", timeout=20)   # the mono tone comes in at -3 dB (stereo upmix)
     app.tap_id("record")
+    app.wait_log(r"recording started pts true recording true")              # #876: didStartRecordingTo:startPTS:
+    app.wait_log(r"recording paused true")                                  # didPauseRecordingTo / didResumeRecordingTo
+    app.wait_log(r"recording resumed false")
     app.wait_log(r"movie finished=", timeout=30)
     app.wait_log(r"frame corner=gray")
     app.tap_id("photo-live")
@@ -280,7 +283,12 @@ def test_capture_device_extras(launch, media, ios):
         want += " focus 0.2,0.2 smudge true aspect 480x480 narrower true focal 24.0"
     if v >= 27:
         want += " aperture true signals 5 rotation 90"
-    assert app.wait_log(r"x876 .*$").group(0) == want
+    assert app.wait_log(r"x876 presets.*$").group(0) == want
+    if v >= 18:
+        app.wait_log(r"x876 mic wind true multichannel true stereo false")  # the mono microphone: no stereo mode
+    if v >= 26:
+        app.wait_log(r"deferred start will run")                          # the metadata output's deferred start
+        app.wait_log(r"deferred start did run")
     app.tap_id("effects")
     app.wait_log(r"effects reactions true studio false")
     app.send("videoeffect reactions off")

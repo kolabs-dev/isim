@@ -13,6 +13,7 @@ import isim_host
     var _connections: [AVCaptureConnection] = []
     var _noConnections = false
     weak var _synchronizer: AVCaptureDataOutputSynchronizer?
+    var _deferredStart = false                                   // CaptureOutputsExtras.swift
     /// the media types this output takes from inputs
     var _accepts: [AVMediaType] { [.video] }
     open var connections: [AVCaptureConnection] { _connections }
@@ -55,6 +56,7 @@ extension AVCaptureVideoDataOutputSampleBufferDelegate {
 
 @objc(AVCaptureVideoDataOutput) open class AVCaptureVideoDataOutput: AVCaptureOutput, @unchecked Sendable {
     public override init() { super.init() }
+    var _preservesHDR = false, _preparesRadio = false                 // CaptureOutputsExtras.swift
     open var alwaysDiscardsLateVideoFrames = true
     open var videoSettings: [String: Any]! = [:]
     open var availableVideoPixelFormatTypes: [OSType] { [kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange, kCVPixelFormatType_420YpCbCr8BiPlanarFullRange, kCVPixelFormatType_32BGRA] }
@@ -187,6 +189,7 @@ extension AVCaptureAudioDataOutputSampleBufferDelegate {
 /// Microphone audio as sample buffers: 1024 frames of mono 16-bit linear PCM at 48 kHz each.
 @objc(AVCaptureAudioDataOutput) open class AVCaptureAudioDataOutput: AVCaptureOutput, @unchecked Sendable {
     public override init() { super.init() }
+    var _spatialTag: AudioChannelLayoutTag = 0                          // CaptureOutputsExtras.swift
     override var _accepts: [AVMediaType] { [.audio] }
     open private(set) weak var sampleBufferDelegate: AVCaptureAudioDataOutputSampleBufferDelegate?
     open private(set) var sampleBufferCallbackQueue: DispatchQueue?
@@ -455,9 +458,17 @@ enum _SceneObjects {
 public protocol AVCaptureFileOutputRecordingDelegate: NSObjectProtocol {
     func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL, from connections: [AVCaptureConnection])
     func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?)
+    /// iOS 18.2: the start, with the presentation time of the first sample written (sent after the one above)
+    func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL, startPTS: CMTime, from connections: [AVCaptureConnection])
+    /// iOS 18: pauseRecording() / resumeRecording() took effect
+    func fileOutput(_ output: AVCaptureFileOutput, didPauseRecordingTo fileURL: URL, from connections: [AVCaptureConnection])
+    func fileOutput(_ output: AVCaptureFileOutput, didResumeRecordingTo fileURL: URL, from connections: [AVCaptureConnection])
 }
 extension AVCaptureFileOutputRecordingDelegate {
     public func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {}
+    public func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL, startPTS: CMTime, from connections: [AVCaptureConnection]) {}
+    public func fileOutput(_ output: AVCaptureFileOutput, didPauseRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {}
+    public func fileOutput(_ output: AVCaptureFileOutput, didResumeRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {}
 }
 /// Records the connected camera and microphone. Frames are spooled and encoded with the sound (AAC) by ffmpeg when the
 /// recording stops (H.264 or HEVC; a microphone-only recording is an audio-only movie).
@@ -488,9 +499,21 @@ extension AVCaptureFileOutputRecordingDelegate {
         return Int64(s * ((_sink != nil ? 10_000_000 : 0) + 128_000) / 8)
     }
     open var isRecordingPaused: Bool { _pausedAt != nil }
-    open func pauseRecording() { _recLock.lock(); if _recording && _pausedAt == nil { _pausedAt = _captureHostTime() }; _recLock.unlock() }
+    /// whether a recording is in progress (paused or not)
+    open var isRecording: Bool { _isRecording }
+    open func pauseRecording() {
+        _recLock.lock()
+        let paused = _recording && _pausedAt == nil
+        if paused { _pausedAt = _captureHostTime() }
+        _recLock.unlock()
+        if paused, let url = outputFileURL { let d = _delegate, c = connections; DispatchQueue.main.async { d?.fileOutput(self, didPauseRecordingTo: url, from: c) } }
+    }
     open func resumeRecording() {
-        _recLock.lock(); if let p = _pausedAt { _pausedTotal += _captureHostTime() - p; _pausedAt = nil }; _recLock.unlock()
+        _recLock.lock()
+        let resumed = _pausedAt != nil
+        if let p = _pausedAt { _pausedTotal += _captureHostTime() - p; _pausedAt = nil }
+        _recLock.unlock()
+        if resumed, let url = outputFileURL { let d = _delegate, c = connections; DispatchQueue.main.async { d?.fileOutput(self, didResumeRecordingTo: url, from: c) } }
     }
     open func startRecording(to outputFileURL: URL, recordingDelegate delegate: AVCaptureFileOutputRecordingDelegate) {
         guard !_recording else {
@@ -507,7 +530,11 @@ extension AVCaptureFileOutputRecordingDelegate {
         _recording = true
         _recLock.unlock()
         let conns = connections
-        DispatchQueue.main.async { delegate.fileOutput(self, didStartRecordingTo: outputFileURL, from: conns) }
+        let startPTS = _captureTime(_start)
+        DispatchQueue.main.async {
+            delegate.fileOutput(self, didStartRecordingTo: outputFileURL, from: conns)
+            delegate.fileOutput(self, didStartRecordingTo: outputFileURL, startPTS: startPTS, from: conns)
+        }
     }
     open func stopRecording() { _stop(error: nil) }
     func _stop(error: NSError?) {
@@ -582,8 +609,14 @@ func _writeMovie(video: _RawVideoSink?, fps: Double, audio: [Int16]?, to url: UR
     public override init() { super.init() }
     /// HEVC when the host's ffmpeg has libx265 (like iPhones), else H.264
     open var availableVideoCodecTypes: [AVVideoCodecType] { _FFmpeg.hasHEVC ? [.hevc, .h264] : [.h264] }
-    /// isim ABI: declared here since isim 0.2.0 (on iOS it comes from AVCaptureFileOutput)
-    open var isRecording: Bool { _isRecording }
+    /// isim ABI: declared here since isim 0.2.0; it comes from AVCaptureFileOutput now, as on iOS
+    open override var isRecording: Bool { _isRecording }
+    // isim ABI: calls from apps built with 0.34 or earlier go through this class's own dispatch thunk
+    @usableFromInline @_silgen_name("$s12AVFoundation24AVCaptureMovieFileOutputC11isRecordingSbvgTj")
+    final func _abi_isRecording() -> Bool { isRecording }
+    var _metadata: [AVMetadataItem]?, _adjustsCinematicMetadata = true                       // CaptureOutputsExtras.swift
+    var _switching: (AVCaptureDevice.PrimaryConstituentDeviceSwitchingBehavior, UInt) = (.auto, 0)
+    var _orientationTracks: Set<ObjectIdentifier> = []
     open var movieFragmentInterval = CMTime(value: 10, timescale: 1)
     var _settings: [ObjectIdentifier: [String: Any]] = [:]
     open func outputSettings(for connection: AVCaptureConnection) -> [String: Any] {

@@ -205,10 +205,17 @@ typedef NS_OPTIONS(NSUInteger, AVCapturePrimaryConstituentDeviceRestrictedSwitch
 @interface AVCaptureInput : NSObject
 @property (nonatomic, readonly) NSArray<AVCaptureInputPort *> *ports;
 @end
+typedef NS_ENUM(NSInteger, AVCaptureMultichannelAudioMode) { AVCaptureMultichannelAudioModeNone = 0, AVCaptureMultichannelAudioModeStereo = 1,
+    AVCaptureMultichannelAudioModeFirstOrderAmbisonics = 2 } API_AVAILABLE(ios(18.0));
 @interface AVCaptureDeviceInput : AVCaptureInput
 + (nullable instancetype)deviceInputWithDevice:(AVCaptureDevice *)device error:(NSError * _Nullable * _Nullable)outError;
 - (nullable instancetype)initWithDevice:(AVCaptureDevice *)device error:(NSError * _Nullable * _Nullable)outError;
 @property (nonatomic, readonly) AVCaptureDevice *device;
+/* issue #876 (the overlay's CaptureOutputsExtras.swift) */
+@property (nonatomic) AVCaptureMultichannelAudioMode multichannelAudioMode API_AVAILABLE(ios(18.0));
+- (BOOL)isMultichannelAudioModeSupported:(AVCaptureMultichannelAudioMode)multichannelAudioMode API_AVAILABLE(ios(18.0));
+@property (nonatomic, readonly, getter=isWindNoiseRemovalSupported) BOOL windNoiseRemovalSupported API_AVAILABLE(ios(18.0));
+@property (nonatomic, getter=isWindNoiseRemovalEnabled) BOOL windNoiseRemovalEnabled API_AVAILABLE(ios(18.0));
 @end
 @interface AVCaptureConnection : NSObject
 @property (nonatomic, readonly) NSArray<AVCaptureInputPort *> *inputPorts;
@@ -272,6 +279,8 @@ typedef NS_OPTIONS(NSUInteger, AVCapturePrimaryConstituentDeviceRestrictedSwitch
 @interface AVCaptureOutput : NSObject
 @property (nonatomic, readonly) NSArray<AVCaptureConnection *> *connections;
 - (nullable AVCaptureConnection *)connectionWithMediaType:(AVMediaType)mediaType;
+@property (nonatomic, readonly, getter=isDeferredStartSupported) BOOL deferredStartSupported API_AVAILABLE(ios(26.0));
+@property (nonatomic, getter=isDeferredStartEnabled) BOOL deferredStartEnabled API_AVAILABLE(ios(26.0));
 @end
 @protocol AVCaptureVideoDataOutputSampleBufferDelegate <NSObject>
 @optional
@@ -317,6 +326,8 @@ typedef NS_OPTIONS(NSUInteger, AVCapturePrimaryConstituentDeviceRestrictedSwitch
 @protocol AVCaptureFileOutputRecordingDelegate <NSObject>
 @optional
 - (void)captureOutput:(AVCaptureFileOutput *)output didStartRecordingToOutputFileAtURL:(NSURL *)fileURL fromConnections:(NSArray<AVCaptureConnection *> *)connections;
+- (void)captureOutput:(AVCaptureFileOutput *)output didPauseRecordingToOutputFileAtURL:(NSURL *)fileURL fromConnections:(NSArray<AVCaptureConnection *> *)connections API_AVAILABLE(ios(18.0));
+- (void)captureOutput:(AVCaptureFileOutput *)output didResumeRecordingToOutputFileAtURL:(NSURL *)fileURL fromConnections:(NSArray<AVCaptureConnection *> *)connections API_AVAILABLE(ios(18.0));
 @required
 - (void)captureOutput:(AVCaptureFileOutput *)output didFinishRecordingToOutputFileAtURL:(NSURL *)outputFileURL
       fromConnections:(NSArray<AVCaptureConnection *> *)connections error:(nullable NSError *)error;
@@ -332,9 +343,9 @@ typedef NS_OPTIONS(NSUInteger, AVCapturePrimaryConstituentDeviceRestrictedSwitch
 @property (nonatomic, readonly, getter=isRecordingPaused) BOOL recordingPaused;
 - (void)pauseRecording;
 - (void)resumeRecording;
+@property (nonatomic, readonly, getter=isRecording) BOOL recording;
 @end
 @interface AVCaptureMovieFileOutput : AVCaptureFileOutput
-@property (nonatomic, readonly, getter=isRecording) BOOL recording;
 @property (nonatomic, readonly) NSArray<AVVideoCodecType> *availableVideoCodecTypes;
 - (NSDictionary<NSString *, id> *)outputSettingsForConnection:(AVCaptureConnection *)connection;
 - (void)setOutputSettings:(nullable NSDictionary<NSString *, id> *)outputSettings forConnection:(AVCaptureConnection *)connection;
@@ -394,6 +405,10 @@ typedef NS_OPTIONS(NSUInteger, AVCapturePrimaryConstituentDeviceRestrictedSwitch
 @end
 @interface AVCapturePhotoOutput : AVCaptureOutput
 - (void)capturePhotoWithSettings:(AVCapturePhotoSettings *)settings delegate:(id<AVCapturePhotoCaptureDelegate>)delegate;
+@property (nonatomic, readonly, getter=isVirtualDeviceConstituentPhotoDeliverySupported) BOOL virtualDeviceConstituentPhotoDeliverySupported;
+@property (nonatomic, getter=isVirtualDeviceConstituentPhotoDeliveryEnabled) BOOL virtualDeviceConstituentPhotoDeliveryEnabled;
+@property (nonatomic, readonly, getter=isAutoRedEyeReductionSupported) BOOL autoRedEyeReductionSupported;
+@property (nonatomic) BOOL preservesLivePhotoCaptureSuspendedOnSessionStop API_AVAILABLE(ios(16.0));
 @property (nonatomic, readonly) NSArray<AVVideoCodecType> *availablePhotoCodecTypes;
 @property (nonatomic, readonly) NSArray<NSNumber *> *availablePhotoPixelFormatTypes;
 @property (nonatomic, readonly) NSArray<AVFileType> *availablePhotoFileTypes;

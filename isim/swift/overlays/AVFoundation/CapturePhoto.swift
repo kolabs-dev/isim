@@ -27,6 +27,8 @@ public struct AVVideoCodecType: RawRepresentable, Hashable, Sendable {
     nonisolated(unsafe) static var _next: Int64 = 1
     public let uniqueID: Int64
     public let format: [String: Any]?
+    /// CaptureOutputsExtras.swift (issue #876)
+    var _settingsEx = _AVCapturePhotoSettingsExtras()
     var _raw: OSType = 0, _rawFileType: AVFileType?, _processedFileType: AVFileType?
     public var rawPhotoPixelFormatType: OSType { _raw }
     public var rawFileType: AVFileType? { _rawFileType }
@@ -80,6 +82,7 @@ public struct AVVideoCodecType: RawRepresentable, Hashable, Sendable {
         isCameraCalibrationDataDeliveryEnabled = settings.isCameraCalibrationDataDeliveryEnabled
         isShutterSoundSuppressionEnabled = settings.isShutterSoundSuppressionEnabled; metadata = settings.metadata
         livePhotoVideoCodecType = settings.livePhotoVideoCodecType      // the movie URL is per capture (iOS clears it)
+        _settingsEx = settings._settingsEx
     }
     /// HEVC (HEIC files) unless asked otherwise, like iOS
     var _codec: AVVideoCodecType {
@@ -247,6 +250,8 @@ public protocol AVCapturePhotoCaptureDelegate: NSObjectProtocol {
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishRecordingLivePhotoMovieForEventualFileAt outputFileURL: URL, resolvedSettings: AVCaptureResolvedPhotoSettings)
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingLivePhotoToMovieFileAt outputFileURL: URL, duration: CMTime, photoDisplayTime: CMTime,
                      resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?)
+    /// iOS 17: a photo whose processing is deferred (isim processes every photo at once: not sent)
+    func photoOutput(_ output: AVCapturePhotoOutput, didFinishCapturingDeferredPhotoProxy deferredPhotoProxy: AVCaptureDeferredPhotoProxy?, error: (any Error)?)
 }
 extension AVCapturePhotoCaptureDelegate {
     public func photoOutput(_ output: AVCapturePhotoOutput, willBeginCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings) {}
@@ -257,6 +262,7 @@ extension AVCapturePhotoCaptureDelegate {
     public func photoOutput(_ output: AVCapturePhotoOutput, didFinishRecordingLivePhotoMovieForEventualFileAt outputFileURL: URL, resolvedSettings: AVCaptureResolvedPhotoSettings) {}
     public func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingLivePhotoToMovieFileAt outputFileURL: URL, duration: CMTime, photoDisplayTime: CMTime,
                             resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?) {}
+    public func photoOutput(_ output: AVCapturePhotoOutput, didFinishCapturingDeferredPhotoProxy deferredPhotoProxy: AVCaptureDeferredPhotoProxy?, error: (any Error)?) {}
 }
 
 // MARK: - output
@@ -265,6 +271,7 @@ extension AVCapturePhotoCaptureDelegate {
     @objc public enum QualityPrioritization: Int, Sendable { case speed = 1, balanced, quality }
     @objc public enum CaptureReadiness: Int, Sendable { case sessionNotRunning = 0, ready, notReadyMomentarily, notReadyWaitingForCapture, notReadyWaitingForProcessing }
     public override init() { super.init() }
+    var _constituentDelivery = false, _preservesSuspended = false      // CaptureOutputsExtras.swift
     open var isHighResolutionCaptureEnabled = false
     open var maxPhotoQualityPrioritization: QualityPrioritization = .balanced
     // isim ABI: until 0.5 this property was typed Int; keep its getter/setter entry points for apps built then

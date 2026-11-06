@@ -617,7 +617,10 @@ func _transformBGRA(_ px: [UInt8], _ w: Int, _ h: Int, angle: CGFloat, mirror: B
         open var videoRotationAngleForHorizonLevelCapture: CGFloat { 0 }
     }
 }
-@objc public enum AVCaptureColorSpace: Int, Sendable { case sRGB = 0, P3_D65, HLG_BT2020, appleLog }
+@objc public enum AVCaptureColorSpace: Int, Sendable {
+    case sRGB = 0, P3_D65, HLG_BT2020, appleLog
+    @available(iOS 26.0, *) case appleLog2
+}
 
 // MARK: - inputs, ports, connections
 
@@ -664,7 +667,16 @@ func _transformBGRA(_ px: [UInt8], _ w: Int, _ h: Int, angle: CGFloat, mirror: B
     }
     open var unifiedAutoExposureDefaultsEnabled = false
     open var videoMinFrameDurationOverride = CMTime.invalid
-    open var multichannelAudioMode: Int = 0
+    /// iOS 18 (Apple's type; isim 0.34 and earlier typed it Int: those entry points stay for apps built then)
+    open var multichannelAudioMode: AVCaptureMultichannelAudioMode {
+        get { _inputEx.multichannel } set { if device._isMicrophone && newValue == .none { _inputEx.multichannel = newValue } }
+    }
+    @usableFromInline @_silgen_name("$s12AVFoundation20AVCaptureDeviceInputC21multichannelAudioModeSivgTj")
+    final func _abi_multichannelAudioModeInt() -> Int { multichannelAudioMode.rawValue }
+    @usableFromInline @_silgen_name("$s12AVFoundation20AVCaptureDeviceInputC21multichannelAudioModeSivsTj")
+    final func _abi_setMultichannelAudioModeInt(_ v: Int) { multichannelAudioMode = AVCaptureMultichannelAudioMode(rawValue: v) ?? .none }
+    /// CaptureOutputsExtras.swift (issue #876)
+    let _inputEx = _AVCaptureInputExtras()
 }
 
 /// A channel of an audio connection: levels of what the microphone hears (dBFS, updated as audio arrives).
@@ -678,6 +690,7 @@ public final class AVCaptureAudioChannel: NSObject, @unchecked Sendable {
 
 @objc(AVCaptureConnection) public final class AVCaptureConnection: NSObject, @unchecked Sendable {
     public let inputPorts: [AVCaptureInput.Port]
+    var _lowLightAuto = true                                     // CaptureOutputsExtras.swift
     public weak var output: AVCaptureOutput?
     public weak var videoPreviewLayer: AVCaptureVideoPreviewLayer?
     public var isEnabled = true
@@ -716,7 +729,9 @@ public final class AVCaptureAudioChannel: NSObject, @unchecked Sendable {
     func _carries(_ m: AVMediaType) -> Bool { inputPorts.contains { $0.mediaType == m && $0.isEnabled } }
 }
 @objc public enum AVCaptureVideoOrientation: Int, Sendable { case portrait = 1, portraitUpsideDown, landscapeRight, landscapeLeft }
-@objc public enum AVCaptureVideoStabilizationMode: Int, Sendable { case off = 0, standard, cinematic, cinematicExtended, previewOptimized, cinematicExtendedEnhanced, auto = -1 }
+@objc public enum AVCaptureVideoStabilizationMode: Int, Sendable { case off = 0, standard, cinematic, cinematicExtended, previewOptimized, cinematicExtendedEnhanced, auto = -1
+    @available(iOS 26.0, *) case lowLatency = 7
+}
 
 // MARK: - session
 
@@ -768,6 +783,8 @@ public let AVCaptureSessionErrorKey = "AVCaptureSessionErrorKey"
     open private(set) var isRunning = false
     open private(set) var isInterrupted = false
     open var automaticallyConfiguresApplicationAudioSession = true
+    /// CaptureOutputsExtras.swift (issue #876)
+    let _sessionEx = _AVCaptureSessionExtras()
     open var usesApplicationAudioSession = true
     open var automaticallyConfiguresCaptureDeviceForWideColor = true
     open var isMultitaskingCameraAccessSupported: Bool { false }
@@ -907,6 +924,7 @@ public let AVCaptureSessionErrorKey = "AVCaptureSessionErrorKey"
         _CameraControl.started(self)
         NotificationCenter.default.post(name: AVCaptureSession.didStartRunningNotification, object: self)
         if _CameraPressure.state.level == .shutdown { _pressureChanged() }
+        _deferredStartAfterRunning()
     }
     open func stopRunning() {
         guard isRunning else { return }
