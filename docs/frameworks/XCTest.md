@@ -1,7 +1,7 @@
 # XCTest
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 69.9% of Apple's iOS API (299 of 428, exact) · **Rows:** 16: 11 ✅ 3 🟡 2 ❌ · **iOS:** None+
+**Symbols:** 70.8% of Apple's iOS API (294 of 415, exact) · **Rows:** 16: 11 ✅ 3 🟡 2 ❌ · **iOS:** None+
 <!-- /generated:header -->
 
 **Area:** [Developer tools](../COVERAGE.md#devtools) · **Apple:** [XCTest](https://developer.apple.com/documentation/xctest) · **Issues:** [`area:devtools`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Adevtools)
@@ -35,7 +35,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-129 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+121 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -51,11 +51,8 @@
 - [`convenience init(archivableObject: any NSSecureCoding, uniformTypeIdentifier: String)`](https://developer.apple.com/documentation/xctest/xctattachment/init(archivableobject:uniformtypeidentifier:))
 - [`convenience init(compressedContentsOfDirectory: URL)`](https://developer.apple.com/documentation/xctest/xctattachment/init(compressedcontentsofdirectory:))
 - [`convenience init(compressedContentsOfDirectoryAtURL: URL)`](https://developer.apple.com/documentation/xctest/xctattachment/init(compressedcontentsofdirectoryaturl:))
-- [`convenience init(compressedContentsOfDirectoryAtURL: URL)`](https://developer.apple.com/documentation/xctest/xctattachment/init(compressedcontentsofdirectoryaturl:))
 - [`convenience init(contentsOfFile: URL, uniformTypeIdentifier: String)`](https://developer.apple.com/documentation/xctest/xctattachment/init(contentsoffile:uniformtypeidentifier:))
 - [`convenience init(contentsOfFileAtURL: URL)`](https://developer.apple.com/documentation/xctest/xctattachment/init(contentsoffileaturl:))
-- [`convenience init(contentsOfFileAtURL: URL)`](https://developer.apple.com/documentation/xctest/xctattachment/init(contentsoffileaturl:))
-- [`convenience init(contentsOfFileAtURL: URL, uniformTypeIdentifier: String)`](https://developer.apple.com/documentation/xctest/xctattachment/init(contentsoffileaturl:uniformtypeidentifier:))
 - [`convenience init(contentsOfFileAtURL: URL, uniformTypeIdentifier: String)`](https://developer.apple.com/documentation/xctest/xctattachment/init(contentsoffileaturl:uniformtypeidentifier:))
 - [`convenience init(image: UIImage, quality: XCTAttachment.ImageQuality)`](https://developer.apple.com/documentation/xctest/xctattachment/init(image:quality:))
 - [`convenience init(plistObject: Any)`](https://developer.apple.com/documentation/xctest/xctattachment/init(plistobject:))
@@ -78,17 +75,12 @@
 - [`let XCTestedUnitPath: String`](https://developer.apple.com/documentation/xctest/xctestedunitpath)
 - [`XCTestError`](https://developer.apple.com/documentation/xctest/xctesterror)
 - [`XCTestError.Code`](https://developer.apple.com/documentation/xctest/xctesterror/code)
-- [`XCTestError.Code`](https://developer.apple.com/documentation/xctest/xctesterror/code)
-- [`case failureWhileWaiting`](https://developer.apple.com/documentation/xctest/xctesterror/code/failurewhilewaiting)
 - [`case failureWhileWaiting`](https://developer.apple.com/documentation/xctest/xctesterror/code/failurewhilewaiting)
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/xctest/xctesterror/code/init(rawvalue:))
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/xctest/xctesterror/code/init(rawvalue:))
-- [`case timeoutWhileWaiting`](https://developer.apple.com/documentation/xctest/xctesterror/code/timeoutwhilewaiting)
 - [`case timeoutWhileWaiting`](https://developer.apple.com/documentation/xctest/xctesterror/code/timeoutwhilewaiting)
 - [`static var errorDomain: String`](https://developer.apple.com/documentation/xctest/xctesterror/errordomain)
 - [`static var failureWhileWaiting: XCTestError.Code`](https://developer.apple.com/documentation/xctest/xctesterror/failurewhilewaiting)
 - [`static var timeoutWhileWaiting: XCTestError.Code`](https://developer.apple.com/documentation/xctest/xctesterror/timeoutwhilewaiting)
-- [`let XCTestErrorDomain: String`](https://developer.apple.com/documentation/xctest/xctesterrordomain)
 - [`let XCTestErrorDomain: String`](https://developer.apple.com/documentation/xctest/xctesterrordomain)
 - [`XCTestLog`](https://developer.apple.com/documentation/xctest/xctestlog)
 - [`var logFileHandle: FileHandle!`](https://developer.apple.com/documentation/xctest/xctestlog/logfilehandle)

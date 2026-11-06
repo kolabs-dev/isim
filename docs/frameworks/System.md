@@ -1,7 +1,7 @@
 # System
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 100.0% of Apple's iOS API (434 of 434, exact) · **Rows:** 6: 5 ✅ 1 🟡 · **iOS:** 14.0+
+**Symbols:** 100.0% of Apple's iOS API (421 of 421, exact) · **Rows:** 6: 5 ✅ 1 🟡 · **iOS:** 14.0+
 <!-- /generated:header -->
 
 **Area:** [Foundation & CoreFoundation](../COVERAGE.md#foundation) · **Apple:** [System](https://developer.apple.com/documentation/system) · **Issues:** [`area:foundation`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Afoundation)

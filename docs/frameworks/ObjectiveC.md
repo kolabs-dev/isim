@@ -1,7 +1,7 @@
 # Objective-C runtime
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 69.6% of Apple's iOS API (305 of 438, exact) · **Rows:** 22: 20 ✅ 1 🟡 1 ❌ · **iOS:** 2.0+
+**Symbols:** 69.1% of Apple's iOS API (288 of 417, exact) · **Rows:** 22: 20 ✅ 1 🟡 1 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [ObjectiveC](https://developer.apple.com/documentation/objectivec) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)
@@ -42,7 +42,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-133 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+129 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -85,10 +85,6 @@
 - [`func finalize()`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/finalize())
 - [`class func hash() -> Int`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/hash())
 - [`func didChange() -> Publishers.Map<NSObject.KeyValueObservingPublisher<Subject, Value>, Void>`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/keyvalueobservingpublisher/didchange())
-- [`init(object: Subject, keyPath: KeyPath<Subject, Value>, options: NSKeyValueObservingOptions)`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/keyvalueobservingpublisher/init(object:keypath:options:))
-- [`let keyPath: KeyPath<Subject, Value>`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/keyvalueobservingpublisher/keypath)
-- [`let object: Subject`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/keyvalueobservingpublisher/object)
-- [`let options: NSKeyValueObservingOptions`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/keyvalueobservingpublisher/options)
 - [`func mutableArrayValue(forKeyPath: String) -> NSMutableArray`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/mutablearrayvalue(forkeypath:))
 - [`func mutableOrderedSetValue(forKey: String) -> NSMutableOrderedSet`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/mutableorderedsetvalue(forkey:))
 - [`func mutableOrderedSetValue(forKeyPath: String) -> NSMutableOrderedSet`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/mutableorderedsetvalue(forkeypath:))

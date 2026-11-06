@@ -1,7 +1,7 @@
 # SoundAnalysis
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 100.0% of Apple's iOS API (72 of 72, exact) · **Rows:** 6: 4 ✅ 1 🟡 1 ❌ · **iOS:** 13.0+
+**Symbols:** 100.0% of Apple's iOS API (58 of 58, exact) · **Rows:** 6: 4 ✅ 1 🟡 1 ❌ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [SoundAnalysis](https://developer.apple.com/documentation/soundanalysis) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)

@@ -1,7 +1,7 @@
 # ManagedSettings
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 97.6% of Apple's iOS API (162 of 166, exact) · **Rows:** 7: 5 ✅ 2 🟡 · **iOS:** 15.0+
+**Symbols:** 97.5% of Apple's iOS API (155 of 159, exact) · **Rows:** 7: 5 ✅ 2 🟡 · **iOS:** 15.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [ManagedSettings](https://developer.apple.com/documentation/managedsettings) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)

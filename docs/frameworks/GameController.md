@@ -1,7 +1,7 @@
 # GameController
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 68.7% of Apple's iOS API (631 of 918, exact) · **Rows:** 18: 12 ✅ 3 🟡 3 ❌ · **iOS:** 7.0+
+**Symbols:** 68.7% of Apple's iOS API (609 of 886, exact) · **Rows:** 18: 12 ✅ 3 🟡 3 ❌ · **iOS:** 7.0+
 <!-- /generated:header -->
 
 **Area:** [Games & 3D](../COVERAGE.md#games) · **Apple:** [GameController](https://developer.apple.com/documentation/gamecontroller) · **Issues:** [`area:games`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agames)
@@ -38,7 +38,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-287 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+277 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -109,23 +109,13 @@
 - [`func scene(UIScene, didActivateGameControllerWith: GCGameControllerActivationContext)`](https://developer.apple.com/documentation/gamecontroller/gcgamecontrollerscenedelegate/scene(_:didactivategamecontrollerwith:))
 - [`GCGamepadValueChangedHandler`](https://developer.apple.com/documentation/gamecontroller/gcgamepadvaluechangedhandler)
 - [`let GCInputDirectionalCardinalDpad: String`](https://developer.apple.com/documentation/gamecontroller/gcinputdirectionalcardinaldpad)
-- [`let GCInputDirectionalCardinalDpad: String`](https://developer.apple.com/documentation/gamecontroller/gcinputdirectionalcardinaldpad)
-- [`let GCInputDirectionalCenterButton: String`](https://developer.apple.com/documentation/gamecontroller/gcinputdirectionalcenterbutton)
 - [`let GCInputDirectionalCenterButton: String`](https://developer.apple.com/documentation/gamecontroller/gcinputdirectionalcenterbutton)
 - [`let GCInputDirectionalDpad: String`](https://developer.apple.com/documentation/gamecontroller/gcinputdirectionaldpad)
-- [`let GCInputDirectionalDpad: String`](https://developer.apple.com/documentation/gamecontroller/gcinputdirectionaldpad)
-- [`let GCInputDirectionalTouchSurfaceButton: String`](https://developer.apple.com/documentation/gamecontroller/gcinputdirectionaltouchsurfacebutton)
 - [`let GCInputDirectionalTouchSurfaceButton: String`](https://developer.apple.com/documentation/gamecontroller/gcinputdirectionaltouchsurfacebutton)
 - [`let GCInputMicroGamepadButtonA: String`](https://developer.apple.com/documentation/gamecontroller/gcinputmicrogamepadbuttona)
-- [`let GCInputMicroGamepadButtonA: String`](https://developer.apple.com/documentation/gamecontroller/gcinputmicrogamepadbuttona)
-- [`let GCInputMicroGamepadButtonMenu: String`](https://developer.apple.com/documentation/gamecontroller/gcinputmicrogamepadbuttonmenu)
 - [`let GCInputMicroGamepadButtonMenu: String`](https://developer.apple.com/documentation/gamecontroller/gcinputmicrogamepadbuttonmenu)
 - [`let GCInputMicroGamepadButtonX: String`](https://developer.apple.com/documentation/gamecontroller/gcinputmicrogamepadbuttonx)
-- [`let GCInputMicroGamepadButtonX: String`](https://developer.apple.com/documentation/gamecontroller/gcinputmicrogamepadbuttonx)
 - [`let GCInputMicroGamepadDpad: String`](https://developer.apple.com/documentation/gamecontroller/gcinputmicrogamepaddpad)
-- [`let GCInputMicroGamepadDpad: String`](https://developer.apple.com/documentation/gamecontroller/gcinputmicrogamepaddpad)
-- [`var GCInputXboxPaddleOne: String`](https://developer.apple.com/documentation/gamecontroller/gcinputxboxpaddleone-offv)
-- [`var GCInputXboxPaddleOne: String`](https://developer.apple.com/documentation/gamecontroller/gcinputxboxpaddleone-offv)
 - [`let GCKeyA: String`](https://developer.apple.com/documentation/gamecontroller/gckeya)
 - [`let GCKeyApplication: String`](https://developer.apple.com/documentation/gamecontroller/gckeyapplication)
 - [`let GCKeyB: String`](https://developer.apple.com/documentation/gamecontroller/gckeyb)

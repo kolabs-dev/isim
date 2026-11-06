@@ -1,7 +1,7 @@
 # XPC
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 97.9% of Apple's iOS API (418 of 427, exact) · **Rows:** 8: 6 ✅ 2 🟡 · **iOS:** 17.4+
+**Symbols:** 97.9% of Apple's iOS API (412 of 421, exact) · **Rows:** 8: 6 ✅ 2 🟡 · **iOS:** 17.4+
 <!-- /generated:header -->
 
 **Area:** [Foundation & CoreFoundation](../COVERAGE.md#foundation) · **Apple:** [XPC](https://developer.apple.com/documentation/xpc) · **Issues:** [`area:foundation`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Afoundation)

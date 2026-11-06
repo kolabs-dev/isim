@@ -1,7 +1,7 @@
 # SceneKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 63.5% of Apple's iOS API (1059 of 1668, exact) · **Rows:** 18: 9 ✅ 8 🟡 1 ❌ · **iOS:** 8.0+
+**Symbols:** 61.9% of Apple's iOS API (980 of 1583, exact) · **Rows:** 18: 9 ✅ 8 🟡 1 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Games & 3D](../COVERAGE.md#games) · **Apple:** [SceneKit](https://developer.apple.com/documentation/scenekit) · **Issues:** [`area:games`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agames)
@@ -103,13 +103,11 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-609 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+603 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
 - [`var SCN_ENABLE_METAL: Int32`](https://developer.apple.com/documentation/scenekit/scn_enable_metal)
-- [`var SCN_ENABLE_METAL: Int32`](https://developer.apple.com/documentation/scenekit/scn_enable_metal)
-- [`var SCN_ENABLE_OPENGL: Int32`](https://developer.apple.com/documentation/scenekit/scn_enable_opengl)
 - [`var SCN_ENABLE_OPENGL: Int32`](https://developer.apple.com/documentation/scenekit/scn_enable_opengl)
 - [`SCNAccelerationConstraint`](https://developer.apple.com/documentation/scenekit/scnaccelerationconstraint)
 - [`var damping: CGFloat`](https://developer.apple.com/documentation/scenekit/scnaccelerationconstraint/damping)
@@ -125,8 +123,6 @@
 - [`func resumeAnimation(forKey: String)`](https://developer.apple.com/documentation/scenekit/scnanimatable/resumeanimation(forkey:))
 - [`func setAnimationSpeed(CGFloat, forKey: String)`](https://developer.apple.com/documentation/scenekit/scnanimatable/setanimationspeed(_:forkey:))
 - [`var animationEvents: [SCNAnimationEvent]?`](https://developer.apple.com/documentation/scenekit/scnanimation-swift.class/animationevents)
-- [`var animationEvents: [SCNAnimationEvent]?`](https://developer.apple.com/documentation/scenekit/scnanimation-swift.class/animationevents)
-- [`init(contentsOfURL: URL)`](https://developer.apple.com/documentation/scenekit/scnanimation-swift.class/init(contentsofurl:))
 - [`init(contentsOfURL: URL)`](https://developer.apple.com/documentation/scenekit/scnanimation-swift.class/init(contentsofurl:))
 - [`SCNAnimationEvent`](https://developer.apple.com/documentation/scenekit/scnanimationevent)
 - [`convenience init(keyTime: CGFloat, block: SCNAnimationEventBlock)`](https://developer.apple.com/documentation/scenekit/scnanimationevent/init(keytime:block:))
@@ -296,8 +292,6 @@
 - [`class func precomputedLightingEnvironmentContents(with: URL) throws -> Any`](https://developer.apple.com/documentation/scenekit/scnmaterialproperty/precomputedlightingenvironmentcontents(with:)-5f6ar)
 - [`class func precomputedLightingEnvironmentData(forContents: Any, device: (any MTLDevice)?) throws -> Data`](https://developer.apple.com/documentation/scenekit/scnmaterialproperty/precomputedlightingenvironmentdata(forcontents:device:))
 - [`func SCNMatrix4FromGLKMatrix4(GLKMatrix4) -> SCNMatrix4`](https://developer.apple.com/documentation/scenekit/scnmatrix4fromglkmatrix4(_:))
-- [`func SCNMatrix4FromGLKMatrix4(GLKMatrix4) -> SCNMatrix4`](https://developer.apple.com/documentation/scenekit/scnmatrix4fromglkmatrix4(_:))
-- [`func SCNMatrix4ToGLKMatrix4(SCNMatrix4) -> GLKMatrix4`](https://developer.apple.com/documentation/scenekit/scnmatrix4toglkmatrix4(_:))
 - [`func SCNMatrix4ToGLKMatrix4(SCNMatrix4) -> GLKMatrix4`](https://developer.apple.com/documentation/scenekit/scnmatrix4toglkmatrix4(_:))
 - [`let SCNModelTransform: String`](https://developer.apple.com/documentation/scenekit/scnmodeltransform)
 - [`let SCNModelViewProjectionTransform: String`](https://developer.apple.com/documentation/scenekit/scnmodelviewprojectiontransform)
@@ -407,7 +401,13 @@
 - [`var dampingFactor: CGFloat`](https://developer.apple.com/documentation/scenekit/scnparticlesystem/dampingfactor)
 - [`var emissionDuration: CGFloat`](https://developer.apple.com/documentation/scenekit/scnparticlesystem/emissionduration)
 - [`var emissionDurationVariation: CGFloat`](https://developer.apple.com/documentation/scenekit/scnparticlesystem/emissiondurationvariation)
-- … and 309 more (`isim/data/api-coverage.json.gz`)
+- [`var emitterShape: SCNGeometry?`](https://developer.apple.com/documentation/scenekit/scnparticlesystem/emittershape)
+- [`var emittingDirection: SCNVector3`](https://developer.apple.com/documentation/scenekit/scnparticlesystem/emittingdirection)
+- [`var fresnelExponent: CGFloat`](https://developer.apple.com/documentation/scenekit/scnparticlesystem/fresnelexponent)
+- [`func handle(SCNParticleEvent, forProperties: [SCNParticleSystem.ParticleProperty], handler: SCNParticleEventBlock)`](https://developer.apple.com/documentation/scenekit/scnparticlesystem/handle(_:forproperties:handler:))
+- [`var idleDuration: CGFloat`](https://developer.apple.com/documentation/scenekit/scnparticlesystem/idleduration)
+- [`var idleDurationVariation: CGFloat`](https://developer.apple.com/documentation/scenekit/scnparticlesystem/idledurationvariation)
+- … and 303 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

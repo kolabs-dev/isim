@@ -1,7 +1,7 @@
 # Speech
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 94.0% of Apple's iOS API (423 of 450, exact) · **Rows:** 10: 4 ✅ 5 🟡 1 ❌ · **iOS:** 10.0+
+**Symbols:** 94.2% of Apple's iOS API (355 of 377, exact) · **Rows:** 10: 4 ✅ 5 🟡 1 ❌ · **iOS:** 10.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [Speech](https://developer.apple.com/documentation/speech) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)
@@ -33,17 +33,13 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-27 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+22 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
 - [`SFAcousticFeature`](https://developer.apple.com/documentation/speech/sfacousticfeature)
-- [`SFAcousticFeature`](https://developer.apple.com/documentation/speech/sfacousticfeature)
-- [`var acousticFeatureValuePerFrame: [Double]`](https://developer.apple.com/documentation/speech/sfacousticfeature/acousticfeaturevalueperframe-5krkk)
 - [`var acousticFeatureValuePerFrame: [Double]`](https://developer.apple.com/documentation/speech/sfacousticfeature/acousticfeaturevalueperframe-5krkk)
 - [`var frameDuration: TimeInterval`](https://developer.apple.com/documentation/speech/sfacousticfeature/frameduration)
-- [`var frameDuration: TimeInterval`](https://developer.apple.com/documentation/speech/sfacousticfeature/frameduration)
-- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/speech/sfacousticfeature/init(coder:))
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/speech/sfacousticfeature/init(coder:))
 - [`SFSpeechRecognitionMetadata`](https://developer.apple.com/documentation/speech/sfspeechrecognitionmetadata)
 - [`var averagePauseDuration: TimeInterval`](https://developer.apple.com/documentation/speech/sfspeechrecognitionmetadata/averagepauseduration)
@@ -54,7 +50,6 @@
 - [`var voiceAnalytics: SFVoiceAnalytics?`](https://developer.apple.com/documentation/speech/sfspeechrecognitionmetadata/voiceanalytics)
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/speech/sfspeechrecognitionresult/init(coder:))
 - [`var speechRecognitionMetadata: SFSpeechRecognitionMetadata?`](https://developer.apple.com/documentation/speech/sfspeechrecognitionresult/speechrecognitionmetadata)
-- [`func speechRecognitionTask(SFSpeechRecognitionTask, didProcessAudioDuration: TimeInterval)`](https://developer.apple.com/documentation/speech/sfspeechrecognitiontaskdelegate/speechrecognitiontask(_:didprocessaudioduration:))
 - [`func speechRecognitionTask(SFSpeechRecognitionTask, didProcessAudioDuration: TimeInterval)`](https://developer.apple.com/documentation/speech/sfspeechrecognitiontaskdelegate/speechrecognitiontask(_:didprocessaudioduration:))
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/speech/sftranscription/init(coder:))
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/speech/sftranscriptionsegment/init(coder:))

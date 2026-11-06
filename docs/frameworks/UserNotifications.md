@@ -1,7 +1,7 @@
 # UserNotifications
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 80.7% of Apple's iOS API (230 of 285, exact) · **Rows:** 12: 12 ✅ · **iOS:** 10.0+
+**Symbols:** 83.8% of Apple's iOS API (212 of 253, exact) · **Rows:** 12: 12 ✅ · **iOS:** 10.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [UserNotifications](https://developer.apple.com/documentation/usernotifications) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -32,7 +32,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-55 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+41 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -46,32 +46,18 @@
 - [`static var attachmentUnrecognizedType: UNError.Code`](https://developer.apple.com/documentation/usernotifications/unerror/attachmentunrecognizedtype)
 - [`static var badgeInputInvalid: UNError.Code`](https://developer.apple.com/documentation/usernotifications/unerror/badgeinputinvalid)
 - [`UNError.Code`](https://developer.apple.com/documentation/usernotifications/unerror/code)
-- [`UNError.Code`](https://developer.apple.com/documentation/usernotifications/unerror/code)
-- [`case attachmentCorrupt`](https://developer.apple.com/documentation/usernotifications/unerror/code/attachmentcorrupt)
 - [`case attachmentCorrupt`](https://developer.apple.com/documentation/usernotifications/unerror/code/attachmentcorrupt)
 - [`case attachmentInvalidFileSize`](https://developer.apple.com/documentation/usernotifications/unerror/code/attachmentinvalidfilesize)
-- [`case attachmentInvalidFileSize`](https://developer.apple.com/documentation/usernotifications/unerror/code/attachmentinvalidfilesize)
-- [`case attachmentInvalidURL`](https://developer.apple.com/documentation/usernotifications/unerror/code/attachmentinvalidurl)
 - [`case attachmentInvalidURL`](https://developer.apple.com/documentation/usernotifications/unerror/code/attachmentinvalidurl)
 - [`case attachmentMoveIntoDataStoreFailed`](https://developer.apple.com/documentation/usernotifications/unerror/code/attachmentmoveintodatastorefailed)
-- [`case attachmentMoveIntoDataStoreFailed`](https://developer.apple.com/documentation/usernotifications/unerror/code/attachmentmoveintodatastorefailed)
-- [`case attachmentNotInDataStore`](https://developer.apple.com/documentation/usernotifications/unerror/code/attachmentnotindatastore)
 - [`case attachmentNotInDataStore`](https://developer.apple.com/documentation/usernotifications/unerror/code/attachmentnotindatastore)
 - [`case attachmentUnrecognizedType`](https://developer.apple.com/documentation/usernotifications/unerror/code/attachmentunrecognizedtype)
-- [`case attachmentUnrecognizedType`](https://developer.apple.com/documentation/usernotifications/unerror/code/attachmentunrecognizedtype)
-- [`case badgeInputInvalid`](https://developer.apple.com/documentation/usernotifications/unerror/code/badgeinputinvalid)
 - [`case badgeInputInvalid`](https://developer.apple.com/documentation/usernotifications/unerror/code/badgeinputinvalid)
 - [`case contentProvidingInvalid`](https://developer.apple.com/documentation/usernotifications/unerror/code/contentprovidinginvalid)
-- [`case contentProvidingInvalid`](https://developer.apple.com/documentation/usernotifications/unerror/code/contentprovidinginvalid)
-- [`case contentProvidingObjectNotAllowed`](https://developer.apple.com/documentation/usernotifications/unerror/code/contentprovidingobjectnotallowed)
 - [`case contentProvidingObjectNotAllowed`](https://developer.apple.com/documentation/usernotifications/unerror/code/contentprovidingobjectnotallowed)
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/usernotifications/unerror/code/init(rawvalue:))
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/usernotifications/unerror/code/init(rawvalue:))
-- [`case notificationInvalidNoContent`](https://developer.apple.com/documentation/usernotifications/unerror/code/notificationinvalidnocontent)
 - [`case notificationInvalidNoContent`](https://developer.apple.com/documentation/usernotifications/unerror/code/notificationinvalidnocontent)
 - [`case notificationInvalidNoDate`](https://developer.apple.com/documentation/usernotifications/unerror/code/notificationinvalidnodate)
-- [`case notificationInvalidNoDate`](https://developer.apple.com/documentation/usernotifications/unerror/code/notificationinvalidnodate)
-- [`case notificationsNotAllowed`](https://developer.apple.com/documentation/usernotifications/unerror/code/notificationsnotallowed)
 - [`case notificationsNotAllowed`](https://developer.apple.com/documentation/usernotifications/unerror/code/notificationsnotallowed)
 - [`static var contentProvidingInvalid: UNError.Code`](https://developer.apple.com/documentation/usernotifications/unerror/contentprovidinginvalid)
 - [`static var contentProvidingObjectNotAllowed: UNError.Code`](https://developer.apple.com/documentation/usernotifications/unerror/contentprovidingobjectnotallowed)

@@ -1,7 +1,7 @@
 # PencilKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 95.7% of Apple's iOS API (334 of 349, exact) · **Rows:** 13: 11 ✅ 2 ❌ · **iOS:** 13.0+
+**Symbols:** 95.6% of Apple's iOS API (329 of 344, exact) · **Rows:** 13: 11 ✅ 2 ❌ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Graphics & text](../COVERAGE.md#graphics) · **Apple:** [PencilKit](https://developer.apple.com/documentation/pencilkit) · **Issues:** [`area:graphics`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agraphics)

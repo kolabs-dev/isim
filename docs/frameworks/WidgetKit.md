@@ -1,7 +1,7 @@
 # WidgetKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 66.5% of Apple's iOS API (177 of 266, exact) · **Rows:** 9: 5 ✅ 1 🟡 3 ❌ · **iOS:** 14.0+
+**Symbols:** 67.6% of Apple's iOS API (167 of 247, exact) · **Rows:** 9: 5 ✅ 1 🟡 3 ❌ · **iOS:** 14.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [WidgetKit](https://developer.apple.com/documentation/widgetkit) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -27,7 +27,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-89 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+80 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -73,12 +73,8 @@
 - [`static let simplified: LevelOfDetail`](https://developer.apple.com/documentation/widgetkit/levelofdetail/simplified)
 - [`let NSUserActivityTypeLiveActivity: String`](https://developer.apple.com/documentation/widgetkit/nsuseractivitytypeliveactivity)
 - [`static func buildPartialBlock(accumulated: [A.ContentState], next: [A.ContentState]) -> [A.ContentState]`](https://developer.apple.com/documentation/widgetkit/previewactivitybuilder/buildpartialblock(accumulated:next:))
-- [`static func buildPartialBlock(accumulated: [A.ContentState], next: [A.ContentState]) -> [A.ContentState]`](https://developer.apple.com/documentation/widgetkit/previewactivitybuilder/buildpartialblock(accumulated:next:))
-- [`static func buildPartialBlock(first: [A.ContentState]) -> [A.ContentState]`](https://developer.apple.com/documentation/widgetkit/previewactivitybuilder/buildpartialblock(first:))
 - [`static func buildPartialBlock(first: [A.ContentState]) -> [A.ContentState]`](https://developer.apple.com/documentation/widgetkit/previewactivitybuilder/buildpartialblock(first:))
 - [`static func buildPartialBlock(accumulated: [any TimelineEntry], next: [any TimelineEntry]) -> [any TimelineEntry]`](https://developer.apple.com/documentation/widgetkit/previewtimelinebuilder/buildpartialblock(accumulated:next:))
-- [`static func buildPartialBlock(accumulated: [any TimelineEntry], next: [any TimelineEntry]) -> [any TimelineEntry]`](https://developer.apple.com/documentation/widgetkit/previewtimelinebuilder/buildpartialblock(accumulated:next:))
-- [`static func buildPartialBlock(first: [any TimelineEntry]) -> [any TimelineEntry]`](https://developer.apple.com/documentation/widgetkit/previewtimelinebuilder/buildpartialblock(first:))
 - [`static func buildPartialBlock(first: [any TimelineEntry]) -> [any TimelineEntry]`](https://developer.apple.com/documentation/widgetkit/previewtimelinebuilder/buildpartialblock(first:))
 - [`SupportedActivityFamiliesEnvironmentKey`](https://developer.apple.com/documentation/widgetkit/supportedactivityfamiliesenvironmentkey)
 - [`func relevance() async -> WidgetRelevance<Void>`](https://developer.apple.com/documentation/widgetkit/timelineprovider/relevance())
@@ -96,12 +92,7 @@
 - [`static let family: String`](https://developer.apple.com/documentation/widgetkit/widgetcenter/userinfokey/family)
 - [`static let kind: String`](https://developer.apple.com/documentation/widgetkit/widgetcenter/userinfokey/kind)
 - [`case systemExtraLargePortrait`](https://developer.apple.com/documentation/widgetkit/widgetfamily/systemextralargeportrait)
-- [`let configuration: INIntent?`](https://developer.apple.com/documentation/widgetkit/widgetinfo/configuration)
-- [`let family: WidgetFamily`](https://developer.apple.com/documentation/widgetkit/widgetinfo/family)
 - [`var id: WidgetInfo`](https://developer.apple.com/documentation/widgetkit/widgetinfo/id)
-- [`var id: WidgetInfo`](https://developer.apple.com/documentation/widgetkit/widgetinfo/id)
-- [`let kind: String`](https://developer.apple.com/documentation/widgetkit/widgetinfo/kind)
-- [`func widgetConfigurationIntent<Intent>(of: Intent.Type) -> Intent?`](https://developer.apple.com/documentation/widgetkit/widgetinfo/widgetconfigurationintent(of:))
 - [`WidgetLocation`](https://developer.apple.com/documentation/widgetkit/widgetlocation)
 - [`static let carPlay: WidgetLocation`](https://developer.apple.com/documentation/widgetkit/widgetlocation/carplay)
 - [`static let homeScreen: WidgetLocation`](https://developer.apple.com/documentation/widgetkit/widgetlocation/homescreen)

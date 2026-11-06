@@ -1,7 +1,7 @@
 # JavaScriptCore
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 84.4% of Apple's iOS API (313 of 371, exact) · **Rows:** 2: 1 ✅ 1 ❌ · **iOS:** 16.0+
+**Symbols:** 84.7% of Apple's iOS API (300 of 354, exact) · **Rows:** 2: 1 ✅ 1 ❌ · **iOS:** 16.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [JavaScriptCore](https://developer.apple.com/documentation/javascriptcore) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)
@@ -20,7 +20,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-58 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+54 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -63,15 +63,11 @@
 - [`init?(newBigIntFromUInt64: UInt64, inContext: JSContext)`](https://developer.apple.com/documentation/javascriptcore/jsvalue/init(newbigintfromuint64:incontext:))
 - [`init!(point: CGPoint, in: JSContext!)`](https://developer.apple.com/documentation/javascriptcore/jsvalue/init(point:in:))
 - [`init!(point: CGPoint, inContext: JSContext!)`](https://developer.apple.com/documentation/javascriptcore/jsvalue/init(point:incontext:))
-- [`init!(point: CGPoint, inContext: JSContext!)`](https://developer.apple.com/documentation/javascriptcore/jsvalue/init(point:incontext:))
 - [`init!(range: NSRange, in: JSContext!)`](https://developer.apple.com/documentation/javascriptcore/jsvalue/init(range:in:))
-- [`init!(range: NSRange, inContext: JSContext!)`](https://developer.apple.com/documentation/javascriptcore/jsvalue/init(range:incontext:))
 - [`init!(range: NSRange, inContext: JSContext!)`](https://developer.apple.com/documentation/javascriptcore/jsvalue/init(range:incontext:))
 - [`init!(rect: CGRect, in: JSContext!)`](https://developer.apple.com/documentation/javascriptcore/jsvalue/init(rect:in:))
 - [`init!(rect: CGRect, inContext: JSContext!)`](https://developer.apple.com/documentation/javascriptcore/jsvalue/init(rect:incontext:))
-- [`init!(rect: CGRect, inContext: JSContext!)`](https://developer.apple.com/documentation/javascriptcore/jsvalue/init(rect:incontext:))
 - [`init!(size: CGSize, in: JSContext!)`](https://developer.apple.com/documentation/javascriptcore/jsvalue/init(size:in:))
-- [`init!(size: CGSize, inContext: JSContext!)`](https://developer.apple.com/documentation/javascriptcore/jsvalue/init(size:incontext:))
 - [`init!(size: CGSize, inContext: JSContext!)`](https://developer.apple.com/documentation/javascriptcore/jsvalue/init(size:incontext:))
 - [`var isBigInt: Bool`](https://developer.apple.com/documentation/javascriptcore/jsvalue/isbigint)
 - [`func toInt64() -> Int64`](https://developer.apple.com/documentation/javascriptcore/jsvalue/toint64())

@@ -1,7 +1,7 @@
 # CallKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 82.4% of Apple's iOS API (263 of 319, exact) · **Rows:** 4: 3 ✅ 1 ❌ · **iOS:** 10.0+
+**Symbols:** 83.8% of Apple's iOS API (227 of 271, exact) · **Rows:** 4: 3 ✅ 1 ❌ · **iOS:** 10.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [CallKit](https://developer.apple.com/documentation/callkit) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -22,7 +22,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-56 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+44 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -30,16 +30,10 @@
 - [`var CXCallDirectoryPhoneNumberMax: CXCallDirectoryPhoneNumber`](https://developer.apple.com/documentation/callkit/cxcalldirectoryphonenumbermax)
 - [`CXError`](https://developer.apple.com/documentation/callkit/cxerror)
 - [`CXError.Code`](https://developer.apple.com/documentation/callkit/cxerror/code)
-- [`CXError.Code`](https://developer.apple.com/documentation/callkit/cxerror/code)
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/callkit/cxerror/code/init(rawvalue:))
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/callkit/cxerror/code/init(rawvalue:))
 - [`case invalidArgument`](https://developer.apple.com/documentation/callkit/cxerror/code/invalidargument)
-- [`case invalidArgument`](https://developer.apple.com/documentation/callkit/cxerror/code/invalidargument)
-- [`case missingVoIPBackgroundMode`](https://developer.apple.com/documentation/callkit/cxerror/code/missingvoipbackgroundmode)
 - [`case missingVoIPBackgroundMode`](https://developer.apple.com/documentation/callkit/cxerror/code/missingvoipbackgroundmode)
 - [`case unentitled`](https://developer.apple.com/documentation/callkit/cxerror/code/unentitled)
-- [`case unentitled`](https://developer.apple.com/documentation/callkit/cxerror/code/unentitled)
-- [`case unknownError`](https://developer.apple.com/documentation/callkit/cxerror/code/unknownerror)
 - [`case unknownError`](https://developer.apple.com/documentation/callkit/cxerror/code/unknownerror)
 - [`static var errorDomain: String`](https://developer.apple.com/documentation/callkit/cxerror/errordomain)
 - [`static var invalidArgument: CXError.Code`](https://developer.apple.com/documentation/callkit/cxerror/invalidargument)
@@ -55,19 +49,13 @@
 - [`static var unknown: CXErrorCodeCallDirectoryManagerError.Code`](https://developer.apple.com/documentation/callkit/cxerrorcodecalldirectorymanagererror-swift.struct/unknown)
 - [`static var callIsProtected: CXErrorCodeIncomingCallError.Code`](https://developer.apple.com/documentation/callkit/cxerrorcodeincomingcallerror-swift.struct/callisprotected)
 - [`case filteredBySensitiveParticipants`](https://developer.apple.com/documentation/callkit/cxerrorcodeincomingcallerror-swift.struct/code/filteredbysensitiveparticipants)
-- [`case filteredBySensitiveParticipants`](https://developer.apple.com/documentation/callkit/cxerrorcodeincomingcallerror-swift.struct/code/filteredbysensitiveparticipants)
 - [`static var filteredBySensitiveParticipants: CXErrorCodeIncomingCallError.Code`](https://developer.apple.com/documentation/callkit/cxerrorcodeincomingcallerror-swift.struct/filteredbysensitiveparticipants)
 - [`static var filteredDuringRestrictedSharingMode: CXErrorCodeIncomingCallError.Code`](https://developer.apple.com/documentation/callkit/cxerrorcodeincomingcallerror-swift.struct/filteredduringrestrictedsharingmode)
 - [`CXErrorCodeNotificationServiceExtensionError`](https://developer.apple.com/documentation/callkit/cxerrorcodenotificationserviceextensionerror-swift.struct)
 - [`CXErrorCodeNotificationServiceExtensionError.Code`](https://developer.apple.com/documentation/callkit/cxerrorcodenotificationserviceextensionerror-swift.struct/code)
-- [`CXErrorCodeNotificationServiceExtensionError.Code`](https://developer.apple.com/documentation/callkit/cxerrorcodenotificationserviceextensionerror-swift.struct/code)
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/callkit/cxerrorcodenotificationserviceextensionerror-swift.struct/code/init(rawvalue:))
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/callkit/cxerrorcodenotificationserviceextensionerror-swift.struct/code/init(rawvalue:))
 - [`case invalidClientProcess`](https://developer.apple.com/documentation/callkit/cxerrorcodenotificationserviceextensionerror-swift.struct/code/invalidclientprocess)
-- [`case invalidClientProcess`](https://developer.apple.com/documentation/callkit/cxerrorcodenotificationserviceextensionerror-swift.struct/code/invalidclientprocess)
 - [`case missingNotificationFilteringEntitlement`](https://developer.apple.com/documentation/callkit/cxerrorcodenotificationserviceextensionerror-swift.struct/code/missingnotificationfilteringentitlement)
-- [`case missingNotificationFilteringEntitlement`](https://developer.apple.com/documentation/callkit/cxerrorcodenotificationserviceextensionerror-swift.struct/code/missingnotificationfilteringentitlement)
-- [`case unknown`](https://developer.apple.com/documentation/callkit/cxerrorcodenotificationserviceextensionerror-swift.struct/code/unknown)
 - [`case unknown`](https://developer.apple.com/documentation/callkit/cxerrorcodenotificationserviceextensionerror-swift.struct/code/unknown)
 - [`static var errorDomain: String`](https://developer.apple.com/documentation/callkit/cxerrorcodenotificationserviceextensionerror-swift.struct/errordomain)
 - [`static var invalidClientProcess: CXErrorCodeNotificationServiceExtensionError.Code`](https://developer.apple.com/documentation/callkit/cxerrorcodenotificationserviceextensionerror-swift.struct/invalidclientprocess)

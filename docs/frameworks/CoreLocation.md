@@ -1,7 +1,7 @@
 # CoreLocation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 83.0% of Apple's iOS API (409 of 493, exact) · **Rows:** 5: 3 ✅ 2 ❌ · **iOS:** 2.0+
+**Symbols:** 83.2% of Apple's iOS API (356 of 428, exact) · **Rows:** 5: 3 ✅ 2 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [CoreLocation](https://developer.apple.com/documentation/corelocation) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -23,7 +23,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-84 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+72 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -39,8 +39,6 @@
 - [`CLBackgroundActivitySession.Diagnostics`](https://developer.apple.com/documentation/corelocation/clbackgroundactivitysession-3mzv3/diagnostics-swift.class)
 - [`CLBackgroundActivitySession.Diagnostics.Iterator`](https://developer.apple.com/documentation/corelocation/clbackgroundactivitysession-3mzv3/diagnostics-swift.class/iterator)
 - [`var diagnostics: CLBackgroundActivitySession.Diagnostics`](https://developer.apple.com/documentation/corelocation/clbackgroundactivitysession-3mzv3/diagnostics-swift.property)
-- [`CLBodyIdentifiable`](https://developer.apple.com/documentation/corelocation/clbodyidentifiable)
-- [`CLBodyIdentifiable`](https://developer.apple.com/documentation/corelocation/clbodyidentifiable)
 - [`CLBodyIdentifiable`](https://developer.apple.com/documentation/corelocation/clbodyidentifiable)
 - [`var alternateRegion: CLRegion?`](https://developer.apple.com/documentation/corelocation/clerror-swift.struct/alternateregion)
 - [`static var deferredAccuracyTooLow: CLError.Code`](https://developer.apple.com/documentation/corelocation/clerror-swift.struct/deferredaccuracytoolow)
@@ -61,24 +59,15 @@
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/corelocation/clheading/init(coder:))
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/corelocation/cllocation/init(coder:))
 - [`var headingBody: (any CLBodyIdentifiable)?`](https://developer.apple.com/documentation/corelocation/cllocationmanager/headingbody)
-- [`var headingBody: (any CLBodyIdentifiable)?`](https://developer.apple.com/documentation/corelocation/cllocationmanager/headingbody)
-- [`var headingBody: (any CLBodyIdentifiable)?`](https://developer.apple.com/documentation/corelocation/cllocationmanager/headingbody)
 - [`func startMonitoringLocationPushes(completion: ((Data?, (any Error)?) -> Void)?)`](https://developer.apple.com/documentation/corelocation/cllocationmanager/startmonitoringlocationpushes(completion:))
 - [`func stopMonitoringLocationPushes()`](https://developer.apple.com/documentation/corelocation/cllocationmanager/stopmonitoringlocationpushes())
 - [`CLLocationPushServiceError`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceerror-swift.struct)
 - [`CLLocationPushServiceError.Code`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceerror-swift.struct/code)
-- [`CLLocationPushServiceError.Code`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceerror-swift.struct/code)
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceerror-swift.struct/code/init(rawvalue:))
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceerror-swift.struct/code/init(rawvalue:))
 - [`case missingEntitlement`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceerror-swift.struct/code/missingentitlement)
-- [`case missingEntitlement`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceerror-swift.struct/code/missingentitlement)
-- [`case missingPushExtension`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceerror-swift.struct/code/missingpushextension)
 - [`case missingPushExtension`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceerror-swift.struct/code/missingpushextension)
 - [`case missingPushServerEnvironment`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceerror-swift.struct/code/missingpushserverenvironment)
-- [`case missingPushServerEnvironment`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceerror-swift.struct/code/missingpushserverenvironment)
 - [`case unknown`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceerror-swift.struct/code/unknown)
-- [`case unknown`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceerror-swift.struct/code/unknown)
-- [`case unsupportedPlatform`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceerror-swift.struct/code/unsupportedplatform)
 - [`case unsupportedPlatform`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceerror-swift.struct/code/unsupportedplatform)
 - [`static var errorDomain: String`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceerror-swift.struct/errordomain)
 - [`static var missingEntitlement: CLLocationPushServiceError.Code`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceerror-swift.struct/missingentitlement)
@@ -92,7 +81,6 @@
 - [`func serviceExtensionWillTerminate()`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceextension/serviceextensionwillterminate())
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/corelocation/cllocationsourceinformation/init(coder:))
 - [`case maritime`](https://developer.apple.com/documentation/corelocation/cllocationupdate/liveconfiguration/maritime)
-- [`static var defaultResolverSpecification: EmptyResolverSpecification<CLPlacemark>`](https://developer.apple.com/documentation/corelocation/clplacemark/defaultresolverspecification)
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/corelocation/clplacemark/init(coder:))
 - [`var postalAddress: CNPostalAddress?`](https://developer.apple.com/documentation/corelocation/clplacemark/postaladdress)
 - [`CLPlacemark.Specification`](https://developer.apple.com/documentation/corelocation/clplacemark/specification)

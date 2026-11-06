@@ -1,7 +1,7 @@
 # ExtensionKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 2.8% of Apple's iOS API (1 of 36, exact) · **Rows:** 1: 1 🟡 · **iOS:** 16.1+
+**Symbols:** 2.9% of Apple's iOS API (1 of 35, exact) · **Rows:** 1: 1 🟡 · **iOS:** 16.1+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [ExtensionKit](https://developer.apple.com/documentation/extensionkit) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -23,7 +23,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-35 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+34 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -59,7 +59,6 @@
 - [`func hostViewControllerWillDeactivate(EXHostViewController, error: (any Error)?)`](https://developer.apple.com/documentation/extensionkit/exhostviewcontrollerdelegate/hostviewcontrollerwilldeactivate(_:error:))
 - [`PrimitiveAppExtensionScene`](https://developer.apple.com/documentation/extensionkit/primitiveappextensionscene)
 - [`var body: Never`](https://developer.apple.com/documentation/extensionkit/primitiveappextensionscene/body)
-- [`var debugDescription: String`](https://developer.apple.com/documentation/extensionkit/primitiveappextensionscene/debugdescription)
 - [`var debugDescription: String`](https://developer.apple.com/documentation/extensionkit/primitiveappextensionscene/debugdescription)
 - [`init<Content>(id: String, content: () -> Content, onConnection: (NSXPCConnection) -> Bool)`](https://developer.apple.com/documentation/extensionkit/primitiveappextensionscene/init(id:content:onconnection:))
 

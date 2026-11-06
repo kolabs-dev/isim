@@ -1,7 +1,7 @@
 # SpriteKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 95.4% of Apple's iOS API (1108 of 1162, exact) · **Rows:** 57: 50 ✅ 7 🟡 · **iOS:** 7.0+
+**Symbols:** 94.9% of Apple's iOS API (924 of 974, exact) · **Rows:** 57: 50 ✅ 7 🟡 · **iOS:** 7.0+
 <!-- /generated:header -->
 
 **Area:** [Games & 3D](../COVERAGE.md#games) · **Apple:** [SpriteKit](https://developer.apple.com/documentation/spritekit) · **Issues:** [`area:games`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agames)
@@ -87,7 +87,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-54 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+50 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -95,8 +95,6 @@
 - [`class func animate(withNormalTextures: [SKTexture], timePerFrame: TimeInterval, resize: Bool, restore: Bool) -> SKAction`](https://developer.apple.com/documentation/spritekit/skaction/animate(withnormaltextures:timeperframe:resize:restore:))
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/spritekit/skaction/init(coder:))
 - [`init?(named: String, fromURL: URL)`](https://developer.apple.com/documentation/spritekit/skaction/init(named:fromurl:))
-- [`init?(named: String, fromURL: URL)`](https://developer.apple.com/documentation/spritekit/skaction/init(named:fromurl:))
-- [`init?(named: String, fromURL: URL, duration: TimeInterval)`](https://developer.apple.com/documentation/spritekit/skaction/init(named:fromurl:duration:))
 - [`init?(named: String, fromURL: URL, duration: TimeInterval)`](https://developer.apple.com/documentation/spritekit/skaction/init(named:fromurl:duration:))
 - [`class func resize(toHeight: CGFloat, duration: TimeInterval) -> SKAction`](https://developer.apple.com/documentation/spritekit/skaction/resize(toheight:duration:))
 - [`class func resize(toWidth: CGFloat, duration: TimeInterval) -> SKAction`](https://developer.apple.com/documentation/spritekit/skaction/resize(towidth:duration:))
@@ -133,8 +131,6 @@
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/spritekit/sktilegroup/init(coder:))
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/spritekit/sktilegrouprule/init(coder:))
 - [`init(tileSet: SKTileSet, columns: Int, rows: Int, tileSize: CGSize, fillWithTileGroup: SKTileGroup)`](https://developer.apple.com/documentation/spritekit/sktilemapnode/init(tileset:columns:rows:tilesize:fillwithtilegroup:)-58e45)
-- [`init(tileSet: SKTileSet, columns: Int, rows: Int, tileSize: CGSize, fillWithTileGroup: SKTileGroup)`](https://developer.apple.com/documentation/spritekit/sktilemapnode/init(tileset:columns:rows:tilesize:fillwithtilegroup:)-58e45)
-- [`convenience init(tileSet: SKTileSet, columns: Int, rows: Int, tileSize: CGSize, fillWithTileGroup: SKTileGroup)`](https://developer.apple.com/documentation/spritekit/sktilemapnode/init(tileset:columns:rows:tilesize:fillwithtilegroup:)-86yc2)
 - [`convenience init(tileSet: SKTileSet, columns: Int, rows: Int, tileSize: CGSize, fillWithTileGroup: SKTileGroup)`](https://developer.apple.com/documentation/spritekit/sktilemapnode/init(tileset:columns:rows:tilesize:fillwithtilegroup:)-86yc2)
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/spritekit/sktileset/init(coder:))
 - [`convenience init?(from: URL)`](https://developer.apple.com/documentation/spritekit/sktileset/init(from:))

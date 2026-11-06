@@ -1,7 +1,7 @@
 # CryptoTokenKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 99.7% of Apple's iOS API (364 of 365, exact) · **Rows:** 14: 13 ✅ 1 🟡 · **iOS:** 13.0+
+**Symbols:** 99.6% of Apple's iOS API (280 of 281, exact) · **Rows:** 14: 13 ✅ 1 🟡 · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Identity & security](../COVERAGE.md#security) · **Apple:** [CryptoTokenKit](https://developer.apple.com/documentation/cryptotokenkit) · **Issues:** [`area:security`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asecurity)

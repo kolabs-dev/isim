@@ -1,7 +1,7 @@
 # UniformTypeIdentifiers
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 93.3% of Apple's iOS API (320 of 343, exact) · **Rows:** 4: 4 ✅ · **iOS:** 14.0+
+**Symbols:** 88.8% of Apple's iOS API (174 of 196, exact) · **Rows:** 4: 4 ✅ · **iOS:** 14.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [UniformTypeIdentifiers](https://developer.apple.com/documentation/uniformtypeidentifiers) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)
@@ -22,7 +22,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-23 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+22 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -45,7 +45,6 @@
 - [`convenience init?(mimeType: String, conformingTo: UTType)`](https://developer.apple.com/documentation/uniformtypeidentifiers/uttypereference/init(mimetype:conformingto:))
 - [`convenience init?(MIMEType: String, conformingToType: UTType)`](https://developer.apple.com/documentation/uniformtypeidentifiers/uttypereference/init(mimetype:conformingtotype:))
 - [`convenience init?(tag: String, tagClass: String, conformingTo: UTType?)`](https://developer.apple.com/documentation/uniformtypeidentifiers/uttypereference/init(tag:tagclass:conformingto:))
-- [`convenience init?(tag: String, tagClass: String, conformingToType: UTType?)`](https://developer.apple.com/documentation/uniformtypeidentifiers/uttypereference/init(tag:tagclass:conformingtotype:))
 - [`convenience init?(tag: String, tagClass: String, conformingToType: UTType?)`](https://developer.apple.com/documentation/uniformtypeidentifiers/uttypereference/init(tag:tagclass:conformingtotype:))
 - [`var isPublic: Bool`](https://developer.apple.com/documentation/uniformtypeidentifiers/uttypereference/ispublic)
 - [`class func types(tag: String, tagClass: String, conformingTo: UTType?) -> [UTType]`](https://developer.apple.com/documentation/uniformtypeidentifiers/uttypereference/types(tag:tagclass:conformingto:))

@@ -1,7 +1,7 @@
 # NearbyInteraction
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 49.7% of Apple's iOS API (86 of 173, exact) · **Rows:** 1: 1 🧩 · **iOS:** 14.0+
+**Symbols:** 54.5% of Apple's iOS API (79 of 145, exact) · **Rows:** 1: 1 🧩 · **iOS:** 14.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [NearbyInteraction](https://developer.apple.com/documentation/nearbyinteraction) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -22,7 +22,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-87 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+66 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -30,35 +30,16 @@
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergence/init(coder:))
 - [`var status: NIAlgorithmConvergenceStatus`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergence/status-654t)
 - [`NIAlgorithmConvergenceStatus`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve)
-- [`NIAlgorithmConvergenceStatus`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve)
-- [`static func == (NIAlgorithmConvergenceStatus, NIAlgorithmConvergenceStatus) -> Bool`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/==(_:_:))
 - [`static func == (NIAlgorithmConvergenceStatus, NIAlgorithmConvergenceStatus) -> Bool`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/==(_:_:))
 - [`case converged`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/converged)
-- [`case converged`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/converged)
-- [`case notConverged([NIAlgorithmConvergenceStatus.Reason])`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/notconverged(_:))
 - [`case notConverged([NIAlgorithmConvergenceStatus.Reason])`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/notconverged(_:))
 - [`NIAlgorithmConvergenceStatus.Reason`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason)
-- [`NIAlgorithmConvergenceStatus.Reason`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason)
-- [`NIAlgorithmConvergenceStatus.Reason`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason)
-- [`static let insufficientHorizontalSweep: NIAlgorithmConvergenceStatus.Reason`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason/insufficienthorizontalsweep)
-- [`static let insufficientHorizontalSweep: NIAlgorithmConvergenceStatus.Reason`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason/insufficienthorizontalsweep)
 - [`static let insufficientHorizontalSweep: NIAlgorithmConvergenceStatus.Reason`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason/insufficienthorizontalsweep)
 - [`static let insufficientLighting: NIAlgorithmConvergenceStatus.Reason`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason/insufficientlighting)
-- [`static let insufficientLighting: NIAlgorithmConvergenceStatus.Reason`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason/insufficientlighting)
-- [`static let insufficientLighting: NIAlgorithmConvergenceStatus.Reason`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason/insufficientlighting)
-- [`static let insufficientMovement: NIAlgorithmConvergenceStatus.Reason`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason/insufficientmovement)
-- [`static let insufficientMovement: NIAlgorithmConvergenceStatus.Reason`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason/insufficientmovement)
 - [`static let insufficientMovement: NIAlgorithmConvergenceStatus.Reason`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason/insufficientmovement)
 - [`static let insufficientSignalStrength: NIAlgorithmConvergenceStatus.Reason`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason/insufficientsignalstrength)
-- [`static let insufficientSignalStrength: NIAlgorithmConvergenceStatus.Reason`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason/insufficientsignalstrength)
-- [`static let insufficientSignalStrength: NIAlgorithmConvergenceStatus.Reason`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason/insufficientsignalstrength)
-- [`static let insufficientVerticalSweep: NIAlgorithmConvergenceStatus.Reason`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason/insufficientverticalsweep)
-- [`static let insufficientVerticalSweep: NIAlgorithmConvergenceStatus.Reason`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason/insufficientverticalsweep)
 - [`static let insufficientVerticalSweep: NIAlgorithmConvergenceStatus.Reason`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason/insufficientverticalsweep)
 - [`var localizedDescription: String?`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason/localizeddescription)
-- [`var localizedDescription: String?`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason/localizeddescription)
-- [`var localizedDescription: String?`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/reason/localizeddescription)
-- [`case unknown`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/unknown)
 - [`case unknown`](https://developer.apple.com/documentation/nearbyinteraction/nialgorithmconvergencestatus-2fnve/unknown)
 - [`var supportsBluetoothChannelSounding: Bool`](https://developer.apple.com/documentation/nearbyinteraction/nidevicecapability/supportsbluetoothchannelsounding)
 - [`var supportsDLTDOAMeasurement: Bool`](https://developer.apple.com/documentation/nearbyinteraction/nidevicecapability/supportsdltdoameasurement)
@@ -87,7 +68,6 @@
 - [`var height: Double`](https://developer.apple.com/documentation/nearbyinteraction/nidltdoameasurement/floorelevation-swift.class/height)
 - [`var floorElevation: NIDLTDOAMeasurement.FloorElevation?`](https://developer.apple.com/documentation/nearbyinteraction/nidltdoameasurement/floorelevation-swift.property)
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/nearbyinteraction/nidltdoameasurement/init(coder:))
-- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/nearbyinteraction/nidltdoameasurement/init(coder:))
 - [`var measurementType: NIDLTDOAMeasurementType`](https://developer.apple.com/documentation/nearbyinteraction/nidltdoameasurement/measurementtype)
 - [`var rawReceiveTime: UInt64`](https://developer.apple.com/documentation/nearbyinteraction/nidltdoameasurement/rawreceivetime)
 - [`var rawTransmitTime: UInt64`](https://developer.apple.com/documentation/nearbyinteraction/nidltdoameasurement/rawtransmittime)
@@ -106,7 +86,6 @@
 - [`case stationary`](https://developer.apple.com/documentation/nearbyinteraction/nimotionactivitystate/stationary)
 - [`case unknown`](https://developer.apple.com/documentation/nearbyinteraction/nimotionactivitystate/unknown)
 - [`init(bluetoothChannelSoundingIdentifier: UUID, previousBluetoothIdentifier: UUID?)`](https://developer.apple.com/documentation/nearbyinteraction/ninearbyaccessoryconfiguration/init(bluetoothchannelsoundingidentifier:previousbluetoothidentifier:))
-- [`var horizontalAngle: Float?`](https://developer.apple.com/documentation/nearbyinteraction/ninearbyobject/horizontalangle-hsg)
 - [`func setARSession(ARSession)`](https://developer.apple.com/documentation/nearbyinteraction/nisession/setarsession(_:))
 - [`func updateMotionState(NIMotionActivityState, forObjectWithToken: NIDiscoveryToken)`](https://developer.apple.com/documentation/nearbyinteraction/nisession/updatemotionstate(_:forobjectwithtoken:))
 - [`func worldTransform(for: NINearbyObject) -> simd_float4x4?`](https://developer.apple.com/documentation/nearbyinteraction/nisession/worldtransform(for:))

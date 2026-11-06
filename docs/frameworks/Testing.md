@@ -1,7 +1,7 @@
 # Testing
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 77.8% of Apple's iOS API (165 of 212, exact) · **Rows:** 3: 2 ✅ 1 ❌ · **iOS:** None+
+**Symbols:** 77.0% of Apple's iOS API (147 of 191, exact) · **Rows:** 3: 2 ✅ 1 ❌ · **iOS:** None+
 <!-- /generated:header -->
 
 **Area:** [Developer tools](../COVERAGE.md#devtools) · **Apple:** [Testing](https://developer.apple.com/documentation/testing) · **Issues:** [`area:devtools`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Adevtools)
@@ -21,7 +21,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-47 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+44 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -37,12 +37,9 @@
 - [`static var jpeg: AttachableImageFormat`](https://developer.apple.com/documentation/testing/attachableimageformat/jpeg)
 - [`static func jpeg(withEncodingQuality: Float) -> AttachableImageFormat`](https://developer.apple.com/documentation/testing/attachableimageformat/jpeg(withencodingquality:))
 - [`static var png: AttachableImageFormat`](https://developer.apple.com/documentation/testing/attachableimageformat/png)
-- [`var attachableValue: AttachableValue.Wrapped`](https://developer.apple.com/documentation/testing/attachment/attachablevalue-vkrw)
 - [`var imageFormat: AttachableImageFormat?`](https://developer.apple.com/documentation/testing/attachment/imageformat)
 - [`init<T>(T, named: String?, as: AttachableImageFormat?, sourceLocation: SourceLocation)`](https://developer.apple.com/documentation/testing/attachment/init(_:named:as:sourcelocation:))
-- [`init<T>(T, named: String?, as: AttachableImageFormat?, sourceLocation: SourceLocation)`](https://developer.apple.com/documentation/testing/attachment/init(_:named:as:sourcelocation:))
 - [`init<T>(exporting: T, as: UTType?, named: String?, sourceLocation: SourceLocation) async throws`](https://developer.apple.com/documentation/testing/attachment/init(exporting:as:named:sourcelocation:))
-- [`static func record<T>(T, named: String?, as: AttachableImageFormat?, sourceLocation: SourceLocation)`](https://developer.apple.com/documentation/testing/attachment/record(_:named:as:sourcelocation:))
 - [`static func record<T>(T, named: String?, as: AttachableImageFormat?, sourceLocation: SourceLocation)`](https://developer.apple.com/documentation/testing/attachment/record(_:named:as:sourcelocation:))
 - [`CustomTestReflectable`](https://developer.apple.com/documentation/testing/customtestreflectable)
 - [`var customTestMirror: Mirror`](https://developer.apple.com/documentation/testing/customtestreflectable/customtestmirror)

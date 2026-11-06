@@ -1,7 +1,7 @@
 # CoreTelephony
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 45.8% of Apple's iOS API (77 of 168, exact) · **Rows:** 7: 1 ✅ 4 🧩 2 ❌ · **iOS:** 4.0+
+**Symbols:** 49.7% of Apple's iOS API (77 of 155, exact) · **Rows:** 7: 1 ✅ 4 🧩 2 ❌ · **iOS:** 4.0+
 <!-- /generated:header -->
 
 **Area:** [Web, network & communication](../COVERAGE.md#web) · **Apple:** [Core Telephony](https://developer.apple.com/documentation/coretelephony) · **Issues:** [`area:web`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aweb)
@@ -27,7 +27,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-91 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+78 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -68,30 +68,17 @@
 - [`case low`](https://developer.apple.com/documentation/coretelephony/ctcellularplanstatusavailabilityconfidence/low)
 - [`CTQuickSwitchManager`](https://developer.apple.com/documentation/coretelephony/ctquickswitchmanager)
 - [`var delegate: (any CTQuickSwitchManager.Delegate)?`](https://developer.apple.com/documentation/coretelephony/ctquickswitchmanager/delegate-swift.property)
-- [`var delegate: (any CTQuickSwitchManager.Delegate)?`](https://developer.apple.com/documentation/coretelephony/ctquickswitchmanager/delegate-swift.property)
 - [`CTQuickSwitchManager.Delegate`](https://developer.apple.com/documentation/coretelephony/ctquickswitchmanager/delegate-swift.protocol)
 - [`func quickSwitchManager(CTQuickSwitchManager, didChangeTo: CTQuickSwitchState)`](https://developer.apple.com/documentation/coretelephony/ctquickswitchmanager/delegate-swift.protocol/quickswitchmanager(_:didchangeto:))
-- [`func quickSwitchManager(CTQuickSwitchManager, didChangeTo: CTQuickSwitchState)`](https://developer.apple.com/documentation/coretelephony/ctquickswitchmanager/delegate-swift.protocol/quickswitchmanager(_:didchangeto:))
-- [`func quickSwitchManager(CTQuickSwitchManager, didChangeTo: CTQuickSwitchState)`](https://developer.apple.com/documentation/coretelephony/ctquickswitchmanager/delegate-swift.protocol/quickswitchmanager(_:didchangeto:))
-- [`func getDeviceState((CTQuickSwitchState, (any Error)?) -> Void)`](https://developer.apple.com/documentation/coretelephony/ctquickswitchmanager/getdevicestate(_:))
 - [`func getDeviceState((CTQuickSwitchState, (any Error)?) -> Void)`](https://developer.apple.com/documentation/coretelephony/ctquickswitchmanager/getdevicestate(_:))
 - [`func getPhoneNumberState(forSuffix: String, completion: (CTQuickSwitchState, (any Error)?) -> Void)`](https://developer.apple.com/documentation/coretelephony/ctquickswitchmanager/getphonenumberstate(forsuffix:completion:))
-- [`func getPhoneNumberState(forSuffix: String, completion: (CTQuickSwitchState, (any Error)?) -> Void)`](https://developer.apple.com/documentation/coretelephony/ctquickswitchmanager/getphonenumberstate(forsuffix:completion:))
-- [`class func registerForLaunch(onQuickSwitchStateEvents: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/coretelephony/ctquickswitchmanager/registerforlaunch(onquickswitchstateevents:))
 - [`class func registerForLaunch(onQuickSwitchStateEvents: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/coretelephony/ctquickswitchmanager/registerforlaunch(onquickswitchstateevents:))
 - [`class func unregisterForLaunch(onQuickSwitchStateEvents: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/coretelephony/ctquickswitchmanager/unregisterforlaunch(onquickswitchstateevents:))
-- [`class func unregisterForLaunch(onQuickSwitchStateEvents: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/coretelephony/ctquickswitchmanager/unregisterforlaunch(onquickswitchstateevents:))
-- [`CTQuickSwitchState`](https://developer.apple.com/documentation/coretelephony/ctquickswitchstate)
 - [`CTQuickSwitchState`](https://developer.apple.com/documentation/coretelephony/ctquickswitchstate)
 - [`case active`](https://developer.apple.com/documentation/coretelephony/ctquickswitchstate/active)
-- [`case active`](https://developer.apple.com/documentation/coretelephony/ctquickswitchstate/active)
-- [`case failed`](https://developer.apple.com/documentation/coretelephony/ctquickswitchstate/failed)
 - [`case failed`](https://developer.apple.com/documentation/coretelephony/ctquickswitchstate/failed)
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/coretelephony/ctquickswitchstate/init(rawvalue:))
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/coretelephony/ctquickswitchstate/init(rawvalue:))
 - [`case notEnrolled`](https://developer.apple.com/documentation/coretelephony/ctquickswitchstate/notenrolled)
-- [`case notEnrolled`](https://developer.apple.com/documentation/coretelephony/ctquickswitchstate/notenrolled)
-- [`case passive`](https://developer.apple.com/documentation/coretelephony/ctquickswitchstate/passive)
 - [`case passive`](https://developer.apple.com/documentation/coretelephony/ctquickswitchstate/passive)
 - [`CTSlicingManager`](https://developer.apple.com/documentation/coretelephony/ctslicingmanager)
 - [`func activatePreferredSliceForCategory(CTSlicingManager.AppCategory) async throws`](https://developer.apple.com/documentation/coretelephony/ctslicingmanager/activatepreferredsliceforcategory(_:))

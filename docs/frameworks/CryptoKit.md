@@ -1,7 +1,7 @@
 # CryptoKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 94.5% of Apple's iOS API (699 of 740, exact) · **Rows:** 11: 9 ✅ 2 ❌ · **iOS:** 13.0+
+**Symbols:** 94.5% of Apple's iOS API (633 of 670, exact) · **Rows:** 11: 9 ✅ 2 ❌ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Identity & security](../COVERAGE.md#security) · **Apple:** [CryptoKit](https://developer.apple.com/documentation/cryptokit) · **Issues:** [`area:security`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asecurity)
@@ -29,7 +29,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-41 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+37 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -67,12 +67,8 @@
 - [`SHA2_384`](https://developer.apple.com/documentation/cryptokit/sha2_384)
 - [`SHA2_512`](https://developer.apple.com/documentation/cryptokit/sha2_512)
 - [`var bytes: RawSpan`](https://developer.apple.com/documentation/cryptokit/symmetrickey/bytes)
-- [`var bytes: RawSpan`](https://developer.apple.com/documentation/cryptokit/symmetrickey/bytes)
-- [`init(copying: RawSpan)`](https://developer.apple.com/documentation/cryptokit/symmetrickey/init(copying:))
 - [`init(copying: RawSpan)`](https://developer.apple.com/documentation/cryptokit/symmetrickey/init(copying:))
 - [`init(copyingWithZeroing: inout MutableRawSpan)`](https://developer.apple.com/documentation/cryptokit/symmetrickey/init(copyingwithzeroing:))
-- [`init(copyingWithZeroing: inout MutableRawSpan)`](https://developer.apple.com/documentation/cryptokit/symmetrickey/init(copyingwithzeroing:))
-- [`init<E>(size: SymmetricKeySize, initializingWith: (inout OutputRawSpan) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/cryptokit/symmetrickey/init(size:initializingwith:))
 - [`init<E>(size: SymmetricKeySize, initializingWith: (inout OutputRawSpan) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/cryptokit/symmetrickey/init(size:initializingwith:))
 
 </details>

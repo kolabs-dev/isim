@@ -1,7 +1,7 @@
 # Dispatch
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 89.5% of Apple's iOS API (391 of 437, exact) · **Rows:** 14: 13 ✅ 1 🟡 · **iOS:** 8.0+
+**Symbols:** 90.7% of Apple's iOS API (304 of 335, exact) · **Rows:** 14: 13 ✅ 1 🟡 · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [Dispatch](https://developer.apple.com/documentation/dispatch) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)
@@ -33,7 +33,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-46 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+31 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -46,30 +46,15 @@
 - [`func enumerateBytes(block: (UnsafeBufferPointer<UInt8>, Int, inout Bool) -> Void)`](https://developer.apple.com/documentation/dispatch/dispatchdata/enumeratebytes(block:))
 - [`init(nilLiteral: ())`](https://developer.apple.com/documentation/dispatch/dispatchio/intervalflags/init(nilliteral:))
 - [`init?(rawValue: qos_class_t)`](https://developer.apple.com/documentation/dispatch/dispatchqos/qosclass-swift.enum/init(rawvalue:))
-- [`init?(rawValue: qos_class_t)`](https://developer.apple.com/documentation/dispatch/dispatchqos/qosclass-swift.enum/init(rawvalue:))
-- [`var rawValue: qos_class_t`](https://developer.apple.com/documentation/dispatch/dispatchqos/qosclass-swift.enum/rawvalue)
 - [`var rawValue: qos_class_t`](https://developer.apple.com/documentation/dispatch/dispatchqos/qosclass-swift.enum/rawvalue)
 - [`func asyncAfterUnsafe(deadline: DispatchTime, qos: DispatchQoS, flags: DispatchWorkItemFlags, execute: () -> Void)`](https://developer.apple.com/documentation/dispatch/dispatchqueue/asyncafterunsafe(deadline:qos:flags:execute:))
 - [`func asyncAfterUnsafe(wallDeadline: DispatchWallTime, qos: DispatchQoS, flags: DispatchWorkItemFlags, execute: () -> Void)`](https://developer.apple.com/documentation/dispatch/dispatchqueue/asyncafterunsafe(walldeadline:qos:flags:execute:))
 - [`func asyncUnsafe(group: DispatchGroup?, qos: DispatchQoS, flags: DispatchWorkItemFlags, execute: () -> Void)`](https://developer.apple.com/documentation/dispatch/dispatchqueue/asyncunsafe(group:qos:flags:execute:))
 - [`var qos: DispatchQoS`](https://developer.apple.com/documentation/dispatch/dispatchqueue/qos)
 - [`var flags: DispatchWorkItemFlags`](https://developer.apple.com/documentation/dispatch/dispatchqueue/scheduleroptions/flags)
-- [`var flags: DispatchWorkItemFlags`](https://developer.apple.com/documentation/dispatch/dispatchqueue/scheduleroptions/flags)
-- [`var group: DispatchGroup?`](https://developer.apple.com/documentation/dispatch/dispatchqueue/scheduleroptions/group)
 - [`var group: DispatchGroup?`](https://developer.apple.com/documentation/dispatch/dispatchqueue/scheduleroptions/group)
 - [`init(qos: DispatchQoS, flags: DispatchWorkItemFlags, group: DispatchGroup?)`](https://developer.apple.com/documentation/dispatch/dispatchqueue/scheduleroptions/init(qos:flags:group:))
-- [`init(qos: DispatchQoS, flags: DispatchWorkItemFlags, group: DispatchGroup?)`](https://developer.apple.com/documentation/dispatch/dispatchqueue/scheduleroptions/init(qos:flags:group:))
 - [`var qos: DispatchQoS`](https://developer.apple.com/documentation/dispatch/dispatchqueue/scheduleroptions/qos)
-- [`var qos: DispatchQoS`](https://developer.apple.com/documentation/dispatch/dispatchqueue/scheduleroptions/qos)
-- [`func advanced(by: DispatchQueue.SchedulerTimeType.Stride) -> DispatchQueue.SchedulerTimeType`](https://developer.apple.com/documentation/dispatch/dispatchqueue/schedulertimetype/advanced(by:))
-- [`func advanced(by: DispatchQueue.SchedulerTimeType.Stride) -> DispatchQueue.SchedulerTimeType`](https://developer.apple.com/documentation/dispatch/dispatchqueue/schedulertimetype/advanced(by:))
-- [`var dispatchTime: DispatchTime`](https://developer.apple.com/documentation/dispatch/dispatchqueue/schedulertimetype/dispatchtime)
-- [`var dispatchTime: DispatchTime`](https://developer.apple.com/documentation/dispatch/dispatchqueue/schedulertimetype/dispatchtime)
-- [`func distance(to: DispatchQueue.SchedulerTimeType) -> DispatchQueue.SchedulerTimeType.Stride`](https://developer.apple.com/documentation/dispatch/dispatchqueue/schedulertimetype/distance(to:))
-- [`func distance(to: DispatchQueue.SchedulerTimeType) -> DispatchQueue.SchedulerTimeType.Stride`](https://developer.apple.com/documentation/dispatch/dispatchqueue/schedulertimetype/distance(to:))
-- [`init(DispatchTime)`](https://developer.apple.com/documentation/dispatch/dispatchqueue/schedulertimetype/init(_:))
-- [`init(DispatchTime)`](https://developer.apple.com/documentation/dispatch/dispatchqueue/schedulertimetype/init(_:))
-- [`DispatchSourceProtocol.DispatchSourceHandler`](https://developer.apple.com/documentation/dispatch/dispatchsourceprotocol/dispatchsourcehandler)
 - [`DispatchSourceProtocol.DispatchSourceHandler`](https://developer.apple.com/documentation/dispatch/dispatchsourceprotocol/dispatchsourcehandler)
 - [`func scheduleOneshot(deadline: DispatchTime, leeway: DispatchTimeInterval)`](https://developer.apple.com/documentation/dispatch/dispatchsourcetimer/scheduleoneshot(deadline:leeway:))
 - [`func scheduleOneshot(wallDeadline: DispatchWallTime, leeway: DispatchTimeInterval)`](https://developer.apple.com/documentation/dispatch/dispatchsourcetimer/scheduleoneshot(walldeadline:leeway:))

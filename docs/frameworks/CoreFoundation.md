@@ -1,7 +1,7 @@
 # CoreFoundation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 35.6% of Apple's iOS API (892 of 2504, exact) · **Rows:** 17: 12 ✅ 4 🟡 1 ❌ · **iOS:** 2.0+
+**Symbols:** 37.2% of Apple's iOS API (811 of 2180, exact) · **Rows:** 17: 12 ✅ 4 🟡 1 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Foundation & CoreFoundation](../COVERAGE.md#foundation) · **Apple:** [CoreFoundation](https://developer.apple.com/documentation/corefoundation) · **Issues:** [`area:foundation`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Afoundation)
@@ -37,7 +37,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-1612 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+1369 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -146,16 +146,11 @@
 - [`func CFBinaryHeapApplyFunction(CFBinaryHeap!, ((UnsafeRawPointer?, UnsafeMutableRawPointer?) -> Void)!, UnsafeMutableRawPointer!)`](https://developer.apple.com/documentation/corefoundation/cfbinaryheapapplyfunction(_:_:_:))
 - [`CFBinaryHeapCallBacks`](https://developer.apple.com/documentation/corefoundation/cfbinaryheapcallbacks)
 - [`var compare: ((UnsafeRawPointer?, UnsafeRawPointer?, UnsafeMutableRawPointer?) -> CFComparisonResult)!`](https://developer.apple.com/documentation/corefoundation/cfbinaryheapcallbacks/compare)
-- [`var compare: ((UnsafeRawPointer?, UnsafeRawPointer?, UnsafeMutableRawPointer?) -> CFComparisonResult)!`](https://developer.apple.com/documentation/corefoundation/cfbinaryheapcallbacks/compare)
-- [`var copyDescription: ((UnsafeRawPointer?) -> Unmanaged<CFString>?)!`](https://developer.apple.com/documentation/corefoundation/cfbinaryheapcallbacks/copydescription)
 - [`var copyDescription: ((UnsafeRawPointer?) -> Unmanaged<CFString>?)!`](https://developer.apple.com/documentation/corefoundation/cfbinaryheapcallbacks/copydescription)
 - [`init()`](https://developer.apple.com/documentation/corefoundation/cfbinaryheapcallbacks/init())
 - [`init(version: CFIndex, retain: ((CFAllocator?, UnsafeRawPointer?) -> UnsafeRawPointer?)!, release: ((CFAllocator?, UnsafeRawPointer?) -> Void)!, copyDescription: ((UnsafeRawPointer?) -> Unmanaged<CFString>?)!, compare: ((UnsafeRawPointer?, UnsafeRawPointer?, UnsafeMutableRawPointer?) -> CFComparisonResult)!)`](https://developer.apple.com/documentation/corefoundation/cfbinaryheapcallbacks/init(version:retain:release:copydescription:compare:))
 - [`var release: ((CFAllocator?, UnsafeRawPointer?) -> Void)!`](https://developer.apple.com/documentation/corefoundation/cfbinaryheapcallbacks/release)
-- [`var release: ((CFAllocator?, UnsafeRawPointer?) -> Void)!`](https://developer.apple.com/documentation/corefoundation/cfbinaryheapcallbacks/release)
 - [`var retain: ((CFAllocator?, UnsafeRawPointer?) -> UnsafeRawPointer?)!`](https://developer.apple.com/documentation/corefoundation/cfbinaryheapcallbacks/retain)
-- [`var retain: ((CFAllocator?, UnsafeRawPointer?) -> UnsafeRawPointer?)!`](https://developer.apple.com/documentation/corefoundation/cfbinaryheapcallbacks/retain)
-- [`var version: CFIndex`](https://developer.apple.com/documentation/corefoundation/cfbinaryheapcallbacks/version)
 - [`var version: CFIndex`](https://developer.apple.com/documentation/corefoundation/cfbinaryheapcallbacks/version)
 - [`CFBinaryHeapCompareContext`](https://developer.apple.com/documentation/corefoundation/cfbinaryheapcomparecontext)
 - [`var copyDescription: ((UnsafeRawPointer?) -> Unmanaged<CFString>?)!`](https://developer.apple.com/documentation/corefoundation/cfbinaryheapcomparecontext/copydescription)
@@ -217,11 +212,8 @@
 - [`func CFBundleUnloadExecutable(CFBundle!)`](https://developer.apple.com/documentation/corefoundation/cfbundleunloadexecutable(_:))
 - [`CFByteOrder`](https://developer.apple.com/documentation/corefoundation/cfbyteorder)
 - [`var CFByteOrderBigEndian: __CFByteOrder`](https://developer.apple.com/documentation/corefoundation/cfbyteorderbigendian)
-- [`var CFByteOrderBigEndian: __CFByteOrder`](https://developer.apple.com/documentation/corefoundation/cfbyteorderbigendian)
 - [`func CFByteOrderGetCurrent() -> CFByteOrder`](https://developer.apple.com/documentation/corefoundation/cfbyteordergetcurrent())
 - [`var CFByteOrderLittleEndian: __CFByteOrder`](https://developer.apple.com/documentation/corefoundation/cfbyteorderlittleendian)
-- [`var CFByteOrderLittleEndian: __CFByteOrder`](https://developer.apple.com/documentation/corefoundation/cfbyteorderlittleendian)
-- [`var CFByteOrderUnknown: __CFByteOrder`](https://developer.apple.com/documentation/corefoundation/cfbyteorderunknown)
 - [`var CFByteOrderUnknown: __CFByteOrder`](https://developer.apple.com/documentation/corefoundation/cfbyteorderunknown)
 - [`CFCalendar`](https://developer.apple.com/documentation/corefoundation/cfcalendar)
 - [`func CFCalendarCopyCurrent() -> CFCalendar!`](https://developer.apple.com/documentation/corefoundation/cfcalendarcopycurrent())
@@ -241,8 +233,6 @@
 - [`static let dangiCalendar: CFCalendarIdentifier!`](https://developer.apple.com/documentation/corefoundation/cfcalendaridentifier/dangicalendar)
 - [`static let gujaratiCalendar: CFCalendarIdentifier!`](https://developer.apple.com/documentation/corefoundation/cfcalendaridentifier/gujaraticalendar)
 - [`static let islamicTabularCalendar: CFCalendarIdentifier!`](https://developer.apple.com/documentation/corefoundation/cfcalendaridentifier/islamictabularcalendar)
-- [`static let islamicTabularCalendar: CFCalendarIdentifier!`](https://developer.apple.com/documentation/corefoundation/cfcalendaridentifier/islamictabularcalendar)
-- [`static let islamicUmmAlQuraCalendar: CFCalendarIdentifier!`](https://developer.apple.com/documentation/corefoundation/cfcalendaridentifier/islamicummalquracalendar)
 - [`static let islamicUmmAlQuraCalendar: CFCalendarIdentifier!`](https://developer.apple.com/documentation/corefoundation/cfcalendaridentifier/islamicummalquracalendar)
 - [`static let kannadaCalendar: CFCalendarIdentifier!`](https://developer.apple.com/documentation/corefoundation/cfcalendaridentifier/kannadacalendar)
 - [`static let malayalamCalendar: CFCalendarIdentifier!`](https://developer.apple.com/documentation/corefoundation/cfcalendaridentifier/malayalamcalendar)
@@ -292,35 +282,20 @@
 - [`func CFCharacterSetIsSupersetOfSet(CFCharacterSet!, CFCharacterSet!) -> Bool`](https://developer.apple.com/documentation/corefoundation/cfcharactersetissupersetofset(_:_:))
 - [`CFCharacterSetPredefinedSet`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset)
 - [`case alphaNumeric`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/alphanumeric)
-- [`case alphaNumeric`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/alphanumeric)
-- [`case capitalizedLetter`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/capitalizedletter)
 - [`case capitalizedLetter`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/capitalizedletter)
 - [`case control`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/control)
-- [`case control`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/control)
-- [`case decimalDigit`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/decimaldigit)
 - [`case decimalDigit`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/decimaldigit)
 - [`case decomposable`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/decomposable)
-- [`case decomposable`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/decomposable)
-- [`case illegal`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/illegal)
 - [`case illegal`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/illegal)
 - [`init?(rawValue: CFIndex)`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/init(rawvalue:))
 - [`case letter`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/letter)
-- [`case letter`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/letter)
-- [`case lowercaseLetter`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/lowercaseletter)
 - [`case lowercaseLetter`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/lowercaseletter)
 - [`case newline`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/newline)
-- [`case newline`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/newline)
-- [`case nonBase`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/nonbase)
 - [`case nonBase`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/nonbase)
 - [`case punctuation`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/punctuation)
-- [`case punctuation`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/punctuation)
-- [`case symbol`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/symbol)
 - [`case symbol`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/symbol)
 - [`case uppercaseLetter`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/uppercaseletter)
-- [`case uppercaseLetter`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/uppercaseletter)
 - [`case whitespace`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/whitespace)
-- [`case whitespace`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/whitespace)
-- [`case whitespaceAndNewline`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/whitespaceandnewline)
 - [`case whitespaceAndNewline`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset/whitespaceandnewline)
 - [`func CFCharacterSetRemoveCharactersInRange(CFMutableCharacterSet!, CFRange)`](https://developer.apple.com/documentation/corefoundation/cfcharactersetremovecharactersinrange(_:_:))
 - [`func CFCharacterSetRemoveCharactersInString(CFMutableCharacterSet!, CFString!)`](https://developer.apple.com/documentation/corefoundation/cfcharactersetremovecharactersinstring(_:_:))
@@ -341,7 +316,32 @@
 - [`func CFDataFind(CFData!, CFData!, CFRange, CFDataSearchFlags) -> CFRange`](https://developer.apple.com/documentation/corefoundation/cfdatafind(_:_:_:_:))
 - [`func CFDataIncreaseLength(CFMutableData!, CFIndex)`](https://developer.apple.com/documentation/corefoundation/cfdataincreaselength(_:_:))
 - [`func CFDataReplaceBytes(CFMutableData!, CFRange, UnsafePointer<UInt8>!, CFIndex)`](https://developer.apple.com/documentation/corefoundation/cfdatareplacebytes(_:_:_:_:))
-- … and 1312 more (`isim/data/api-coverage.json.gz`)
+- [`CFDataSearchFlags`](https://developer.apple.com/documentation/corefoundation/cfdatasearchflags)
+- [`static var anchored: CFDataSearchFlags`](https://developer.apple.com/documentation/corefoundation/cfdatasearchflags/anchored)
+- [`static var backwards: CFDataSearchFlags`](https://developer.apple.com/documentation/corefoundation/cfdatasearchflags/backwards)
+- [`init(rawValue: CFOptionFlags)`](https://developer.apple.com/documentation/corefoundation/cfdatasearchflags/init(rawvalue:))
+- [`static let gregorianStartDate: CFDateFormatterKey!`](https://developer.apple.com/documentation/corefoundation/cfdateformatterkey/gregorianstartdate)
+- [`static let longEraSymbols: CFDateFormatterKey!`](https://developer.apple.com/documentation/corefoundation/cfdateformatterkey/longerasymbols)
+- [`static let quarterSymbols: CFDateFormatterKey!`](https://developer.apple.com/documentation/corefoundation/cfdateformatterkey/quartersymbols)
+- [`static let shortQuarterSymbols: CFDateFormatterKey!`](https://developer.apple.com/documentation/corefoundation/cfdateformatterkey/shortquartersymbols)
+- [`static let shortStandaloneMonthSymbols: CFDateFormatterKey!`](https://developer.apple.com/documentation/corefoundation/cfdateformatterkey/shortstandalonemonthsymbols)
+- [`static let shortStandaloneQuarterSymbols: CFDateFormatterKey!`](https://developer.apple.com/documentation/corefoundation/cfdateformatterkey/shortstandalonequartersymbols)
+- [`static let shortStandaloneWeekdaySymbols: CFDateFormatterKey!`](https://developer.apple.com/documentation/corefoundation/cfdateformatterkey/shortstandaloneweekdaysymbols)
+- [`static let standaloneMonthSymbols: CFDateFormatterKey!`](https://developer.apple.com/documentation/corefoundation/cfdateformatterkey/standalonemonthsymbols)
+- [`static let standaloneQuarterSymbols: CFDateFormatterKey!`](https://developer.apple.com/documentation/corefoundation/cfdateformatterkey/standalonequartersymbols)
+- [`static let standaloneWeekdaySymbols: CFDateFormatterKey!`](https://developer.apple.com/documentation/corefoundation/cfdateformatterkey/standaloneweekdaysymbols)
+- [`static let veryShortMonthSymbols: CFDateFormatterKey!`](https://developer.apple.com/documentation/corefoundation/cfdateformatterkey/veryshortmonthsymbols)
+- [`static let veryShortStandaloneMonthSymbols: CFDateFormatterKey!`](https://developer.apple.com/documentation/corefoundation/cfdateformatterkey/veryshortstandalonemonthsymbols)
+- [`static let veryShortStandaloneWeekdaySymbols: CFDateFormatterKey!`](https://developer.apple.com/documentation/corefoundation/cfdateformatterkey/veryshortstandaloneweekdaysymbols)
+- [`static let veryShortWeekdaySymbols: CFDateFormatterKey!`](https://developer.apple.com/documentation/corefoundation/cfdateformatterkey/veryshortweekdaysymbols)
+- [`CFDictionaryApplierFunction`](https://developer.apple.com/documentation/corefoundation/cfdictionaryapplierfunction)
+- [`func CFDictionaryApplyFunction(CFDictionary!, ((UnsafeRawPointer?, UnsafeRawPointer?, UnsafeMutableRawPointer?) -> Void)!, UnsafeMutableRawPointer!)`](https://developer.apple.com/documentation/corefoundation/cfdictionaryapplyfunction(_:_:_:))
+- [`CFDictionaryCopyDescriptionCallBack`](https://developer.apple.com/documentation/corefoundation/cfdictionarycopydescriptioncallback)
+- [`CFDictionaryEqualCallBack`](https://developer.apple.com/documentation/corefoundation/cfdictionaryequalcallback)
+- [`func CFDictionaryGetCountOfKey(CFDictionary!, UnsafeRawPointer!) -> CFIndex`](https://developer.apple.com/documentation/corefoundation/cfdictionarygetcountofkey(_:_:))
+- [`func CFDictionaryGetCountOfValue(CFDictionary!, UnsafeRawPointer!) -> CFIndex`](https://developer.apple.com/documentation/corefoundation/cfdictionarygetcountofvalue(_:_:))
+- [`CFDictionaryHashCallBack`](https://developer.apple.com/documentation/corefoundation/cfdictionaryhashcallback)
+- … and 1069 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

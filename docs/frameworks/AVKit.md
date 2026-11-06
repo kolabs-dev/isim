@@ -1,7 +1,7 @@
 # AVKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 41.7% of Apple's iOS API (141 of 338, exact) · **Rows:** 9: 5 ✅ 1 🟡 3 ❌ · **iOS:** 8.0+
+**Symbols:** 41.3% of Apple's iOS API (117 of 283, exact) · **Rows:** 9: 5 ✅ 1 🟡 3 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [AVKit](https://developer.apple.com/documentation/avkit) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -27,27 +27,15 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-197 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+166 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
 - [`AVDisplayDynamicRange`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange)
-- [`AVDisplayDynamicRange`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange)
-- [`AVDisplayDynamicRange`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange)
-- [`case automatic`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange/automatic)
-- [`case automatic`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange/automatic)
 - [`case automatic`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange/automatic)
 - [`case constrainedHigh`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange/constrainedhigh)
-- [`case constrainedHigh`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange/constrainedhigh)
-- [`case constrainedHigh`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange/constrainedhigh)
-- [`case high`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange/high)
-- [`case high`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange/high)
 - [`case high`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange/high)
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange/init(rawvalue:))
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange/init(rawvalue:))
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange/init(rawvalue:))
-- [`case standard`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange/standard)
-- [`case standard`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange/standard)
 - [`case standard`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange/standard)
 - [`AVInputPickerInteraction`](https://developer.apple.com/documentation/avkit/avinputpickerinteraction)
 - [`var audioSession: AVAudioSession`](https://developer.apple.com/documentation/avkit/avinputpickerinteraction/audiosession)
@@ -67,17 +55,11 @@
 - [`var timeRange: CMTimeRange`](https://developer.apple.com/documentation/avkit/avinterstitialtimerange/timerange)
 - [`AVKitError`](https://developer.apple.com/documentation/avkit/avkiterror-swift.struct)
 - [`AVKitError.Code`](https://developer.apple.com/documentation/avkit/avkiterror-swift.struct/code)
-- [`AVKitError.Code`](https://developer.apple.com/documentation/avkit/avkiterror-swift.struct/code)
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/avkit/avkiterror-swift.struct/code/init(rawvalue:))
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/avkit/avkiterror-swift.struct/code/init(rawvalue:))
 - [`case pictureInPictureStartFailed`](https://developer.apple.com/documentation/avkit/avkiterror-swift.struct/code/pictureinpicturestartfailed)
-- [`case pictureInPictureStartFailed`](https://developer.apple.com/documentation/avkit/avkiterror-swift.struct/code/pictureinpicturestartfailed)
-- [`case unknown`](https://developer.apple.com/documentation/avkit/avkiterror-swift.struct/code/unknown)
 - [`case unknown`](https://developer.apple.com/documentation/avkit/avkiterror-swift.struct/code/unknown)
 - [`static var errorDomain: String`](https://developer.apple.com/documentation/avkit/avkiterror-swift.struct/errordomain)
 - [`static var pictureInPictureStartFailed: AVKitError.Code`](https://developer.apple.com/documentation/avkit/avkiterror-swift.struct/pictureinpicturestartfailed)
-- [`static var pictureInPictureStartFailed: AVKitError.Code`](https://developer.apple.com/documentation/avkit/avkiterror-swift.struct/pictureinpicturestartfailed)
-- [`static var unknown: AVKitError.Code`](https://developer.apple.com/documentation/avkit/avkiterror-swift.struct/unknown)
 - [`static var unknown: AVKitError.Code`](https://developer.apple.com/documentation/avkit/avkiterror-swift.struct/unknown)
 - [`let AVKitErrorDomain: String`](https://developer.apple.com/documentation/avkit/avkiterrordomain)
 - [`AVLegibleMediaOptionsMenuController`](https://developer.apple.com/documentation/avkit/avlegiblemediaoptionsmenucontroller)
@@ -100,21 +82,15 @@
 - [`case languageMismatch`](https://developer.apple.com/documentation/avkit/avlegiblemediaoptionsmenucontroller/statechangereason/languagemismatch)
 - [`case none`](https://developer.apple.com/documentation/avkit/avlegiblemediaoptionsmenucontroller/statechangereason/none)
 - [`AVLegibleMediaOptionsMenuState`](https://developer.apple.com/documentation/avkit/avlegiblemediaoptionsmenustate)
-- [`AVLegibleMediaOptionsMenuState`](https://developer.apple.com/documentation/avkit/avlegiblemediaoptionsmenustate)
-- [`var enabled: ObjCBool`](https://developer.apple.com/documentation/avkit/avlegiblemediaoptionsmenustate/enabled)
 - [`var enabled: ObjCBool`](https://developer.apple.com/documentation/avkit/avlegiblemediaoptionsmenustate/enabled)
 - [`init()`](https://developer.apple.com/documentation/avkit/avlegiblemediaoptionsmenustate/init())
-- [`init()`](https://developer.apple.com/documentation/avkit/avlegiblemediaoptionsmenustate/init())
 - [`init(enabled: ObjCBool, reason: AVLegibleMediaOptionsMenuController.StateChangeReason)`](https://developer.apple.com/documentation/avkit/avlegiblemediaoptionsmenustate/init(enabled:reason:))
-- [`init(enabled: ObjCBool, reason: AVLegibleMediaOptionsMenuController.StateChangeReason)`](https://developer.apple.com/documentation/avkit/avlegiblemediaoptionsmenustate/init(enabled:reason:))
-- [`var reason: AVLegibleMediaOptionsMenuController.StateChangeReason`](https://developer.apple.com/documentation/avkit/avlegiblemediaoptionsmenustate/reason)
 - [`var reason: AVLegibleMediaOptionsMenuController.StateChangeReason`](https://developer.apple.com/documentation/avkit/avlegiblemediaoptionsmenustate/reason)
 - [`var activeVideoCallContentViewController: AVPictureInPictureVideoCallViewController`](https://developer.apple.com/documentation/avkit/avpictureinpicturecontroller/contentsource-swift.class/activevideocallcontentviewcontroller)
 - [`var activeVideoCallSourceView: UIView?`](https://developer.apple.com/documentation/avkit/avpictureinpicturecontroller/contentsource-swift.class/activevideocallsourceview)
 - [`init(activeVideoCallSourceView: UIView, contentViewController: AVPictureInPictureVideoCallViewController)`](https://developer.apple.com/documentation/avkit/avpictureinpicturecontroller/contentsource-swift.class/init(activevideocallsourceview:contentviewcontroller:))
 - [`class func pictureInPictureButtonStartImage(compatibleWith: UITraitCollection?) -> UIImage`](https://developer.apple.com/documentation/avkit/avpictureinpicturecontroller/pictureinpicturebuttonstartimage(compatiblewith:))
 - [`class func pictureInPictureButtonStopImage(compatibleWith: UITraitCollection?) -> UIImage`](https://developer.apple.com/documentation/avkit/avpictureinpicturecontroller/pictureinpicturebuttonstopimage(compatiblewith:))
-- [`AVPictureInPictureVideoCallViewController`](https://developer.apple.com/documentation/avkit/avpictureinpicturevideocallviewcontroller)
 - [`AVPictureInPictureVideoCallViewController`](https://developer.apple.com/documentation/avkit/avpictureinpicturevideocallviewcontroller)
 - [`AVPlaybackUserInterfaceContentArtwork`](https://developer.apple.com/documentation/avkit/avplaybackuserinterfacecontentartwork)
 - [`class func artwork(url: URL, contentType: UTType, size: CGSize) -> AVPlaybackUserInterfaceContentURLArtwork`](https://developer.apple.com/documentation/avkit/avplaybackuserinterfacecontentartwork/artwork(url:contenttype:size:))
@@ -214,18 +190,11 @@
 - [`func playerViewController(AVPlayerViewController, willPresent: AVInterstitialTimeRange)`](https://developer.apple.com/documentation/avkit/avplayerviewcontrollerdelegate/playerviewcontroller(_:willpresent:))
 - [`var customRoutingController: AVCustomRoutingController?`](https://developer.apple.com/documentation/avkit/avroutepickerview/customroutingcontroller)
 - [`AVVideoFrameAnalysisType`](https://developer.apple.com/documentation/avkit/avvideoframeanalysistype)
-- [`AVVideoFrameAnalysisType`](https://developer.apple.com/documentation/avkit/avvideoframeanalysistype)
-- [`static var `default`: AVVideoFrameAnalysisType`](https://developer.apple.com/documentation/avkit/avvideoframeanalysistype/default)
 - [`static var `default`: AVVideoFrameAnalysisType`](https://developer.apple.com/documentation/avkit/avvideoframeanalysistype/default)
 - [`init(rawValue: UInt)`](https://developer.apple.com/documentation/avkit/avvideoframeanalysistype/init(rawvalue:))
-- [`init(rawValue: UInt)`](https://developer.apple.com/documentation/avkit/avvideoframeanalysistype/init(rawvalue:))
-- [`static var machineReadableCode: AVVideoFrameAnalysisType`](https://developer.apple.com/documentation/avkit/avvideoframeanalysistype/machinereadablecode)
 - [`static var machineReadableCode: AVVideoFrameAnalysisType`](https://developer.apple.com/documentation/avkit/avvideoframeanalysistype/machinereadablecode)
 - [`static var subject: AVVideoFrameAnalysisType`](https://developer.apple.com/documentation/avkit/avvideoframeanalysistype/subject)
-- [`static var subject: AVVideoFrameAnalysisType`](https://developer.apple.com/documentation/avkit/avvideoframeanalysistype/subject)
 - [`static var text: AVVideoFrameAnalysisType`](https://developer.apple.com/documentation/avkit/avvideoframeanalysistype/text)
-- [`static var text: AVVideoFrameAnalysisType`](https://developer.apple.com/documentation/avkit/avvideoframeanalysistype/text)
-- [`static var visualSearch: AVVideoFrameAnalysisType`](https://developer.apple.com/documentation/avkit/avvideoframeanalysistype/visualsearch)
 - [`static var visualSearch: AVVideoFrameAnalysisType`](https://developer.apple.com/documentation/avkit/avvideoframeanalysistype/visualsearch)
 - [`var PLATFORM_SUPPORTS_AVKITCORE: Bool`](https://developer.apple.com/documentation/avkit/platform_supports_avkitcore)
 

@@ -1,7 +1,7 @@
 # FileProvider
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 100.0% of Apple's iOS API (504 of 504, exact) · **Rows:** 12: 7 ✅ 5 🟡 · **iOS:** 11.0+
+**Symbols:** 100.0% of Apple's iOS API (449 of 449, exact) · **Rows:** 12: 7 ✅ 5 🟡 · **iOS:** 11.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [FileProvider](https://developer.apple.com/documentation/fileprovider) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)

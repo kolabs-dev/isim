@@ -1,7 +1,7 @@
 # Intents
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 60.5% of Apple's iOS API (2067 of 3414, exact) · **Rows:** 13: 11 ✅ 2 ❌ · **iOS:** 10.0+
+**Symbols:** 54.6% of Apple's iOS API (1529 of 2798, exact) · **Rows:** 13: 11 ✅ 2 ❌ · **iOS:** 10.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [Intents](https://developer.apple.com/documentation/intents) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -31,7 +31,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-1347 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+1269 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -335,7 +335,7 @@
 - [`var maximumNumberOfResults: NSNumber?`](https://developer.apple.com/documentation/intents/ingetavailablerestaurantreservationbookingsintent/maximumnumberofresults)
 - [`var partySize: Int`](https://developer.apple.com/documentation/intents/ingetavailablerestaurantreservationbookingsintent/partysize)
 - [`var preferredBookingDateComponents: DateComponents?`](https://developer.apple.com/documentation/intents/ingetavailablerestaurantreservationbookingsintent/preferredbookingdatecomponents)
-- … and 1047 more (`isim/data/api-coverage.json.gz`)
+- … and 969 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

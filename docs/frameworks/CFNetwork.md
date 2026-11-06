@@ -1,7 +1,7 @@
 # CFNetwork
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 18.2% of Apple's iOS API (62 of 340, exact) · **Rows:** 3: 1 ✅ 1 🟡 1 ❌ · **iOS:** 2.0+
+**Symbols:** 18.8% of Apple's iOS API (62 of 330, exact) · **Rows:** 3: 1 ✅ 1 🟡 1 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Foundation & CoreFoundation](../COVERAGE.md#foundation) · **Apple:** [CFNetwork](https://developer.apple.com/documentation/cfnetwork) · **Issues:** [`area:foundation`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Afoundation)
@@ -27,7 +27,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-278 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+268 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -283,31 +283,21 @@
 - [`let kCFStreamErrorDomainMach: Int32`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrordomainmach)
 - [`let kCFStreamErrorDomainNetServices: Int32`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrordomainnetservices)
 - [`var kCFStreamErrorSOCKS4IdConflict: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocks4idconflict)
-- [`var kCFStreamErrorSOCKS4IdConflict: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocks4idconflict)
-- [`var kCFStreamErrorSOCKS4IdentdFailed: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocks4identdfailed)
 - [`var kCFStreamErrorSOCKS4IdentdFailed: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocks4identdfailed)
 - [`var kCFStreamErrorSOCKS4RequestFailed: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocks4requestfailed)
-- [`var kCFStreamErrorSOCKS4RequestFailed: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocks4requestfailed)
-- [`var kCFStreamErrorSOCKS4SubDomainResponse: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocks4subdomainresponse)
 - [`var kCFStreamErrorSOCKS4SubDomainResponse: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocks4subdomainresponse)
 - [`var kCFStreamErrorSOCKS5BadResponseAddr: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocks5badresponseaddr)
 - [`var kCFStreamErrorSOCKS5BadState: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocks5badstate)
 - [`var kCFStreamErrorSOCKS5SubDomainMethod: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocks5subdomainmethod)
-- [`var kCFStreamErrorSOCKS5SubDomainMethod: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocks5subdomainmethod)
-- [`var kCFStreamErrorSOCKS5SubDomainResponse: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocks5subdomainresponse)
 - [`var kCFStreamErrorSOCKS5SubDomainResponse: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocks5subdomainresponse)
 - [`var kCFStreamErrorSOCKS5SubDomainUserPass: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocks5subdomainuserpass)
-- [`var kCFStreamErrorSOCKS5SubDomainUserPass: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocks5subdomainuserpass)
 - [`var kCFStreamErrorSOCKSSubDomainNone: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsockssubdomainnone)
-- [`var kCFStreamErrorSOCKSSubDomainNone: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsockssubdomainnone)
-- [`var kCFStreamErrorSOCKSSubDomainVersionCode: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsockssubdomainversioncode)
 - [`var kCFStreamErrorSOCKSSubDomainVersionCode: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsockssubdomainversioncode)
 - [`var kCFStreamErrorSOCKSUnknownClientVersion: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocksunknownclientversion)
 - [`let kCFStreamPropertySocketRemoteNetService: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreampropertysocketremotenetservice)
 - [`let kCFStreamPropertySSLContext: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreampropertysslcontext)
 - [`let kCFURLErrorFailingURLErrorKey: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfurlerrorfailingurlerrorkey)
 - [`let kCFURLErrorFailingURLStringErrorKey: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfurlerrorfailingurlstringerrorkey)
-- [`var kSOCKS5NoAcceptableMethod: Int`](https://developer.apple.com/documentation/cfnetwork/ksocks5noacceptablemethod)
 - [`var kSOCKS5NoAcceptableMethod: Int`](https://developer.apple.com/documentation/cfnetwork/ksocks5noacceptablemethod)
 
 </details>

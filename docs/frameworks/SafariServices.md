@@ -1,7 +1,7 @@
 # SafariServices
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 74.6% of Apple's iOS API (88 of 118, exact) · **Rows:** 9: 6 ✅ 3 ❌ · **iOS:** 7.0+
+**Symbols:** 79.8% of Apple's iOS API (79 of 99, exact) · **Rows:** 9: 6 ✅ 3 ❌ · **iOS:** 7.0+
 <!-- /generated:header -->
 
 **Area:** [Web, network & communication](../COVERAGE.md#web) · **Apple:** [SafariServices](https://developer.apple.com/documentation/safariservices) · **Issues:** [`area:web`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aweb)
@@ -27,7 +27,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-30 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+20 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -38,28 +38,18 @@
 - [`var manifest: BEWebAppManifest`](https://developer.apple.com/documentation/safariservices/sfaddtohomescreeninfo/manifest)
 - [`var websiteCookies: [HTTPCookie]`](https://developer.apple.com/documentation/safariservices/sfaddtohomescreeninfo/websitecookies)
 - [`SFAuthenticationSession.CompletionHandler`](https://developer.apple.com/documentation/safariservices/sfauthenticationsession/completionhandler)
-- [`SFAuthenticationSession.CompletionHandler`](https://developer.apple.com/documentation/safariservices/sfauthenticationsession/completionhandler)
 - [`let SFExtensionMessageKey: String`](https://developer.apple.com/documentation/safariservices/sfextensionmessagekey)
 - [`let SFExtensionProfileKey: String`](https://developer.apple.com/documentation/safariservices/sfextensionprofilekey)
-- [`let SFExtensionProfileKey: String`](https://developer.apple.com/documentation/safariservices/sfextensionprofilekey)
-- [`SFSafariExtensionManager`](https://developer.apple.com/documentation/safariservices/sfsafariextensionmanager)
 - [`SFSafariExtensionManager`](https://developer.apple.com/documentation/safariservices/sfsafariextensionmanager)
 - [`class func getStateOfExtension(withIdentifier: String, completionHandler: (SFSafariExtensionState?, (any Error)?) -> Void)`](https://developer.apple.com/documentation/safariservices/sfsafariextensionmanager/getstateofextension(withidentifier:completionhandler:))
-- [`class func getStateOfExtension(withIdentifier: String, completionHandler: (SFSafariExtensionState?, (any Error)?) -> Void)`](https://developer.apple.com/documentation/safariservices/sfsafariextensionmanager/getstateofextension(withidentifier:completionhandler:))
 - [`SFSafariExtensionState`](https://developer.apple.com/documentation/safariservices/sfsafariextensionstate)
-- [`SFSafariExtensionState`](https://developer.apple.com/documentation/safariservices/sfsafariextensionstate)
-- [`var isEnabled: Bool`](https://developer.apple.com/documentation/safariservices/sfsafariextensionstate/isenabled)
 - [`var isEnabled: Bool`](https://developer.apple.com/documentation/safariservices/sfsafariextensionstate/isenabled)
 - [`SSReadingListError`](https://developer.apple.com/documentation/safariservices/ssreadinglisterror)
 - [`SSReadingListError.Code`](https://developer.apple.com/documentation/safariservices/ssreadinglisterror/code)
-- [`SSReadingListError.Code`](https://developer.apple.com/documentation/safariservices/ssreadinglisterror/code)
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/safariservices/ssreadinglisterror/code/init(rawvalue:))
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/safariservices/ssreadinglisterror/code/init(rawvalue:))
-- [`case urlSchemeNotAllowed`](https://developer.apple.com/documentation/safariservices/ssreadinglisterror/code/urlschemenotallowed)
 - [`case urlSchemeNotAllowed`](https://developer.apple.com/documentation/safariservices/ssreadinglisterror/code/urlschemenotallowed)
 - [`static var errorDomain: String`](https://developer.apple.com/documentation/safariservices/ssreadinglisterror/errordomain)
 - [`static var urlSchemeNotAllowed: SSReadingListError.Code`](https://developer.apple.com/documentation/safariservices/ssreadinglisterror/urlschemenotallowed)
-- [`let SSReadingListErrorDomain: String`](https://developer.apple.com/documentation/safariservices/ssreadinglisterrordomain)
 - [`let SSReadingListErrorDomain: String`](https://developer.apple.com/documentation/safariservices/ssreadinglisterrordomain)
 
 </details>

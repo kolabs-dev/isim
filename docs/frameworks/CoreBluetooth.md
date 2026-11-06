@@ -1,7 +1,7 @@
 # CoreBluetooth
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 87.4% of Apple's iOS API (394 of 451, exact) · **Rows:** 5: 3 🧩 2 ❌ · **iOS:** 5.0+
+**Symbols:** 86.5% of Apple's iOS API (301 of 348, exact) · **Rows:** 5: 3 🧩 2 ❌ · **iOS:** 5.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [CoreBluetooth](https://developer.apple.com/documentation/corebluetooth) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -25,7 +25,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-57 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+47 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -56,24 +56,14 @@
 - [`static let peripheralUUIDs: CBConnectionEventMatchingOption`](https://developer.apple.com/documentation/corebluetooth/cbconnectioneventmatchingoption/peripheraluuids)
 - [`static let serviceUUIDs: CBConnectionEventMatchingOption`](https://developer.apple.com/documentation/corebluetooth/cbconnectioneventmatchingoption/serviceuuids)
 - [`let CBConnectPeripheralOptionEnableAutoReconnect: String`](https://developer.apple.com/documentation/corebluetooth/cbconnectperipheraloptionenableautoreconnect)
-- [`let CBConnectPeripheralOptionEnableAutoReconnect: String`](https://developer.apple.com/documentation/corebluetooth/cbconnectperipheraloptionenableautoreconnect)
-- [`let CBConnectPeripheralOptionEnableTransportBridgingKey: String`](https://developer.apple.com/documentation/corebluetooth/cbconnectperipheraloptionenabletransportbridgingkey)
 - [`let CBConnectPeripheralOptionEnableTransportBridgingKey: String`](https://developer.apple.com/documentation/corebluetooth/cbconnectperipheraloptionenabletransportbridgingkey)
 - [`let CBConnectPeripheralOptionNotifyOnConnectionKey: String`](https://developer.apple.com/documentation/corebluetooth/cbconnectperipheraloptionnotifyonconnectionkey)
-- [`let CBConnectPeripheralOptionNotifyOnConnectionKey: String`](https://developer.apple.com/documentation/corebluetooth/cbconnectperipheraloptionnotifyonconnectionkey)
-- [`let CBConnectPeripheralOptionNotifyOnNotificationKey: String`](https://developer.apple.com/documentation/corebluetooth/cbconnectperipheraloptionnotifyonnotificationkey)
-- [`let CBConnectPeripheralOptionNotifyOnNotificationKey: String`](https://developer.apple.com/documentation/corebluetooth/cbconnectperipheraloptionnotifyonnotificationkey)
-- [`let CBConnectPeripheralOptionNotifyOnNotificationKey: String`](https://developer.apple.com/documentation/corebluetooth/cbconnectperipheraloptionnotifyonnotificationkey)
 - [`let CBConnectPeripheralOptionNotifyOnNotificationKey: String`](https://developer.apple.com/documentation/corebluetooth/cbconnectperipheraloptionnotifyonnotificationkey)
 - [`let CBConnectPeripheralOptionRequiresANCS: String`](https://developer.apple.com/documentation/corebluetooth/cbconnectperipheraloptionrequiresancs)
-- [`let CBConnectPeripheralOptionRequiresANCS: String`](https://developer.apple.com/documentation/corebluetooth/cbconnectperipheraloptionrequiresancs)
-- [`let CBConnectPeripheralOptionStartDelayKey: String`](https://developer.apple.com/documentation/corebluetooth/cbconnectperipheraloptionstartdelaykey)
 - [`let CBConnectPeripheralOptionStartDelayKey: String`](https://developer.apple.com/documentation/corebluetooth/cbconnectperipheraloptionstartdelaykey)
 - [`static var channelSoundingConfigurationFailed: CBError.Code`](https://developer.apple.com/documentation/corebluetooth/cberror-swift.struct/channelsoundingconfigurationfailed)
 - [`static var channelSoundingProcedureFailed: CBError.Code`](https://developer.apple.com/documentation/corebluetooth/cberror-swift.struct/channelsoundingprocedurefailed)
 - [`case channelSoundingConfigurationFailed`](https://developer.apple.com/documentation/corebluetooth/cberror-swift.struct/code/channelsoundingconfigurationfailed)
-- [`case channelSoundingConfigurationFailed`](https://developer.apple.com/documentation/corebluetooth/cberror-swift.struct/code/channelsoundingconfigurationfailed)
-- [`case channelSoundingProcedureFailed`](https://developer.apple.com/documentation/corebluetooth/cberror-swift.struct/code/channelsoundingprocedurefailed)
 - [`case channelSoundingProcedureFailed`](https://developer.apple.com/documentation/corebluetooth/cberror-swift.struct/code/channelsoundingprocedurefailed)
 - [`var ancsAuthorized: Bool`](https://developer.apple.com/documentation/corebluetooth/cbperipheral/ancsauthorized)
 - [`func cancelChannelSoundingSession()`](https://developer.apple.com/documentation/corebluetooth/cbperipheral/cancelchannelsoundingsession())

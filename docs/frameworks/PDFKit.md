@@ -1,7 +1,7 @@
 # PDFKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 100.0% of Apple's iOS API (619 of 619, exact) · **Rows:** 25: 19 ✅ 6 🟡 · **iOS:** 11.0+
+**Symbols:** 100.0% of Apple's iOS API (575 of 575, exact) · **Rows:** 25: 19 ✅ 6 🟡 · **iOS:** 11.0+
 <!-- /generated:header -->
 
 **Area:** [Graphics & text](../COVERAGE.md#graphics) · **Apple:** [PDFKit](https://developer.apple.com/documentation/pdfkit) · **Issues:** [`area:graphics`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agraphics)
