@@ -1,7 +1,7 @@
 # SystemConfiguration
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 20.4% of Apple's iOS API (29 of 142, exact) · **Rows:** 2: 1 ✅ 1 ❌ · **iOS:** 2.0+
+**Symbols:** 21.5% of Apple's iOS API (29 of 135, exact) · **Rows:** 2: 1 ✅ 1 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Web, network & communication](../COVERAGE.md#web) · **Apple:** [SystemConfiguration](https://developer.apple.com/documentation/systemconfiguration) · **Issues:** [`area:web`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aweb)
@@ -21,7 +21,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-113 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+106 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -41,18 +41,11 @@
 - [`var kSCNetworkConnectionSelectionOptionOnDemandHostName: String`](https://developer.apple.com/documentation/systemconfiguration/kscnetworkconnectionselectionoptionondemandhostname)
 - [`var kSCNetworkConnectionSelectionOptionOnDemandRetry: String`](https://developer.apple.com/documentation/systemconfiguration/kscnetworkconnectionselectionoptionondemandretry)
 - [`var kSCNetworkFlagsConnectionAutomatic: Int`](https://developer.apple.com/documentation/systemconfiguration/kscnetworkflagsconnectionautomatic)
-- [`var kSCNetworkFlagsConnectionAutomatic: Int`](https://developer.apple.com/documentation/systemconfiguration/kscnetworkflagsconnectionautomatic)
-- [`var kSCNetworkFlagsConnectionRequired: Int`](https://developer.apple.com/documentation/systemconfiguration/kscnetworkflagsconnectionrequired)
 - [`var kSCNetworkFlagsConnectionRequired: Int`](https://developer.apple.com/documentation/systemconfiguration/kscnetworkflagsconnectionrequired)
 - [`var kSCNetworkFlagsInterventionRequired: Int`](https://developer.apple.com/documentation/systemconfiguration/kscnetworkflagsinterventionrequired)
-- [`var kSCNetworkFlagsInterventionRequired: Int`](https://developer.apple.com/documentation/systemconfiguration/kscnetworkflagsinterventionrequired)
-- [`var kSCNetworkFlagsIsDirect: Int`](https://developer.apple.com/documentation/systemconfiguration/kscnetworkflagsisdirect)
 - [`var kSCNetworkFlagsIsDirect: Int`](https://developer.apple.com/documentation/systemconfiguration/kscnetworkflagsisdirect)
 - [`var kSCNetworkFlagsIsLocalAddress: Int`](https://developer.apple.com/documentation/systemconfiguration/kscnetworkflagsislocaladdress)
-- [`var kSCNetworkFlagsIsLocalAddress: Int`](https://developer.apple.com/documentation/systemconfiguration/kscnetworkflagsislocaladdress)
 - [`var kSCNetworkFlagsReachable: Int`](https://developer.apple.com/documentation/systemconfiguration/kscnetworkflagsreachable)
-- [`var kSCNetworkFlagsReachable: Int`](https://developer.apple.com/documentation/systemconfiguration/kscnetworkflagsreachable)
-- [`var kSCNetworkFlagsTransientConnection: Int`](https://developer.apple.com/documentation/systemconfiguration/kscnetworkflagstransientconnection)
 - [`var kSCNetworkFlagsTransientConnection: Int`](https://developer.apple.com/documentation/systemconfiguration/kscnetworkflagstransientconnection)
 - [`var kSCStatusAccessError: Int`](https://developer.apple.com/documentation/systemconfiguration/kscstatusaccesserror)
 - [`var kSCStatusFailed: Int`](https://developer.apple.com/documentation/systemconfiguration/kscstatusfailed)

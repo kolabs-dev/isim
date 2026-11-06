@@ -1,7 +1,7 @@
 # LinkPresentation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 69.2% of Apple's iOS API (45 of 65, exact) · **Rows:** 6: 5 ✅ 1 ❌ · **iOS:** 13.0+
+**Symbols:** 64.9% of Apple's iOS API (37 of 57, exact) · **Rows:** 6: 5 ✅ 1 ❌ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Web, network & communication](../COVERAGE.md#web) · **Apple:** [LinkPresentation](https://developer.apple.com/documentation/linkpresentation) · **Issues:** [`area:web`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aweb)

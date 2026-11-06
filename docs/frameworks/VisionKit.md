@@ -1,7 +1,7 @@
 # VisionKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 100.0% of Apple's iOS API (200 of 200, exact) · **Rows:** 3: 3 🟡 · **iOS:** 13.0+
+**Symbols:** 100.0% of Apple's iOS API (181 of 181, exact) · **Rows:** 3: 3 🟡 · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [VisionKit](https://developer.apple.com/documentation/visionkit) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)

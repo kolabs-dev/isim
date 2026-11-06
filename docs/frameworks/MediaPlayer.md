@@ -1,7 +1,7 @@
 # MediaPlayer
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 83.2% of Apple's iOS API (454 of 546, exact) · **Rows:** 11: 7 ✅ 1 🟡 3 ❌ · **iOS:** 2.0+
+**Symbols:** 83.5% of Apple's iOS API (449 of 538, exact) · **Rows:** 11: 7 ✅ 1 🟡 3 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [MediaPlayer](https://developer.apple.com/documentation/mediaplayer) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -30,7 +30,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-92 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+89 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -98,10 +98,7 @@
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/mediaplayer/mpmediaquery/init(coder:))
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/mediaplayer/mpmediaquerysection/init(coder:))
 - [`MPMusicPlayerPlayParameters`](https://developer.apple.com/documentation/mediaplayer/mpmusicplayerplayparameters)
-- [`MPMusicPlayerPlayParameters`](https://developer.apple.com/documentation/mediaplayer/mpmusicplayerplayparameters)
 - [`var dictionary: [String : Any]`](https://developer.apple.com/documentation/mediaplayer/mpmusicplayerplayparameters/dictionary)
-- [`var dictionary: [String : Any]`](https://developer.apple.com/documentation/mediaplayer/mpmusicplayerplayparameters/dictionary)
-- [`init?(dictionary: [String : Any])`](https://developer.apple.com/documentation/mediaplayer/mpmusicplayerplayparameters/init(dictionary:))
 - [`init?(dictionary: [String : Any])`](https://developer.apple.com/documentation/mediaplayer/mpmusicplayerplayparameters/init(dictionary:))
 - [`init(playParametersQueue: [MPMusicPlayerPlayParameters])`](https://developer.apple.com/documentation/mediaplayer/mpmusicplayerplayparametersqueuedescriptor/init(playparametersqueue:))
 - [`var playParametersQueue: [MPMusicPlayerPlayParameters]`](https://developer.apple.com/documentation/mediaplayer/mpmusicplayerplayparametersqueuedescriptor/playparametersqueue)

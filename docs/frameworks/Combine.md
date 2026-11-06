@@ -1,7 +1,7 @@
 # Combine
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 99.6% of Apple's iOS API (1199 of 1204, exact) · **Rows:** 15: 15 ✅ · **iOS:** 13.0+
+**Symbols:** 99.5% of Apple's iOS API (1017 of 1022, exact) · **Rows:** 15: 15 ✅ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [Combine](https://developer.apple.com/documentation/combine) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)

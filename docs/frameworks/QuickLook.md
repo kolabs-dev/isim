@@ -1,7 +1,7 @@
 # QuickLook
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 86.4% of Apple's iOS API (51 of 59, exact) · **Rows:** 8: 6 ✅ 1 ❌ 1 ⛔ · **iOS:** 4.0+
+**Symbols:** 87.9% of Apple's iOS API (51 of 58, exact) · **Rows:** 8: 6 ✅ 1 ❌ 1 ⛔ · **iOS:** 4.0+
 <!-- /generated:header -->
 
 **Area:** [UIKit](../COVERAGE.md#uikit) · **Apple:** [Quick Look](https://developer.apple.com/documentation/quicklook) · **Issues:** [`area:uikit`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Auikit)
@@ -26,7 +26,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-8 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+7 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -36,7 +36,6 @@
 - [`init(fileAt: URL)`](https://developer.apple.com/documentation/quicklook/arquicklookpreviewitem/init(fileat:))
 - [`init(fileAtURL: URL)`](https://developer.apple.com/documentation/quicklook/arquicklookpreviewitem/init(fileaturl:))
 - [`QLPreviewSceneActivationConfiguration.Options`](https://developer.apple.com/documentation/quicklook/qlpreviewsceneactivationconfiguration/options)
-- [`var initialPreviewIndex: Int`](https://developer.apple.com/documentation/quicklook/qlpreviewsceneactivationconfiguration/options/initialpreviewindex)
 - [`var initialPreviewIndex: Int`](https://developer.apple.com/documentation/quicklook/qlpreviewsceneactivationconfiguration/options/initialpreviewindex)
 
 </details>

@@ -1,7 +1,7 @@
 # ExtensionFoundation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 11.5% of Apple's iOS API (9 of 78, exact) · **Rows:** 1: 1 🟡 · **iOS:** 16.0+
+**Symbols:** 10.4% of Apple's iOS API (8 of 77, exact) · **Rows:** 1: 1 🟡 · **iOS:** 16.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [ExtensionFoundation](https://developer.apple.com/documentation/extensionfoundation) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)

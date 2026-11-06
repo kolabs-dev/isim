@@ -1,7 +1,7 @@
 # Security
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 26.2% of Apple's iOS API (329 of 1256, exact) · **Rows:** 12: 10 ✅ 1 🟡 1 ❌ · **iOS:** 2.0+
+**Symbols:** 25.8% of Apple's iOS API (315 of 1221, exact) · **Rows:** 12: 10 ✅ 1 🟡 1 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Identity & security](../COVERAGE.md#security) · **Apple:** [Security](https://developer.apple.com/documentation/security) · **Issues:** [`area:security`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asecurity)
@@ -32,7 +32,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-927 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+906 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -51,37 +51,21 @@
 - [`var CE_CDNT_FullName: __CE_CrlDistributionPointNameType`](https://developer.apple.com/documentation/security/ce_cdnt_fullname)
 - [`var CE_CDNT_NameRelativeToCrlIssuer: __CE_CrlDistributionPointNameType`](https://developer.apple.com/documentation/security/ce_cdnt_namerelativetocrlissuer)
 - [`var CSSM_ACL_AUTHORIZATION_INTEGRITY: Int`](https://developer.apple.com/documentation/security/cssm_acl_authorization_integrity)
-- [`var CSSM_ACL_AUTHORIZATION_INTEGRITY: Int`](https://developer.apple.com/documentation/security/cssm_acl_authorization_integrity)
-- [`var CSSM_ACL_AUTHORIZATION_PARTITION_ID: Int`](https://developer.apple.com/documentation/security/cssm_acl_authorization_partition_id)
 - [`var CSSM_ACL_AUTHORIZATION_PARTITION_ID: Int`](https://developer.apple.com/documentation/security/cssm_acl_authorization_partition_id)
 - [`var CSSM_ACL_SUBJECT_TYPE_PARTITION: Int`](https://developer.apple.com/documentation/security/cssm_acl_subject_type_partition)
-- [`var CSSM_ACL_SUBJECT_TYPE_PARTITION: Int`](https://developer.apple.com/documentation/security/cssm_acl_subject_type_partition)
-- [`var CSSM_APPLE_PRIVATE_CSPDL_CODE_19: Int`](https://developer.apple.com/documentation/security/cssm_apple_private_cspdl_code_19)
 - [`var CSSM_APPLE_PRIVATE_CSPDL_CODE_19: Int`](https://developer.apple.com/documentation/security/cssm_apple_private_cspdl_code_19)
 - [`var CSSM_APPLE_PRIVATE_CSPDL_CODE_20: Int`](https://developer.apple.com/documentation/security/cssm_apple_private_cspdl_code_20)
-- [`var CSSM_APPLE_PRIVATE_CSPDL_CODE_20: Int`](https://developer.apple.com/documentation/security/cssm_apple_private_cspdl_code_20)
-- [`var CSSM_APPLE_PRIVATE_CSPDL_CODE_21: Int`](https://developer.apple.com/documentation/security/cssm_apple_private_cspdl_code_21)
 - [`var CSSM_APPLE_PRIVATE_CSPDL_CODE_21: Int`](https://developer.apple.com/documentation/security/cssm_apple_private_cspdl_code_21)
 - [`var CSSM_APPLE_PRIVATE_CSPDL_CODE_22: Int`](https://developer.apple.com/documentation/security/cssm_apple_private_cspdl_code_22)
-- [`var CSSM_APPLE_PRIVATE_CSPDL_CODE_22: Int`](https://developer.apple.com/documentation/security/cssm_apple_private_cspdl_code_22)
-- [`var CSSM_APPLE_PRIVATE_CSPDL_CODE_24: Int`](https://developer.apple.com/documentation/security/cssm_apple_private_cspdl_code_24)
 - [`var CSSM_APPLE_PRIVATE_CSPDL_CODE_24: Int`](https://developer.apple.com/documentation/security/cssm_apple_private_cspdl_code_24)
 - [`var CSSM_APPLE_PRIVATE_CSPDL_CODE_25: Int`](https://developer.apple.com/documentation/security/cssm_apple_private_cspdl_code_25)
-- [`var CSSM_APPLE_PRIVATE_CSPDL_CODE_25: Int`](https://developer.apple.com/documentation/security/cssm_apple_private_cspdl_code_25)
-- [`var CSSM_APPLE_PRIVATE_CSPDL_CODE_27: Int`](https://developer.apple.com/documentation/security/cssm_apple_private_cspdl_code_27)
 - [`var CSSM_APPLE_PRIVATE_CSPDL_CODE_27: Int`](https://developer.apple.com/documentation/security/cssm_apple_private_cspdl_code_27)
 - [`var CSSM_APPLEFILEDL_DELETE_FILE: Int`](https://developer.apple.com/documentation/security/cssm_applefiledl_delete_file)
-- [`var CSSM_APPLEFILEDL_DELETE_FILE: Int`](https://developer.apple.com/documentation/security/cssm_applefiledl_delete_file)
-- [`var CSSM_APPLEFILEDL_MAKE_BACKUP: Int`](https://developer.apple.com/documentation/security/cssm_applefiledl_make_backup)
 - [`var CSSM_APPLEFILEDL_MAKE_BACKUP: Int`](https://developer.apple.com/documentation/security/cssm_applefiledl_make_backup)
 - [`var CSSM_APPLEFILEDL_MAKE_COPY: Int`](https://developer.apple.com/documentation/security/cssm_applefiledl_make_copy)
-- [`var CSSM_APPLEFILEDL_MAKE_COPY: Int`](https://developer.apple.com/documentation/security/cssm_applefiledl_make_copy)
-- [`var CSSM_APPLEFILEDL_TAKE_FILE_LOCK: Int`](https://developer.apple.com/documentation/security/cssm_applefiledl_take_file_lock)
 - [`var CSSM_APPLEFILEDL_TAKE_FILE_LOCK: Int`](https://developer.apple.com/documentation/security/cssm_applefiledl_take_file_lock)
 - [`var CSSM_PADDING_SIGRAW: UInt32`](https://developer.apple.com/documentation/security/cssm_padding_sigraw)
 - [`var CSSM_WORDID_PARTITION: Int`](https://developer.apple.com/documentation/security/cssm_wordid_partition)
-- [`var CSSM_WORDID_PARTITION: Int`](https://developer.apple.com/documentation/security/cssm_wordid_partition)
-- [`var CSSMERR_APPLETP_CA_PIN_MISMATCH: Int`](https://developer.apple.com/documentation/security/cssmerr_appletp_ca_pin_mismatch)
 - [`var CSSMERR_APPLETP_CA_PIN_MISMATCH: Int`](https://developer.apple.com/documentation/security/cssmerr_appletp_ca_pin_mismatch)
 - [`var errSecACLAddFailed: OSStatus`](https://developer.apple.com/documentation/security/errsecacladdfailed)
 - [`var errSecACLChangeFailed: OSStatus`](https://developer.apple.com/documentation/security/errsecaclchangefailed)
@@ -336,7 +320,23 @@
 - [`var errSecNoCertificateModule: OSStatus`](https://developer.apple.com/documentation/security/errsecnocertificatemodule)
 - [`var errSecNoDefaultAuthority: OSStatus`](https://developer.apple.com/documentation/security/errsecnodefaultauthority)
 - [`var errSecNoDefaultKeychain: OSStatus`](https://developer.apple.com/documentation/security/errsecnodefaultkeychain)
-- … and 627 more (`isim/data/api-coverage.json.gz`)
+- [`var errSecNoFieldValues: OSStatus`](https://developer.apple.com/documentation/security/errsecnofieldvalues)
+- [`var errSecNoPolicyModule: OSStatus`](https://developer.apple.com/documentation/security/errsecnopolicymodule)
+- [`var errSecNoStorageModule: OSStatus`](https://developer.apple.com/documentation/security/errsecnostoragemodule)
+- [`var errSecNoSuchAttr: OSStatus`](https://developer.apple.com/documentation/security/errsecnosuchattr)
+- [`var errSecNoSuchClass: OSStatus`](https://developer.apple.com/documentation/security/errsecnosuchclass)
+- [`var errSecNotInitialized: OSStatus`](https://developer.apple.com/documentation/security/errsecnotinitialized)
+- [`var errSecNotLoggedIn: OSStatus`](https://developer.apple.com/documentation/security/errsecnotloggedin)
+- [`var errSecNoTrustSettings: OSStatus`](https://developer.apple.com/documentation/security/errsecnotrustsettings)
+- [`var errSecNotSigner: OSStatus`](https://developer.apple.com/documentation/security/errsecnotsigner)
+- [`var errSecOCSPBadRequest: OSStatus`](https://developer.apple.com/documentation/security/errsecocspbadrequest)
+- [`var errSecOCSPBadResponse: OSStatus`](https://developer.apple.com/documentation/security/errsecocspbadresponse)
+- [`var errSecOCSPNoSigner: OSStatus`](https://developer.apple.com/documentation/security/errsecocspnosigner)
+- [`var errSecOCSPNotTrustedToAnchor: OSStatus`](https://developer.apple.com/documentation/security/errsecocspnottrustedtoanchor)
+- [`var errSecOCSPResponderInternalError: OSStatus`](https://developer.apple.com/documentation/security/errsecocspresponderinternalerror)
+- [`var errSecOCSPResponderMalformedReq: OSStatus`](https://developer.apple.com/documentation/security/errsecocsprespondermalformedreq)
+- [`var errSecOCSPResponderSignatureRequired: OSStatus`](https://developer.apple.com/documentation/security/errsecocsprespondersignaturerequired)
+- … and 606 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

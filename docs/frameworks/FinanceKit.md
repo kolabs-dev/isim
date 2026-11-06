@@ -1,7 +1,7 @@
 # FinanceKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 100.0% of Apple's iOS API (190 of 190, exact) · **Rows:** 7: 6 ✅ 1 🧩 · **iOS:** 17.0+
+**Symbols:** 100.0% of Apple's iOS API (178 of 178, exact) · **Rows:** 7: 6 ✅ 1 🧩 · **iOS:** 17.0+
 <!-- /generated:header -->
 
 **Area:** [Commerce & privacy](../COVERAGE.md#commerce) · **Apple:** [FinanceKit](https://developer.apple.com/documentation/financekit) · **Issues:** [`area:commerce`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Acommerce)

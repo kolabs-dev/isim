@@ -1,7 +1,7 @@
 # CoreMotion
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 73.9% of Apple's iOS API (306 of 414, exact) · **Rows:** 6: 1 ✅ 2 🧩 3 ❌ · **iOS:** 4.0+
+**Symbols:** 72.7% of Apple's iOS API (282 of 388, exact) · **Rows:** 6: 1 ✅ 2 🧩 3 ❌ · **iOS:** 4.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [CoreMotion](https://developer.apple.com/documentation/coremotion) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -26,7 +26,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-108 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+106 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -34,7 +34,6 @@
 - [`var pressure: Measurement<UnitPressure>`](https://developer.apple.com/documentation/coremotion/cmambientpressuredata/pressure)
 - [`var temperature: Measurement<UnitTemperature>`](https://developer.apple.com/documentation/coremotion/cmambientpressuredata/temperature)
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/coremotion/cmattitude/init(coder:))
-- [`CMBodyIdentifiable`](https://developer.apple.com/documentation/coremotion/cmbodyidentifiable)
 - [`CMBodyIdentifiable`](https://developer.apple.com/documentation/coremotion/cmbodyidentifiable)
 - [`var headingAccuracy: Double`](https://developer.apple.com/documentation/coremotion/cmdevicemotion/headingaccuracy)
 - [`case `default``](https://developer.apple.com/documentation/coremotion/cmdevicemotion/sensorlocation-swift.enum/default)
@@ -92,7 +91,6 @@
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/coremotion/cmlogitem/init(coder:))
 - [`CMMotionActivityQueryHandler`](https://developer.apple.com/documentation/coremotion/cmmotionactivityqueryhandler)
 - [`class var authorizationStatus: CMAuthorizationStatus`](https://developer.apple.com/documentation/coremotion/cmmotionmanager/authorizationstatus)
-- [`var deviceMotionBody: (any CMBodyIdentifiable)?`](https://developer.apple.com/documentation/coremotion/cmmotionmanager/devicemotionbody)
 - [`var deviceMotionBody: (any CMBodyIdentifiable)?`](https://developer.apple.com/documentation/coremotion/cmmotionmanager/devicemotionbody)
 - [`CMOdometerData`](https://developer.apple.com/documentation/coremotion/cmodometerdata)
 - [`var deltaAltitude: CLLocationDistance`](https://developer.apple.com/documentation/coremotion/cmodometerdata/deltaaltitude)

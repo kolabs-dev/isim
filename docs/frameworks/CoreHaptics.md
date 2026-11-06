@@ -1,7 +1,7 @@
 # CoreHaptics
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 67.2% of Apple's iOS API (168 of 250, exact) · **Rows:** 6: 5 ✅ 1 🟡 · **iOS:** 13.0+
+**Symbols:** 88.0% of Apple's iOS API (183 of 208, exact) · **Rows:** 6: 5 ✅ 1 🟡 · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [Core Haptics](https://developer.apple.com/documentation/corehaptics) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -25,27 +25,12 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-82 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+25 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
 - [`let CHHapticAudioResourceKeyLoopEnabled: String`](https://developer.apple.com/documentation/corehaptics/chhapticaudioresourcekeyloopenabled)
-- [`let CHHapticAudioResourceKeyLoopEnabled: String`](https://developer.apple.com/documentation/corehaptics/chhapticaudioresourcekeyloopenabled)
 - [`let CHHapticAudioResourceKeyUseVolumeEnvelope: String`](https://developer.apple.com/documentation/corehaptics/chhapticaudioresourcekeyusevolumeenvelope)
-- [`let CHHapticAudioResourceKeyUseVolumeEnvelope: String`](https://developer.apple.com/documentation/corehaptics/chhapticaudioresourcekeyusevolumeenvelope)
-- [`static let audioAttackTimeControl: CHHapticDynamicParameter.ID`](https://developer.apple.com/documentation/corehaptics/chhapticdynamicparameter/id/audioattacktimecontrol)
-- [`static let audioBrightnessControl: CHHapticDynamicParameter.ID`](https://developer.apple.com/documentation/corehaptics/chhapticdynamicparameter/id/audiobrightnesscontrol)
-- [`static let audioDecayTimeControl: CHHapticDynamicParameter.ID`](https://developer.apple.com/documentation/corehaptics/chhapticdynamicparameter/id/audiodecaytimecontrol)
-- [`static let audioPanControl: CHHapticDynamicParameter.ID`](https://developer.apple.com/documentation/corehaptics/chhapticdynamicparameter/id/audiopancontrol)
-- [`static let audioPitchControl: CHHapticDynamicParameter.ID`](https://developer.apple.com/documentation/corehaptics/chhapticdynamicparameter/id/audiopitchcontrol)
-- [`static let audioReleaseTimeControl: CHHapticDynamicParameter.ID`](https://developer.apple.com/documentation/corehaptics/chhapticdynamicparameter/id/audioreleasetimecontrol)
-- [`static let audioVolumeControl: CHHapticDynamicParameter.ID`](https://developer.apple.com/documentation/corehaptics/chhapticdynamicparameter/id/audiovolumecontrol)
-- [`static let hapticAttackTimeControl: CHHapticDynamicParameter.ID`](https://developer.apple.com/documentation/corehaptics/chhapticdynamicparameter/id/hapticattacktimecontrol)
-- [`static let hapticDecayTimeControl: CHHapticDynamicParameter.ID`](https://developer.apple.com/documentation/corehaptics/chhapticdynamicparameter/id/hapticdecaytimecontrol)
-- [`static let hapticIntensityControl: CHHapticDynamicParameter.ID`](https://developer.apple.com/documentation/corehaptics/chhapticdynamicparameter/id/hapticintensitycontrol)
-- [`static let hapticReleaseTimeControl: CHHapticDynamicParameter.ID`](https://developer.apple.com/documentation/corehaptics/chhapticdynamicparameter/id/hapticreleasetimecontrol)
-- [`static let hapticSharpnessControl: CHHapticDynamicParameter.ID`](https://developer.apple.com/documentation/corehaptics/chhapticdynamicparameter/id/hapticsharpnesscontrol)
-- [`init(rawValue: String)`](https://developer.apple.com/documentation/corehaptics/chhapticdynamicparameter/id/init(rawvalue:))
 - [`init(andReturnError: ()) throws`](https://developer.apple.com/documentation/corehaptics/chhapticengine/init(andreturnerror:))
 - [`static var badEventEntry: CHHapticError.Code`](https://developer.apple.com/documentation/corehaptics/chhapticerror/badevententry)
 - [`static var badParameterEntry: CHHapticError.Code`](https://developer.apple.com/documentation/corehaptics/chhapticerror/badparameterentry)
@@ -66,50 +51,8 @@
 - [`static var serverInitFailed: CHHapticError.Code`](https://developer.apple.com/documentation/corehaptics/chhapticerror/serverinitfailed)
 - [`static var serverInterrupted: CHHapticError.Code`](https://developer.apple.com/documentation/corehaptics/chhapticerror/serverinterrupted)
 - [`static var unknownError: CHHapticError.Code`](https://developer.apple.com/documentation/corehaptics/chhapticerror/unknownerror)
-- [`static let audioContinuous: CHHapticEvent.EventType`](https://developer.apple.com/documentation/corehaptics/chhapticevent/eventtype/audiocontinuous)
-- [`static let audioCustom: CHHapticEvent.EventType`](https://developer.apple.com/documentation/corehaptics/chhapticevent/eventtype/audiocustom)
-- [`static let hapticContinuous: CHHapticEvent.EventType`](https://developer.apple.com/documentation/corehaptics/chhapticevent/eventtype/hapticcontinuous)
-- [`static let hapticTransient: CHHapticEvent.EventType`](https://developer.apple.com/documentation/corehaptics/chhapticevent/eventtype/haptictransient)
-- [`init(rawValue: String)`](https://developer.apple.com/documentation/corehaptics/chhapticevent/eventtype/init(rawvalue:))
-- [`static let attackTime: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/attacktime)
-- [`static let attackTime: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/attacktime)
-- [`static let audioBrightness: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/audiobrightness)
-- [`static let audioBrightness: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/audiobrightness)
-- [`static let audioPan: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/audiopan)
-- [`static let audioPan: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/audiopan)
-- [`static let audioPitch: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/audiopitch)
-- [`static let audioPitch: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/audiopitch)
-- [`static let audioVolume: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/audiovolume)
-- [`static let audioVolume: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/audiovolume)
-- [`static let decayTime: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/decaytime)
-- [`static let decayTime: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/decaytime)
-- [`static let hapticIntensity: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/hapticintensity)
-- [`static let hapticIntensity: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/hapticintensity)
-- [`static let hapticSharpness: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/hapticsharpness)
-- [`static let hapticSharpness: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/hapticsharpness)
-- [`init(rawValue: String)`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/init(rawvalue:))
-- [`init(rawValue: String)`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/init(rawvalue:))
-- [`static let releaseTime: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/releasetime)
-- [`static let releaseTime: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/releasetime)
-- [`static let sustained: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/sustained)
-- [`static let sustained: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/sustained)
 - [`init(contentsOfURL: URL) throws`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/init(contentsofurl:))
-- [`static let event: CHHapticPattern.Key`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/key/event)
-- [`static let eventDuration: CHHapticPattern.Key`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/key/eventduration)
-- [`static let eventParameters: CHHapticPattern.Key`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/key/eventparameters)
-- [`static let eventType: CHHapticPattern.Key`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/key/eventtype)
 - [`static let eventWaveformLoopEnabled: CHHapticPattern.Key`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/key/eventwaveformloopenabled)
-- [`static let eventWaveformPath: CHHapticPattern.Key`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/key/eventwaveformpath)
-- [`static let eventWaveformUseVolumeEnvelope: CHHapticPattern.Key`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/key/eventwaveformusevolumeenvelope)
-- [`init(rawValue: String)`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/key/init(rawvalue:))
-- [`static let parameter: CHHapticPattern.Key`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/key/parameter)
-- [`static let parameterCurve: CHHapticPattern.Key`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/key/parametercurve)
-- [`static let parameterCurveControlPoints: CHHapticPattern.Key`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/key/parametercurvecontrolpoints)
-- [`static let parameterID: CHHapticPattern.Key`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/key/parameterid)
-- [`static let parameterValue: CHHapticPattern.Key`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/key/parametervalue)
-- [`static let pattern: CHHapticPattern.Key`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/key/pattern)
-- [`static let time: CHHapticPattern.Key`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/key/time)
-- [`static let version: CHHapticPattern.Key`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/key/version)
 - [`let CoreHapticsErrorDomain: String`](https://developer.apple.com/documentation/corehaptics/corehapticserrordomain)
 
 </details>

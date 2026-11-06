@@ -1,7 +1,7 @@
 # ActivityKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 50.0% of Apple's iOS API (53 of 106, exact) · **Rows:** 1: 1 ✅ · **iOS:** 16.1+
+**Symbols:** 49.5% of Apple's iOS API (52 of 105, exact) · **Rows:** 1: 1 ✅ · **iOS:** 16.1+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [ActivityKit](https://developer.apple.com/documentation/activitykit) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)

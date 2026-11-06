@@ -1,7 +1,7 @@
 # CoreVideo
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 11.6% of Apple's iOS API (103 of 889, exact) · **Rows:** 9: 6 ✅ 3 ❌ · **iOS:** 4.0+
+**Symbols:** 12.0% of Apple's iOS API (106 of 883, exact) · **Rows:** 10: 6 ✅ 1 🟡 3 ❌ · **iOS:** 4.0+
 <!-- /generated:header -->
 
 **Area:** [Graphics & text](../COVERAGE.md#graphics) · **Apple:** [Core Video](https://developer.apple.com/documentation/corevideo) · **Issues:** [`area:graphics`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agraphics)
@@ -29,7 +29,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-786 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+777 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -136,8 +136,6 @@
 - [`Buffer`](https://developer.apple.com/documentation/corevideo/cvbufferrepresentable/buffer)
 - [`func withUnsafeBuffer<R>((Self.Buffer) throws -> sending R) rethrows -> sending R`](https://developer.apple.com/documentation/corevideo/cvbufferrepresentable/withunsafebuffer(_:))
 - [`func CVColorPrimariesGetIntegerCodePointForString(CFString?) -> Int32`](https://developer.apple.com/documentation/corevideo/cvcolorprimariesgetintegercodepointforstring(_:))
-- [`func CVColorPrimariesGetIntegerCodePointForString(CFString?) -> Int32`](https://developer.apple.com/documentation/corevideo/cvcolorprimariesgetintegercodepointforstring(_:))
-- [`func CVColorPrimariesGetStringForIntegerCodePoint(Int32) -> Unmanaged<CFString>?`](https://developer.apple.com/documentation/corevideo/cvcolorprimariesgetstringforintegercodepoint(_:))
 - [`func CVColorPrimariesGetStringForIntegerCodePoint(Int32) -> Unmanaged<CFString>?`](https://developer.apple.com/documentation/corevideo/cvcolorprimariesgetstringforintegercodepoint(_:))
 - [`CVEAGLContext`](https://developer.apple.com/documentation/corevideo/cveaglcontext)
 - [`CVError`](https://developer.apple.com/documentation/corevideo/cverror)
@@ -333,7 +331,9 @@
 - [`CVPixelBufferAttachmentKeyDefinitions`](https://developer.apple.com/documentation/corevideo/cvpixelbufferattachmentkeydefinitions)
 - [`static let proResRawMetadata: CVAttachmentCompositeKeyDefinition<CVPixelBufferAttachmentKeyDefinitions.ShouldPropagate, CVProResRawMetadata>`](https://developer.apple.com/documentation/corevideo/cvpixelbufferattachmentkeydefinitions/proresrawmetadata)
 - [`static let senselArrayPattern: CVAttachmentKeyDefinition<CVPixelBufferAttachmentKeyDefinitions.ShouldNotPropagate, CVSenselArrayPattern>`](https://developer.apple.com/documentation/corevideo/cvpixelbufferattachmentkeydefinitions/senselarraypattern)
-- … and 486 more (`isim/data/api-coverage.json.gz`)
+- [`CVPixelBufferAttributes`](https://developer.apple.com/documentation/corevideo/cvpixelbufferattributes)
+- [`var attachments: CVAttachmentContainer<CVPixelBufferAttachmentKeyDefinitions>?`](https://developer.apple.com/documentation/corevideo/cvpixelbufferattributes/attachments)
+- … and 477 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

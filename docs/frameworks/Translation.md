@@ -1,7 +1,7 @@
 # Translation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 100.0% of Apple's iOS API (68 of 68, exact) · **Rows:** 7: 3 ✅ 4 🟡 · **iOS:** 17.4+
+**Symbols:** 100.0% of Apple's iOS API (68 of 68, exact) · **Rows:** 8: 4 ✅ 4 🟡 · **iOS:** 17.4+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [Translation](https://developer.apple.com/documentation/translation) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)

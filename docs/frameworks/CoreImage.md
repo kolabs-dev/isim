@@ -1,7 +1,7 @@
 # CoreImage
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 97.7% of Apple's iOS API (2918 of 2986, exact) · **Rows:** 17: 11 ✅ 5 🟡 1 🧩 · **iOS:** 5.0+
+**Symbols:** 96.6% of Apple's iOS API (1844 of 1908, exact) · **Rows:** 17: 11 ✅ 5 🟡 1 🧩 · **iOS:** 5.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [CoreImage](https://developer.apple.com/documentation/coreimage) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)
@@ -37,7 +37,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-68 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+64 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -47,8 +47,6 @@
 - [`static let cvMetalTextureCache: CIContextOption`](https://developer.apple.com/documentation/coreimage/cicontextoption/cvmetaltexturecache)
 - [`init!(cvPixelBuffer: CVPixelBuffer!, properties: [AnyHashable : Any]!, options: [CIRAWFilterOption : Any]!)`](https://developer.apple.com/documentation/coreimage/cifilter-swift.class/init(cvpixelbuffer:properties:options:)-69695)
 - [`init!(CVPixelBuffer: CVPixelBuffer!, properties: [AnyHashable : Any]!, options: [CIRAWFilterOption : Any]!)`](https://developer.apple.com/documentation/coreimage/cifilter-swift.class/init(cvpixelbuffer:properties:options:)-7qpsv)
-- [`init!(CVPixelBuffer: CVPixelBuffer!, properties: [AnyHashable : Any]!, options: [CIRAWFilterOption : Any]!)`](https://developer.apple.com/documentation/coreimage/cifilter-swift.class/init(cvpixelbuffer:properties:options:)-7qpsv)
-- [`init?(name: String, withInputParameters: [String : Any]?)`](https://developer.apple.com/documentation/coreimage/cifilter-swift.class/init(name:withinputparameters:))
 - [`init?(name: String, withInputParameters: [String : Any]?)`](https://developer.apple.com/documentation/coreimage/cifilter-swift.class/init(name:withinputparameters:))
 - [`static let RGB10: CIFormat`](https://developer.apple.com/documentation/coreimage/ciformat/rgb10)
 - [`init(ioSurface: IOSurfaceRef)`](https://developer.apple.com/documentation/coreimage/ciimage/init(iosurface:)-5e9yc)
@@ -89,10 +87,8 @@
 - [`var isDespeckleSupported: Bool`](https://developer.apple.com/documentation/coreimage/cirawfilter/isdespecklesupported)
 - [`class func supportedCameraModels(with: CIRAWDecoderVersion) -> [String]`](https://developer.apple.com/documentation/coreimage/cirawfilter/supportedcameramodels(with:))
 - [`static let boostAmount: CIRAWFilterOption`](https://developer.apple.com/documentation/coreimage/cirawfilteroption/boostamount)
-- [`static let boostAmount: CIRAWFilterOption`](https://developer.apple.com/documentation/coreimage/cirawfilteroption/boostamount)
 - [`static let ciInputEnableEDRModeKey: CIRAWFilterOption`](https://developer.apple.com/documentation/coreimage/cirawfilteroption/ciinputenableedrmodekey)
 - [`static let ciInputLocalToneMapAmountKey: CIRAWFilterOption`](https://developer.apple.com/documentation/coreimage/cirawfilteroption/ciinputlocaltonemapamountkey)
-- [`static let disableGamutMap: CIRAWFilterOption`](https://developer.apple.com/documentation/coreimage/cirawfilteroption/disablegamutmap)
 - [`static let disableGamutMap: CIRAWFilterOption`](https://developer.apple.com/documentation/coreimage/cirawfilteroption/disablegamutmap)
 - [`static let propertiesKey: CIRAWFilterOption`](https://developer.apple.com/documentation/coreimage/cirawfilteroption/propertieskey)
 - [`init(GLTexture: UInt32, target: UInt32, width: Int, height: Int)`](https://developer.apple.com/documentation/coreimage/cirenderdestination/init(gltexture:target:width:height:)-6dbtl)

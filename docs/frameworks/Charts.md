@@ -1,7 +1,7 @@
 # Charts
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 81.4% of Apple's iOS API (485 of 596, exact) · **Rows:** 21: 20 ✅ 1 ❌ · **iOS:** 16.0+
+**Symbols:** 81.2% of Apple's iOS API (475 of 585, exact) · **Rows:** 21: 20 ✅ 1 ❌ · **iOS:** 16.0+
 <!-- /generated:header -->
 
 **Area:** [SwiftUI & Charts](../COVERAGE.md#swiftui) · **Apple:** [Charts](https://developer.apple.com/documentation/charts) · **Issues:** [`area:swiftui`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aswiftui)
@@ -39,7 +39,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-111 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+110 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -98,7 +98,6 @@
 - [`func positionRange<X, Y>(for: (x: X, y: Y)) -> CGRect?`](https://developer.apple.com/documentation/charts/chartproxy/positionrange(for:))
 - [`func value<P>(atAngle: Angle, as: P.Type) -> P?`](https://developer.apple.com/documentation/charts/chartproxy/value(atangle:as:))
 - [`func updateTarget(inout ScrollTarget, context: ChartScrollTargetBehaviorContext)`](https://developer.apple.com/documentation/charts/chartscrolltargetbehavior/updatetarget(_:context:))
-- [`func updateTarget(inout ScrollTarget, context: ScrollTargetBehaviorContext)`](https://developer.apple.com/documentation/charts/chartscrolltargetbehavior/updatetarget(_:context:)-8j5z4)
 - [`func updateTarget(inout ScrollTarget, context: ScrollTargetBehaviorContext)`](https://developer.apple.com/documentation/charts/chartscrolltargetbehavior/updatetarget(_:context:)-8j5z4)
 - [`static func valueAligned(matching: DateComponents, majorAlignment: MajorValueAlignment<Date>?, limitBehavior: ValueAlignedLimitBehavior) -> ValueAlignedChartScrollTargetBehavior`](https://developer.apple.com/documentation/charts/chartscrolltargetbehavior/valuealigned(matching:majoralignment:limitbehavior:))
 - [`static func valueAligned<P>(unit: P, majorAlignment: MajorValueAlignment<P>?, limitBehavior: ValueAlignedLimitBehavior) -> ValueAlignedChartScrollTargetBehavior`](https://developer.apple.com/documentation/charts/chartscrolltargetbehavior/valuealigned(unit:majoralignment:limitbehavior:))

@@ -1,7 +1,7 @@
 # CoreMedia
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 24.7% of Apple's iOS API (591 of 2394, exact) · **Rows:** 11: 7 ✅ 1 🟡 3 ❌ · **iOS:** 4.0+
+**Symbols:** 25.0% of Apple's iOS API (547 of 2191, exact) · **Rows:** 11: 7 ✅ 1 🟡 3 ❌ · **iOS:** 4.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [CoreMedia](https://developer.apple.com/documentation/coremedia) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -31,7 +31,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-1803 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+1644 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -335,7 +335,7 @@
 - [`static func fieldDetail(CMFormatDescription.Extensions.Value.FieldDetail) -> CMFormatDescription.Extensions.Value`](https://developer.apple.com/documentation/coremedia/cmformatdescription/extensions-swift.struct/value/fielddetail(_:))
 - [`static let spatialFirstLineEarly: CMFormatDescription.Extensions.Value.FieldDetail`](https://developer.apple.com/documentation/coremedia/cmformatdescription/extensions-swift.struct/value/fielddetail/spatialfirstlineearly)
 - [`static let spatialFirstLineLate: CMFormatDescription.Extensions.Value.FieldDetail`](https://developer.apple.com/documentation/coremedia/cmformatdescription/extensions-swift.struct/value/fielddetail/spatialfirstlinelate)
-- … and 1503 more (`isim/data/api-coverage.json.gz`)
+- … and 1344 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

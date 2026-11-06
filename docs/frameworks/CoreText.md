@@ -1,7 +1,7 @@
 # CoreText
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 24.4% of Apple's iOS API (543 of 2224, exact) · **Rows:** 20: 13 ✅ 6 🟡 1 ❌ · **iOS:** 3.2+
+**Symbols:** 24.1% of Apple's iOS API (534 of 2213, exact) · **Rows:** 20: 13 ✅ 6 🟡 1 ❌ · **iOS:** 3.2+
 <!-- /generated:header -->
 
 **Area:** [Graphics & text](../COVERAGE.md#graphics) · **Apple:** [CoreText](https://developer.apple.com/documentation/coretext) · **Issues:** [`area:graphics`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agraphics)
@@ -38,7 +38,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-1681 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+1679 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -342,7 +342,7 @@
 - [`var kCommonLigaturesOnSelector: Int`](https://developer.apple.com/documentation/coretext/kcommonligaturesonselector)
 - [`var kCompatibilityCompositionOffSelector: Int`](https://developer.apple.com/documentation/coretext/kcompatibilitycompositionoffselector)
 - [`var kCompatibilityCompositionOnSelector: Int`](https://developer.apple.com/documentation/coretext/kcompatibilitycompositiononselector)
-- … and 1381 more (`isim/data/api-coverage.json.gz`)
+- … and 1379 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

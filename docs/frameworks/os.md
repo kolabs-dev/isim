@@ -1,7 +1,7 @@
 # os and OSLog (logging)
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 87.3% of Apple's iOS API (214 of 245, exact) · **Rows:** 8: 8 ✅ · **iOS:** 8.0+
+**Symbols:** 86.8% of Apple's iOS API (198 of 228, exact) · **Rows:** 8: 8 ✅ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [os](https://developer.apple.com/documentation/os) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)
@@ -26,7 +26,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-31 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+30 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -58,7 +58,6 @@
 - [`func appendInterpolation(@autoclosure () -> (any Error)?, privacy: OSLogPrivacy, attributes: String)`](https://developer.apple.com/documentation/os/osloginterpolation/appendinterpolation(_:privacy:attributes:)-6vtcc)
 - [`func appendInterpolation(@autoclosure () -> NSObject?, privacy: OSLogPrivacy, attributes: String)`](https://developer.apple.com/documentation/os/osloginterpolation/appendinterpolation(_:privacy:attributes:)-9eafm)
 - [`func beginAnimationInterval(StaticString, id: OSSignpostID) -> OSSignpostIntervalState`](https://developer.apple.com/documentation/os/ossignposter/beginanimationinterval(_:id:))
-- [`init(UInt8)`](https://developer.apple.com/documentation/os/ossignposttype/init(_:))
 - [`init(UInt8)`](https://developer.apple.com/documentation/os/ossignposttype/init(_:))
 - [`SignpostMetadata`](https://developer.apple.com/documentation/os/signpostmetadata)
 

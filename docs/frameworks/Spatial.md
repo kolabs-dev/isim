@@ -1,7 +1,7 @@
 # Spatial
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 55.6% of Apple's iOS API (817 of 1469, exact) · **Rows:** 11: 8 ✅ 3 ❌ · **iOS:** 16.0+
+**Symbols:** 50.6% of Apple's iOS API (652 of 1289, exact) · **Rows:** 11: 8 ✅ 3 ❌ · **iOS:** 16.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [Spatial](https://developer.apple.com/documentation/spatial) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)
@@ -43,7 +43,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-652 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+637 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -238,14 +238,8 @@
 - [`Primitive3DProtocol`](https://developer.apple.com/documentation/spatial/primitive3dprotocol)
 - [`func apply(Self.Pose)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/apply(_:)-1qcu6)
 - [`func apply(Self.ProjectiveTransform)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/apply(_:)-2ch0y)
-- [`func apply(Self.ProjectiveTransform)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/apply(_:)-2ch0y)
-- [`func apply(Self.ProjectiveTransform)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/apply(_:)-2ch0y)
-- [`func apply(Self.AffineTransform)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/apply(_:)-2zt51)
-- [`func apply(Self.AffineTransform)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/apply(_:)-2zt51)
 - [`func apply(Self.AffineTransform)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/apply(_:)-2zt51)
 - [`func apply(Self.ProjectiveTransform)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/apply(_:)-3bne6)
-- [`func apply(Self.Pose)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/apply(_:)-40ngr)
-- [`func apply(Self.Pose)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/apply(_:)-40ngr)
 - [`func apply(Self.Pose)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/apply(_:)-40ngr)
 - [`func apply(Self.AffineTransform)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/apply(_:)-6b1fd)
 - [`func applying(Self.AffineTransform) -> Self`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/applying(_:)-1tt2b)
@@ -257,14 +251,8 @@
 - [`var isZero: Bool`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/iszero)
 - [`func unapply(Self.ProjectiveTransform)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/unapply(_:)-22esh)
 - [`func unapply(Self.Pose)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/unapply(_:)-2vz7p)
-- [`func unapply(Self.Pose)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/unapply(_:)-2vz7p)
-- [`func unapply(Self.Pose)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/unapply(_:)-2vz7p)
-- [`func unapply(Self.AffineTransform)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/unapply(_:)-2wwwi)
-- [`func unapply(Self.AffineTransform)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/unapply(_:)-2wwwi)
 - [`func unapply(Self.AffineTransform)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/unapply(_:)-2wwwi)
 - [`func unapply(Self.AffineTransform)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/unapply(_:)-34afa)
-- [`func unapply(Self.ProjectiveTransform)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/unapply(_:)-4ip05)
-- [`func unapply(Self.ProjectiveTransform)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/unapply(_:)-4ip05)
 - [`func unapply(Self.ProjectiveTransform)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/unapply(_:)-4ip05)
 - [`func unapply(Self.Pose)`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/unapply(_:)-5dfj2)
 - [`func unapplying(Self.ProjectiveTransform) -> Self`](https://developer.apple.com/documentation/spatial/primitive3dprotocol/unapplying(_:)-1px2q)
@@ -308,7 +296,6 @@
 - [`ProjectiveTransformable3D`](https://developer.apple.com/documentation/spatial/projectivetransformable3d)
 - [`func applying(ProjectiveTransform3D) -> Self`](https://developer.apple.com/documentation/spatial/projectivetransformable3d/applying(_:))
 - [`func applying(ProjectiveTransform3D) -> Self`](https://developer.apple.com/documentation/spatial/projectivetransformable3d/applying(_:)-30uk5)
-- [`func applying(ProjectiveTransform3D) -> Self`](https://developer.apple.com/documentation/spatial/projectivetransformable3d/applying(_:)-30uk5)
 - [`ProjectiveTransformable3DFloat`](https://developer.apple.com/documentation/spatial/projectivetransformable3dfloat)
 - [`func applying(ProjectiveTransform3DFloat) -> Self`](https://developer.apple.com/documentation/spatial/projectivetransformable3dfloat/applying(_:))
 - [`init(Ray3DFloat)`](https://developer.apple.com/documentation/spatial/ray3d/init(_:))
@@ -347,7 +334,20 @@
 - [`init(Rect3DFloat)`](https://developer.apple.com/documentation/spatial/rect3d/init(_:)-3wm4y)
 - [`init(BoundingBox)`](https://developer.apple.com/documentation/spatial/rect3d/init(_:)-b16k)
 - [`Rect3DFloat`](https://developer.apple.com/documentation/spatial/rect3dfloat)
-- … and 352 more (`isim/data/api-coverage.json.gz`)
+- [`static func * (ProjectiveTransform3DFloat, Rect3DFloat) -> Rect3DFloat`](https://developer.apple.com/documentation/spatial/rect3dfloat/*(_:_:)-1iaiz)
+- [`static func * (Pose3DFloat, Rect3DFloat) -> Rect3DFloat`](https://developer.apple.com/documentation/spatial/rect3dfloat/*(_:_:)-1xai0)
+- [`static func * (AffineTransform3DFloat, Rect3DFloat) -> Rect3DFloat`](https://developer.apple.com/documentation/spatial/rect3dfloat/*(_:_:)-2fdne)
+- [`static func == (Rect3DFloat, Rect3DFloat) -> Bool`](https://developer.apple.com/documentation/spatial/rect3dfloat/==(_:_:))
+- [`func applying(ScaledPose3DFloat) -> Rect3DFloat`](https://developer.apple.com/documentation/spatial/rect3dfloat/applying(_:)-7i8x5)
+- [`func applying(Pose3DFloat) -> Rect3DFloat`](https://developer.apple.com/documentation/spatial/rect3dfloat/applying(_:)-9tknk)
+- [`var center: Point3DFloat`](https://developer.apple.com/documentation/spatial/rect3dfloat/center)
+- [`func contains(anyOf: [Point3DFloat]) -> Bool`](https://developer.apple.com/documentation/spatial/rect3dfloat/contains(anyof:))
+- [`var cornerPoints: [Point3DFloat]`](https://developer.apple.com/documentation/spatial/rect3dfloat/cornerpoints)
+- [`var customMirror: Mirror`](https://developer.apple.com/documentation/spatial/rect3dfloat/custommirror)
+- [`func encode(to: any Encoder) throws`](https://developer.apple.com/documentation/spatial/rect3dfloat/encode(to:))
+- [`func formInset(by: Size3DFloat)`](https://developer.apple.com/documentation/spatial/rect3dfloat/forminset(by:))
+- [`func hash(into: inout Hasher)`](https://developer.apple.com/documentation/spatial/rect3dfloat/hash(into:))
+- … and 337 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

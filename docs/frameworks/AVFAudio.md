@@ -1,7 +1,7 @@
 # AVFAudio
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 73.3% of Apple's iOS API (1063 of 1450, exact) · **Rows:** 15: 13 ✅ 2 ❌ · **iOS:** 14.5+
+**Symbols:** 73.7% of Apple's iOS API (1040 of 1412, exact) · **Rows:** 15: 13 ✅ 2 ❌ · **iOS:** 14.5+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [AVFAudio](https://developer.apple.com/documentation/avfaudio) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -35,7 +35,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-387 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+372 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -189,7 +189,6 @@
 - [`static let dualRoute: AVAudioSession.Mode`](https://developer.apple.com/documentation/avfaudio/avaudiosession/mode-swift.struct/dualroute)
 - [`static let shortFormVideo: AVAudioSession.Mode`](https://developer.apple.com/documentation/avfaudio/avaudiosession/mode-swift.struct/shortformvideo)
 - [`class let muteStateKey: String`](https://developer.apple.com/documentation/avfaudio/avaudiosession/mutestatekey)
-- [`class let muteStateKey: String`](https://developer.apple.com/documentation/avfaudio/avaudiosession/mutestatekey)
 - [`AVAudioSession.Orientation`](https://developer.apple.com/documentation/avfaudio/avaudiosession/orientation)
 - [`static let back: AVAudioSession.Orientation`](https://developer.apple.com/documentation/avfaudio/avaudiosession/orientation/back)
 - [`static let bottom: AVAudioSession.Orientation`](https://developer.apple.com/documentation/avfaudio/avaudiosession/orientation/bottom)
@@ -211,7 +210,6 @@
 - [`static let continuityMicrophone: AVAudioSession.Port`](https://developer.apple.com/documentation/avfaudio/avaudiosession/port/continuitymicrophone)
 - [`static let displayPort: AVAudioSession.Port`](https://developer.apple.com/documentation/avfaudio/avaudiosession/port/displayport)
 - [`static let fireWire: AVAudioSession.Port`](https://developer.apple.com/documentation/avfaudio/avaudiosession/port/firewire)
-- [`static let mediaDeviceExtension: AVAudioSession.Port`](https://developer.apple.com/documentation/avfaudio/avaudiosession/port/mediadeviceextension)
 - [`static let mediaDeviceExtension: AVAudioSession.Port`](https://developer.apple.com/documentation/avfaudio/avaudiosession/port/mediadeviceextension)
 - [`static let PCI: AVAudioSession.Port`](https://developer.apple.com/documentation/avfaudio/avaudiosession/port/pci)
 - [`static let thunderbolt: AVAudioSession.Port`](https://developer.apple.com/documentation/avfaudio/avaudiosession/port/thunderbolt)
@@ -273,7 +271,6 @@
 - [`case portraitUpsideDown`](https://developer.apple.com/documentation/avfaudio/avaudiosession/stereoorientation/portraitupsidedown)
 - [`var supportedOutputChannelLayouts: [AVAudioChannelLayout]`](https://developer.apple.com/documentation/avfaudio/avaudiosession/supportedoutputchannellayouts)
 - [`var supportsMultichannelContent: Bool`](https://developer.apple.com/documentation/avfaudio/avaudiosession/supportsmultichannelcontent)
-- [`class let userIntentToUnmuteOutputNotification: NSNotification.Name`](https://developer.apple.com/documentation/avfaudio/avaudiosession/userintenttounmuteoutputnotification)
 - [`class let userIntentToUnmuteOutputNotification: NSNotification.Name`](https://developer.apple.com/documentation/avfaudio/avaudiosession/userintenttounmuteoutputnotification)
 - [`AVAudioSessionActivationOptions`](https://developer.apple.com/documentation/avfaudio/avaudiosessionactivationoptions)
 - [`init(rawValue: UInt)`](https://developer.apple.com/documentation/avfaudio/avaudiosessionactivationoptions/init(rawvalue:))
@@ -339,7 +336,10 @@
 - [`var standardLocalizedTagNames: [String]`](https://developer.apple.com/documentation/avfaudio/avaudiounitcomponentmanager/standardlocalizedtagnames)
 - [`var tagNames: [String]`](https://developer.apple.com/documentation/avfaudio/avaudiounitcomponentmanager/tagnames)
 - [`let AVAudioUnitManufacturerNameApple: String`](https://developer.apple.com/documentation/avfaudio/avaudiounitmanufacturernameapple)
-- … and 87 more (`isim/data/api-coverage.json.gz`)
+- [`case outdoorGeneral`](https://developer.apple.com/documentation/avfaudio/avaudiounitreverbpreset/outdoorgeneral)
+- [`let AVAudioUnitTypeEffect: String`](https://developer.apple.com/documentation/avfaudio/avaudiounittypeeffect)
+- [`let AVAudioUnitTypeFormatConverter: String`](https://developer.apple.com/documentation/avfaudio/avaudiounittypeformatconverter)
+- … and 72 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

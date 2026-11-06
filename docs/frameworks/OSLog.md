@@ -1,7 +1,7 @@
 # OSLog
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 87.8% of Apple's iOS API (86 of 98, exact) · **iOS:** 15.0+
+**Symbols:** 87.2% of Apple's iOS API (82 of 94, exact) · **iOS:** 15.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [OSLog](https://developer.apple.com/documentation/oslog) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)

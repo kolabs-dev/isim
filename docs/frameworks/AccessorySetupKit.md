@@ -1,7 +1,7 @@
 # AccessorySetupKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 39.0% of Apple's iOS API (78 of 200, exact) · **Rows:** 1: 1 🧩 · **iOS:** 18.0+
+**Symbols:** 34.8% of Apple's iOS API (54 of 155, exact) · **Rows:** 1: 1 🧩 · **iOS:** 18.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [AccessorySetupKit](https://developer.apple.com/documentation/accessorysetupkit) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -24,32 +24,18 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-122 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+101 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
 - [`ASAccessory.AccessoryState`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/accessorystate)
-- [`ASAccessory.AccessoryState`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/accessorystate)
-- [`ASAccessory.AccessoryState`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/accessorystate)
-- [`case authorized`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/accessorystate/authorized)
-- [`case authorized`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/accessorystate/authorized)
 - [`case authorized`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/accessorystate/authorized)
 - [`case awaitingAuthorization`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/accessorystate/awaitingauthorization)
-- [`case awaitingAuthorization`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/accessorystate/awaitingauthorization)
-- [`case awaitingAuthorization`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/accessorystate/awaitingauthorization)
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/accessorystate/init(rawvalue:))
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/accessorystate/init(rawvalue:))
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/accessorystate/init(rawvalue:))
-- [`case unauthorized`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/accessorystate/unauthorized)
-- [`case unauthorized`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/accessorystate/unauthorized)
 - [`case unauthorized`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/accessorystate/unauthorized)
 - [`var bluetoothTransportBridgingIdentifier: Data?`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/bluetoothtransportbridgingidentifier)
-- [`var bluetoothTransportBridgingIdentifier: Data?`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/bluetoothtransportbridgingidentifier)
-- [`ASAccessory.RenameOptions`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/renameoptions)
 - [`ASAccessory.RenameOptions`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/renameoptions)
 - [`init(rawValue: UInt)`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/renameoptions/init(rawvalue:))
-- [`init(rawValue: UInt)`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/renameoptions/init(rawvalue:))
-- [`static var ssid: ASAccessory.RenameOptions`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/renameoptions/ssid)
 - [`static var ssid: ASAccessory.RenameOptions`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/renameoptions/ssid)
 - [`ASAccessory.SupportOptions`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/supportoptions)
 - [`static var bluetoothHID: ASAccessory.SupportOptions`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/supportoptions/bluetoothhid)
@@ -57,10 +43,7 @@
 - [`static var bluetoothTransportBridging: ASAccessory.SupportOptions`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/supportoptions/bluetoothtransportbridging)
 - [`init(rawValue: UInt)`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/supportoptions/init(rawvalue:))
 - [`var wifiAwarePairedDeviceID: ASAccessory.WiFiAwarePairedDeviceID`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/wifiawarepaireddeviceid-swift.property)
-- [`var wifiAwarePairedDeviceID: ASAccessory.WiFiAwarePairedDeviceID`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/wifiawarepaireddeviceid-swift.property)
 - [`ASAccessory.WiFiAwarePairedDeviceID`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/wifiawarepaireddeviceid-swift.typealias)
-- [`ASAccessory.WiFiAwarePairedDeviceID`](https://developer.apple.com/documentation/accessorysetupkit/asaccessory/wifiawarepaireddeviceid-swift.typealias)
-- [`case accessoryDiscovered`](https://developer.apple.com/documentation/accessorysetupkit/asaccessoryeventtype/accessorydiscovered)
 - [`case accessoryDiscovered`](https://developer.apple.com/documentation/accessorysetupkit/asaccessoryeventtype/accessorydiscovered)
 - [`func failAuthorization(for: ASAccessory, completionHandler: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/accessorysetupkit/asaccessorysession/failauthorization(for:completionhandler:))
 - [`func finishAuthorization(for: ASAccessory, settings: ASAccessorySettings, completionHandler: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/accessorysetupkit/asaccessorysession/finishauthorization(for:settings:completionhandler:))
@@ -74,8 +57,6 @@
 - [`class var `default`: ASAccessorySettings`](https://developer.apple.com/documentation/accessorysetupkit/asaccessorysettings/default)
 - [`var ssid: String?`](https://developer.apple.com/documentation/accessorysetupkit/asaccessorysettings/ssid)
 - [`init(UInt16)`](https://developer.apple.com/documentation/accessorysetupkit/asbluetoothcompanyidentifier/init(_:))
-- [`init(UInt16)`](https://developer.apple.com/documentation/accessorysetupkit/asbluetoothcompanyidentifier/init(_:))
-- [`init(rawValue: UInt16)`](https://developer.apple.com/documentation/accessorysetupkit/asbluetoothcompanyidentifier/init(rawvalue:))
 - [`init(rawValue: UInt16)`](https://developer.apple.com/documentation/accessorysetupkit/asbluetoothcompanyidentifier/init(rawvalue:))
 - [`ASDiscoveredAccessory`](https://developer.apple.com/documentation/accessorysetupkit/asdiscoveredaccessory)
 - [`var bluetoothAdvertisementData: [AnyHashable : Any]?`](https://developer.apple.com/documentation/accessorysetupkit/asdiscoveredaccessory/bluetoothadvertisementdata)
@@ -114,7 +95,6 @@
 - [`static var connectionFailed: ASError.Code`](https://developer.apple.com/documentation/accessorysetupkit/aserror/connectionfailed)
 - [`static var discoveryTimeout: ASError.Code`](https://developer.apple.com/documentation/accessorysetupkit/aserror/discoverytimeout)
 - [`static var errorDomain: String`](https://developer.apple.com/documentation/accessorysetupkit/aserror/errordomain)
-- [`static var errorDomain: String`](https://developer.apple.com/documentation/accessorysetupkit/aserror/errordomain)
 - [`static var extensionNotFound: ASError.Code`](https://developer.apple.com/documentation/accessorysetupkit/aserror/extensionnotfound)
 - [`static var invalidated: ASError.Code`](https://developer.apple.com/documentation/accessorysetupkit/aserror/invalidated)
 - [`static var invalidRequest: ASError.Code`](https://developer.apple.com/documentation/accessorysetupkit/aserror/invalidrequest)
@@ -133,7 +113,6 @@
 - [`init(rawValue: UInt)`](https://developer.apple.com/documentation/accessorysetupkit/aspickerdisplayitem/setupoptions-swift.struct/init(rawvalue:))
 - [`static var rename: ASPickerDisplayItem.SetupOptions`](https://developer.apple.com/documentation/accessorysetupkit/aspickerdisplayitem/setupoptions-swift.struct/rename)
 - [`ASPickerDisplaySettings`](https://developer.apple.com/documentation/accessorysetupkit/aspickerdisplaysettings)
-- [`class var `default`: ASPickerDisplaySettings`](https://developer.apple.com/documentation/accessorysetupkit/aspickerdisplaysettings/default)
 - [`class var `default`: ASPickerDisplaySettings`](https://developer.apple.com/documentation/accessorysetupkit/aspickerdisplaysettings/default)
 - [`var discoveryTimeout: ASPickerDisplaySettings.DiscoveryTimeout`](https://developer.apple.com/documentation/accessorysetupkit/aspickerdisplaysettings/discoverytimeout-swift.property)
 - [`ASPickerDisplaySettings.DiscoveryTimeout`](https://developer.apple.com/documentation/accessorysetupkit/aspickerdisplaysettings/discoverytimeout-swift.struct)

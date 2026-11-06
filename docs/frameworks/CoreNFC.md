@@ -1,7 +1,7 @@
 # CoreNFC
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 60.7% of Apple's iOS API (281 of 463, exact) · **Rows:** 6: 4 🧩 2 ❌ · **iOS:** 11.0+
+**Symbols:** 59.2% of Apple's iOS API (245 of 414, exact) · **Rows:** 6: 4 🧩 2 ❌ · **iOS:** 11.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [CoreNFC](https://developer.apple.com/documentation/corenfc) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -27,40 +27,27 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-182 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+169 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
 - [`CardSession`](https://developer.apple.com/documentation/corenfc/cardsession)
 - [`var alertMessage: String`](https://developer.apple.com/documentation/corenfc/cardsession/alertmessage)
 - [`CardSession.APDU`](https://developer.apple.com/documentation/corenfc/cardsession/apdu)
-- [`CardSession.APDU`](https://developer.apple.com/documentation/corenfc/cardsession/apdu)
 - [`let payload: Data`](https://developer.apple.com/documentation/corenfc/cardsession/apdu/payload)
-- [`let payload: Data`](https://developer.apple.com/documentation/corenfc/cardsession/apdu/payload)
-- [`func respond(response: Data) async throws`](https://developer.apple.com/documentation/corenfc/cardsession/apdu/respond(response:))
 - [`func respond(response: Data) async throws`](https://developer.apple.com/documentation/corenfc/cardsession/apdu/respond(response:))
 - [`CardSession.EmulationUIStatus`](https://developer.apple.com/documentation/corenfc/cardsession/emulationuistatus)
 - [`case failure`](https://developer.apple.com/documentation/corenfc/cardsession/emulationuistatus/failure)
 - [`case success`](https://developer.apple.com/documentation/corenfc/cardsession/emulationuistatus/success)
 - [`CardSession.Error`](https://developer.apple.com/documentation/corenfc/cardsession/error)
-- [`CardSession.Error`](https://developer.apple.com/documentation/corenfc/cardsession/error)
-- [`case accessNotAccepted`](https://developer.apple.com/documentation/corenfc/cardsession/error/accessnotaccepted)
 - [`case accessNotAccepted`](https://developer.apple.com/documentation/corenfc/cardsession/error/accessnotaccepted)
 - [`case emulationStopped`](https://developer.apple.com/documentation/corenfc/cardsession/error/emulationstopped)
-- [`case emulationStopped`](https://developer.apple.com/documentation/corenfc/cardsession/error/emulationstopped)
-- [`case invalidated`](https://developer.apple.com/documentation/corenfc/cardsession/error/invalidated)
 - [`case invalidated`](https://developer.apple.com/documentation/corenfc/cardsession/error/invalidated)
 - [`case maxSessionDurationReached`](https://developer.apple.com/documentation/corenfc/cardsession/error/maxsessiondurationreached)
-- [`case maxSessionDurationReached`](https://developer.apple.com/documentation/corenfc/cardsession/error/maxsessiondurationreached)
-- [`case radioDisabled`](https://developer.apple.com/documentation/corenfc/cardsession/error/radiodisabled)
 - [`case radioDisabled`](https://developer.apple.com/documentation/corenfc/cardsession/error/radiodisabled)
 - [`case systemEligibilityFailed`](https://developer.apple.com/documentation/corenfc/cardsession/error/systemeligibilityfailed)
-- [`case systemEligibilityFailed`](https://developer.apple.com/documentation/corenfc/cardsession/error/systemeligibilityfailed)
-- [`case systemNotAvailable`](https://developer.apple.com/documentation/corenfc/cardsession/error/systemnotavailable)
 - [`case systemNotAvailable`](https://developer.apple.com/documentation/corenfc/cardsession/error/systemnotavailable)
 - [`case transmissionError`](https://developer.apple.com/documentation/corenfc/cardsession/error/transmissionerror)
-- [`case transmissionError`](https://developer.apple.com/documentation/corenfc/cardsession/error/transmissionerror)
-- [`case userInvalidated`](https://developer.apple.com/documentation/corenfc/cardsession/error/userinvalidated)
 - [`case userInvalidated`](https://developer.apple.com/documentation/corenfc/cardsession/error/userinvalidated)
 - [`CardSession.Event`](https://developer.apple.com/documentation/corenfc/cardsession/event)
 - [`case readerDeselected`](https://developer.apple.com/documentation/corenfc/cardsession/event/readerdeselected)

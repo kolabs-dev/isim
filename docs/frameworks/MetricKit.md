@@ -1,7 +1,7 @@
 # MetricKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 91.2% of Apple's iOS API (618 of 678, exact) · **Rows:** 4: 3 ✅ 1 ❌ · **iOS:** 13.0+
+**Symbols:** 93.6% of Apple's iOS API (514 of 549, exact) · **Rows:** 4: 3 ✅ 1 ❌ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [MetricKit](https://developer.apple.com/documentation/metrickit) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)
@@ -22,13 +22,12 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-60 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+35 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
 - [`var hitchTimeRatio: Measurement<Unit>`](https://developer.apple.com/documentation/metrickit/mxanimationmetric/hitchtimeratio)
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/metrickit/mxaverage/init(coder:))
-- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/metrickit/mxbackgroundexitdata/init(coder:))
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/metrickit/mxbackgroundexitdata/init(coder:))
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/metrickit/mxcallstacktree/init(coder:))
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/metrickit/mxcrashdiagnosticobjectivecexceptionreason/init(coder:))
@@ -36,28 +35,12 @@
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/metrickit/mxdiagnosticpayload/init(coder:))
 - [`MXError`](https://developer.apple.com/documentation/metrickit/mxerror)
 - [`MXError.Code`](https://developer.apple.com/documentation/metrickit/mxerror/code)
-- [`MXError.Code`](https://developer.apple.com/documentation/metrickit/mxerror/code)
-- [`MXError.Code`](https://developer.apple.com/documentation/metrickit/mxerror/code)
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/metrickit/mxerror/code/init(rawvalue:))
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/metrickit/mxerror/code/init(rawvalue:))
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/metrickit/mxerror/code/init(rawvalue:))
 - [`case launchTaskDuplicated`](https://developer.apple.com/documentation/metrickit/mxerror/code/launchtaskduplicated)
-- [`case launchTaskDuplicated`](https://developer.apple.com/documentation/metrickit/mxerror/code/launchtaskduplicated)
-- [`case launchTaskDuplicated`](https://developer.apple.com/documentation/metrickit/mxerror/code/launchtaskduplicated)
-- [`case launchTaskInternalFailure`](https://developer.apple.com/documentation/metrickit/mxerror/code/launchtaskinternalfailure)
-- [`case launchTaskInternalFailure`](https://developer.apple.com/documentation/metrickit/mxerror/code/launchtaskinternalfailure)
 - [`case launchTaskInternalFailure`](https://developer.apple.com/documentation/metrickit/mxerror/code/launchtaskinternalfailure)
 - [`case launchTaskInvalidID`](https://developer.apple.com/documentation/metrickit/mxerror/code/launchtaskinvalidid)
-- [`case launchTaskInvalidID`](https://developer.apple.com/documentation/metrickit/mxerror/code/launchtaskinvalidid)
-- [`case launchTaskInvalidID`](https://developer.apple.com/documentation/metrickit/mxerror/code/launchtaskinvalidid)
-- [`case launchTaskMaxCount`](https://developer.apple.com/documentation/metrickit/mxerror/code/launchtaskmaxcount)
-- [`case launchTaskMaxCount`](https://developer.apple.com/documentation/metrickit/mxerror/code/launchtaskmaxcount)
 - [`case launchTaskMaxCount`](https://developer.apple.com/documentation/metrickit/mxerror/code/launchtaskmaxcount)
 - [`case launchTaskPastDeadline`](https://developer.apple.com/documentation/metrickit/mxerror/code/launchtaskpastdeadline)
-- [`case launchTaskPastDeadline`](https://developer.apple.com/documentation/metrickit/mxerror/code/launchtaskpastdeadline)
-- [`case launchTaskPastDeadline`](https://developer.apple.com/documentation/metrickit/mxerror/code/launchtaskpastdeadline)
-- [`case launchTaskUnknown`](https://developer.apple.com/documentation/metrickit/mxerror/code/launchtaskunknown)
-- [`case launchTaskUnknown`](https://developer.apple.com/documentation/metrickit/mxerror/code/launchtaskunknown)
 - [`case launchTaskUnknown`](https://developer.apple.com/documentation/metrickit/mxerror/code/launchtaskunknown)
 - [`static var errorDomain: String`](https://developer.apple.com/documentation/metrickit/mxerror/errordomain)
 - [`static var launchTaskDuplicated: MXError.Code`](https://developer.apple.com/documentation/metrickit/mxerror/launchtaskduplicated)
@@ -67,23 +50,15 @@
 - [`static var launchTaskPastDeadline: MXError.Code`](https://developer.apple.com/documentation/metrickit/mxerror/launchtaskpastdeadline)
 - [`static var launchTaskUnknown: MXError.Code`](https://developer.apple.com/documentation/metrickit/mxerror/launchtaskunknown)
 - [`let MXErrorDomain: String`](https://developer.apple.com/documentation/metrickit/mxerrordomain)
-- [`let MXErrorDomain: String`](https://developer.apple.com/documentation/metrickit/mxerrordomain)
-- [`let MXErrorDomain: String`](https://developer.apple.com/documentation/metrickit/mxerrordomain)
-- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/metrickit/mxforegroundexitdata/init(coder:))
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/metrickit/mxforegroundexitdata/init(coder:))
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/metrickit/mxhistogram/init(coder:))
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/metrickit/mxhistogrambucket/init(coder:))
-- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/metrickit/mxhistogrambucket/init(coder:))
-- [`MXLaunchTaskID`](https://developer.apple.com/documentation/metrickit/mxlaunchtaskid)
 - [`MXLaunchTaskID`](https://developer.apple.com/documentation/metrickit/mxlaunchtaskid)
 - [`init(String)`](https://developer.apple.com/documentation/metrickit/mxlaunchtaskid/init(_:))
-- [`init(String)`](https://developer.apple.com/documentation/metrickit/mxlaunchtaskid/init(_:))
-- [`init(rawValue: String)`](https://developer.apple.com/documentation/metrickit/mxlaunchtaskid/init(rawvalue:))
 - [`init(rawValue: String)`](https://developer.apple.com/documentation/metrickit/mxlaunchtaskid/init(rawvalue:))
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/metrickit/mxmetadata/init(coder:))
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/metrickit/mxmetric/init(coder:))
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/metrickit/mxmetricpayload/init(coder:))
-- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/metrickit/mxsignpostintervaldata/init(coder:))
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/metrickit/mxsignpostintervaldata/init(coder:))
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/metrickit/mxsignpostrecord/init(coder:))
 

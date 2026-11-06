@@ -1,7 +1,7 @@
 # CoreData
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 77.6% of Apple's iOS API (1063 of 1370, exact) · **Rows:** 22: 20 ✅ 1 🟡 1 ❌ · **iOS:** 3.0+
+**Symbols:** 74.1% of Apple's iOS API (777 of 1049, exact) · **Rows:** 22: 20 ✅ 1 🟡 1 ❌ · **iOS:** 3.0+
 <!-- /generated:header -->
 
 **Area:** [Data & persistence](../COVERAGE.md#data) · **Apple:** [CoreData](https://developer.apple.com/documentation/coredata) · **Issues:** [`area:data`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Adata)
@@ -41,7 +41,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-307 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+272 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -66,38 +66,21 @@
 - [`func setValue(Any?, forKey: String)`](https://developer.apple.com/documentation/coredata/nsatomicstorecachenode/setvalue(_:forkey:))
 - [`func value(forKey: String) -> Any?`](https://developer.apple.com/documentation/coredata/nsatomicstorecachenode/value(forkey:))
 - [`static let binaryData: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/binarydata)
-- [`static let binaryData: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/binarydata)
-- [`static let boolean: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/boolean)
 - [`static let boolean: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/boolean)
 - [`static let composite: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/composite)
-- [`static let composite: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/composite)
-- [`static let date: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/date)
 - [`static let date: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/date)
 - [`static let decimal: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/decimal)
-- [`static let decimal: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/decimal)
-- [`static let double: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/double)
 - [`static let double: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/double)
 - [`static let float: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/float)
-- [`static let float: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/float)
-- [`static let integer16: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/integer16)
 - [`static let integer16: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/integer16)
 - [`static let integer32: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/integer32)
-- [`static let integer32: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/integer32)
-- [`static let integer64: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/integer64)
 - [`static let integer64: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/integer64)
 - [`static let objectID: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/objectid)
-- [`static let objectID: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/objectid)
-- [`static let string: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/string)
 - [`static let string: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/string)
 - [`static let transformable: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/transformable)
-- [`static let transformable: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/transformable)
-- [`static let undefined: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/undefined)
 - [`static let undefined: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/undefined)
 - [`static let uri: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/uri)
-- [`static let uri: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/uri)
 - [`static let uuid: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/uuid)
-- [`static let uuid: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/attributetype-swift.struct/uuid)
-- [`var type: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/type)
 - [`var type: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsattributedescription/type)
 - [`let NSBinaryStoreInsecureDecodingCompatibilityOption: String`](https://developer.apple.com/documentation/coredata/nsbinarystoreinsecuredecodingcompatibilityoption)
 - [`let NSBinaryStoreSecureDecodingClasses: String`](https://developer.apple.com/documentation/coredata/nsbinarystoresecuredecodingclasses)
@@ -147,8 +130,6 @@
 - [`var NSCoreDataVersionNumber_iPhoneOS_9_2: Double`](https://developer.apple.com/documentation/coredata/nscoredataversionnumber_iphoneos_9_2)
 - [`var NSCoreDataVersionNumber_iPhoneOS_9_3: Double`](https://developer.apple.com/documentation/coredata/nscoredataversionnumber_iphoneos_9_3)
 - [`func isKindOf(entity: NSEntityDescription) -> Bool`](https://developer.apple.com/documentation/coredata/nsentitydescription/iskindof(entity:))
-- [`func isKindOf(entity: NSEntityDescription) -> Bool`](https://developer.apple.com/documentation/coredata/nsentitydescription/iskindof(entity:))
-- [`func relationships(forDestination: NSEntityDescription) -> [NSRelationshipDescription]`](https://developer.apple.com/documentation/coredata/nsentitydescription/relationships(fordestination:))
 - [`func relationships(forDestination: NSEntityDescription) -> [NSRelationshipDescription]`](https://developer.apple.com/documentation/coredata/nsentitydescription/relationships(fordestination:))
 - [`var resultType: NSAttributeDescription.AttributeType`](https://developer.apple.com/documentation/coredata/nsexpressiondescription/resulttype)
 - [`NSFetchRequestExpression`](https://developer.apple.com/documentation/coredata/nsfetchrequestexpression)
@@ -159,14 +140,9 @@
 - [`var NSFetchRequestExpressionType: NSExpression.ExpressionType`](https://developer.apple.com/documentation/coredata/nsfetchrequestexpressiontype)
 - [`let NSIgnorePersistentStoreVersioningOption: String`](https://developer.apple.com/documentation/coredata/nsignorepersistentstoreversioningoption)
 - [`func didChangeValue(forKey: String, withSetMutation: NSKeyValueSetMutationKind, using: Set<AnyHashable>)`](https://developer.apple.com/documentation/coredata/nsmanagedobject/didchangevalue(forkey:withsetmutation:using:))
-- [`func didChangeValue(forKey: String, withSetMutation: NSKeyValueSetMutationKind, using: Set<AnyHashable>)`](https://developer.apple.com/documentation/coredata/nsmanagedobject/didchangevalue(forkey:withsetmutation:using:))
-- [`func observationInfo() -> UnsafeMutableRawPointer?`](https://developer.apple.com/documentation/coredata/nsmanagedobject/observationinfo())
 - [`func observationInfo() -> UnsafeMutableRawPointer?`](https://developer.apple.com/documentation/coredata/nsmanagedobject/observationinfo())
 - [`func setObservationInfo(UnsafeMutableRawPointer?)`](https://developer.apple.com/documentation/coredata/nsmanagedobject/setobservationinfo(_:))
-- [`func setObservationInfo(UnsafeMutableRawPointer?)`](https://developer.apple.com/documentation/coredata/nsmanagedobject/setobservationinfo(_:))
 - [`subscript(String) -> Any?`](https://developer.apple.com/documentation/coredata/nsmanagedobject/subscript(_:))
-- [`subscript(String) -> Any?`](https://developer.apple.com/documentation/coredata/nsmanagedobject/subscript(_:))
-- [`func willChangeValue(forKey: String, withSetMutation: NSKeyValueSetMutationKind, using: Set<AnyHashable>)`](https://developer.apple.com/documentation/coredata/nsmanagedobject/willchangevalue(forkey:withsetmutation:using:))
 - [`func willChangeValue(forKey: String, withSetMutation: NSKeyValueSetMutationKind, using: Set<AnyHashable>)`](https://developer.apple.com/documentation/coredata/nsmanagedobject/willchangevalue(forkey:withsetmutation:using:))
 - [`static let mainQueue: NSManagedObjectContext.ConcurrencyType`](https://developer.apple.com/documentation/coredata/nsmanagedobjectcontext/concurrencytype-swift.struct/mainqueue)
 - [`static let privateQueue: NSManagedObjectContext.ConcurrencyType`](https://developer.apple.com/documentation/coredata/nsmanagedobjectcontext/concurrencytype-swift.struct/privatequeue)
@@ -254,8 +230,6 @@
 - [`class func mergedModel(from: [Bundle]?, forStoreMetadata: [String : Any]) -> NSManagedObjectModel?`](https://developer.apple.com/documentation/coredata/nsmanagedobjectmodel/mergedmodel(from:forstoremetadata:))
 - [`func setEntities([NSEntityDescription], forConfigurationName: String)`](https://developer.apple.com/documentation/coredata/nsmanagedobjectmodel/setentities(_:forconfigurationname:))
 - [`var NSManagedObjectModelReferenceNotFoundError: Int`](https://developer.apple.com/documentation/coredata/nsmanagedobjectmodelreferencenotfounderror)
-- [`var NSManagedObjectModelReferenceNotFoundError: Int`](https://developer.apple.com/documentation/coredata/nsmanagedobjectmodelreferencenotfounderror)
-- [`var NSManagedObjectModelReferenceNotFoundError: Int`](https://developer.apple.com/documentation/coredata/nsmanagedobjectmodelreferencenotfounderror)
 - [`init?(fromBundles: [Bundle]?, forSourceModel: NSManagedObjectModel?, destinationModel: NSManagedObjectModel?)`](https://developer.apple.com/documentation/coredata/nsmappingmodel/init(frombundles:forsourcemodel:destinationmodel:))
 - [`func resolve(optimisticLockingConflicts: [NSMergeConflict]) throws`](https://developer.apple.com/documentation/coredata/nsmergepolicy/resolve(optimisticlockingconflicts:))
 - [`func migrateStore(from: URL, type: NSPersistentStore.StoreType, options: [AnyHashable : Any]?, mapping: NSMappingModel, to: URL, type: NSPersistentStore.StoreType, options: [AnyHashable : Any]?) throws`](https://developer.apple.com/documentation/coredata/nsmigrationmanager/migratestore(from:type:options:mapping:to:type:options:))
@@ -290,8 +264,6 @@
 - [`class func fetchHistory(withFetch: NSFetchRequest<any NSFetchRequestResult>) -> Self`](https://developer.apple.com/documentation/coredata/nspersistenthistorychangerequest/fetchhistory(withfetch:))
 - [`var token: NSPersistentHistoryToken?`](https://developer.apple.com/documentation/coredata/nspersistenthistorychangerequest/token)
 - [`var NSPersistentHistoryTokenExpiredError: Int`](https://developer.apple.com/documentation/coredata/nspersistenthistorytokenexpirederror)
-- [`var NSPersistentHistoryTokenExpiredError: Int`](https://developer.apple.com/documentation/coredata/nspersistenthistorytokenexpirederror)
-- [`var NSPersistentHistoryTokenExpiredError: Int`](https://developer.apple.com/documentation/coredata/nspersistenthistorytokenexpirederror)
 - [`class var entityDescription: NSEntityDescription?`](https://developer.apple.com/documentation/coredata/nspersistenthistorytransaction/entitydescription)
 - [`class func entityDescription(with: NSManagedObjectContext) -> NSEntityDescription?`](https://developer.apple.com/documentation/coredata/nspersistenthistorytransaction/entitydescription(with:))
 - [`class var fetchRequest: NSFetchRequest<any NSFetchRequestResult>?`](https://developer.apple.com/documentation/coredata/nspersistenthistorytransaction/fetchrequest)
@@ -312,11 +284,9 @@
 - [`func finishDeferredLightweightMigrationTask() throws`](https://developer.apple.com/documentation/coredata/nspersistentstorecoordinator/finishdeferredlightweightmigrationtask())
 - [`func managedObjectID(for: String) -> NSManagedObjectID?`](https://developer.apple.com/documentation/coredata/nspersistentstorecoordinator/managedobjectid(for:))
 - [`class func metadataForPersistentStore(ofType: String, at: URL, options: [AnyHashable : Any]?) throws -> [String : Any]`](https://developer.apple.com/documentation/coredata/nspersistentstorecoordinator/metadataforpersistentstore(oftype:at:options:))
-- [`class func metadataForPersistentStore(ofType: String, at: URL, options: [AnyHashable : Any]?) throws -> [String : Any]`](https://developer.apple.com/documentation/coredata/nspersistentstorecoordinator/metadataforpersistentstore(oftype:at:options:))
 - [`class func metadataForPersistentStore(type: NSPersistentStore.StoreType, at: URL, options: [AnyHashable : Any]?) throws -> [String : Any]`](https://developer.apple.com/documentation/coredata/nspersistentstorecoordinator/metadataforpersistentstore(type:at:options:))
 - [`class func metadataForPersistentStore(with: URL) throws -> [AnyHashable : Any]`](https://developer.apple.com/documentation/coredata/nspersistentstorecoordinator/metadataforpersistentstore(with:))
 - [`func migratePersistentStore(NSPersistentStore, to: URL, options: [AnyHashable : Any]?, type: NSPersistentStore.StoreType) throws -> NSPersistentStore`](https://developer.apple.com/documentation/coredata/nspersistentstorecoordinator/migratepersistentstore(_:to:options:type:))
-- [`func migratePersistentStore(NSPersistentStore, to: URL, options: [AnyHashable : Any]?, withType: String) throws -> NSPersistentStore`](https://developer.apple.com/documentation/coredata/nspersistentstorecoordinator/migratepersistentstore(_:to:options:withtype:))
 - [`func migratePersistentStore(NSPersistentStore, to: URL, options: [AnyHashable : Any]?, withType: String) throws -> NSPersistentStore`](https://developer.apple.com/documentation/coredata/nspersistentstorecoordinator/migratepersistentstore(_:to:options:withtype:))
 - [`class func registerStoreClass(AnyClass?, type: NSPersistentStore.StoreType)`](https://developer.apple.com/documentation/coredata/nspersistentstorecoordinator/registerstoreclass(_:type:))
 - [`NSPersistentStoreCoordinator.RemoteChangeMessage`](https://developer.apple.com/documentation/coredata/nspersistentstorecoordinator/remotechangemessage)
@@ -325,7 +295,6 @@
 - [`let storeURL: URL`](https://developer.apple.com/documentation/coredata/nspersistentstorecoordinator/remotechangemessage/storeurl)
 - [`let storeUUID: String`](https://developer.apple.com/documentation/coredata/nspersistentstorecoordinator/remotechangemessage/storeuuid)
 - [`func replacePersistentStore(at: URL, destinationOptions: [AnyHashable : Any]?, withPersistentStoreFrom: URL, sourceOptions: [AnyHashable : Any]?, type: NSPersistentStore.StoreType) throws`](https://developer.apple.com/documentation/coredata/nspersistentstorecoordinator/replacepersistentstore(at:destinationoptions:withpersistentstorefrom:sourceoptions:type:))
-- [`class func setMetadata([String : Any]?, forPersistentStoreOfType: String, at: URL, options: [AnyHashable : Any]?) throws`](https://developer.apple.com/documentation/coredata/nspersistentstorecoordinator/setmetadata(_:forpersistentstoreoftype:at:options:))
 - [`class func setMetadata([String : Any]?, forPersistentStoreOfType: String, at: URL, options: [AnyHashable : Any]?) throws`](https://developer.apple.com/documentation/coredata/nspersistentstorecoordinator/setmetadata(_:forpersistentstoreoftype:at:options:))
 - [`class func setMetadata([String : Any]?, type: NSPersistentStore.StoreType, at: URL, options: [AnyHashable : Any]?) throws`](https://developer.apple.com/documentation/coredata/nspersistentstorecoordinator/setmetadata(_:type:at:options:))
 - [`NSPersistentStoreCoordinator.StoresDidChangeAsyncMessage`](https://developer.apple.com/documentation/coredata/nspersistentstorecoordinator/storesdidchangeasyncmessage)
@@ -345,7 +314,9 @@
 - [`let NSRemovedPersistentStoresKey: String`](https://developer.apple.com/documentation/coredata/nsremovedpersistentstoreskey)
 - [`let NSSQLiteAnalyzeOption: String`](https://developer.apple.com/documentation/coredata/nssqliteanalyzeoption)
 - [`let NSSQLiteManualVacuumOption: String`](https://developer.apple.com/documentation/coredata/nssqlitemanualvacuumoption)
-- … and 7 more (`isim/data/api-coverage.json.gz`)
+- [`var NSStagedMigrationBackwardMigrationError: Int`](https://developer.apple.com/documentation/coredata/nsstagedmigrationbackwardmigrationerror)
+- [`var NSStagedMigrationFrameworkVersionMismatchError: Int`](https://developer.apple.com/documentation/coredata/nsstagedmigrationframeworkversionmismatcherror)
+- [`let NSUUIDChangedPersistentStoresKey: String`](https://developer.apple.com/documentation/coredata/nsuuidchangedpersistentstoreskey)
 
 </details>
 <!-- /generated:missing -->

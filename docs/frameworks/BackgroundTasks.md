@@ -1,7 +1,7 @@
 # BackgroundTasks
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 92.1% of Apple's iOS API (58 of 63, exact) · **Rows:** 7: 6 ✅ 1 ❌ · **iOS:** 13.0+
+**Symbols:** 91.2% of Apple's iOS API (52 of 57, exact) · **Rows:** 7: 6 ✅ 1 ❌ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [BackgroundTasks](https://developer.apple.com/documentation/backgroundtasks) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)

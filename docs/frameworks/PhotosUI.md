@@ -1,7 +1,7 @@
 # PhotosUI
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 72.7% of Apple's iOS API (189 of 260, exact) · **Rows:** 6: 3 ✅ 1 🟡 2 ❌ · **iOS:** 8.0+
+**Symbols:** 66.3% of Apple's iOS API (118 of 178, exact) · **Rows:** 6: 3 ✅ 1 🟡 2 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [PhotosUI](https://developer.apple.com/documentation/photosui) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)
@@ -25,7 +25,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-71 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+60 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -40,25 +40,14 @@
 - [`init(LocalizedStringKey, selection: Binding<[PhotosPickerItem]>, maxSelectionCount: Int?, selectionBehavior: PhotosPickerSelectionBehavior, matching: PHPickerFilter?, preferredItemEncoding: PhotosPickerItem.EncodingDisambiguationPolicy, photoLibrary: PHPhotoLibrary)`](https://developer.apple.com/documentation/photosui/photospicker/init(_:selection:maxselectioncount:selectionbehavior:matching:preferreditemencoding:photolibrary:)-5tpfd)
 - [`init<S>(S, selection: Binding<[PhotosPickerItem]>, maxSelectionCount: Int?, selectionBehavior: PhotosPickerSelectionBehavior, matching: PHPickerFilter?, preferredItemEncoding: PhotosPickerItem.EncodingDisambiguationPolicy, photoLibrary: PHPhotoLibrary)`](https://developer.apple.com/documentation/photosui/photospicker/init(_:selection:maxselectioncount:selectionbehavior:matching:preferreditemencoding:photolibrary:)-6fwsc)
 - [`var metadataOptions: PHPickerMetadataOptions`](https://developer.apple.com/documentation/photosui/phpickerconfiguration-swift.struct/metadataoptions)
-- [`var metadataOptions: PHPickerMetadataOptions`](https://developer.apple.com/documentation/photosui/phpickerconfiguration-swift.struct/metadataoptions)
-- [`var searchText: PHPickerSearchText?`](https://developer.apple.com/documentation/photosui/phpickerconfiguration-swift.struct/searchtext)
 - [`var searchText: PHPickerSearchText?`](https://developer.apple.com/documentation/photosui/phpickerconfiguration-swift.struct/searchtext)
 - [`var searchText: PHPickerSearchText?`](https://developer.apple.com/documentation/photosui/phpickerconfiguration-swift.struct/update/searchtext)
-- [`var searchText: PHPickerSearchText?`](https://developer.apple.com/documentation/photosui/phpickerconfiguration-swift.struct/update/searchtext)
-- [`PHPickerConfigurationSelection`](https://developer.apple.com/documentation/photosui/phpickerconfigurationselection)
 - [`PHPickerConfigurationSelection`](https://developer.apple.com/documentation/photosui/phpickerconfigurationselection)
 - [`case continuous`](https://developer.apple.com/documentation/photosui/phpickerconfigurationselection/continuous)
-- [`case continuous`](https://developer.apple.com/documentation/photosui/phpickerconfigurationselection/continuous)
-- [`case continuousAndOrdered`](https://developer.apple.com/documentation/photosui/phpickerconfigurationselection/continuousandordered)
 - [`case continuousAndOrdered`](https://developer.apple.com/documentation/photosui/phpickerconfigurationselection/continuousandordered)
 - [`case `default``](https://developer.apple.com/documentation/photosui/phpickerconfigurationselection/default)
-- [`case `default``](https://developer.apple.com/documentation/photosui/phpickerconfigurationselection/default)
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/photosui/phpickerconfigurationselection/init(rawvalue:))
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/photosui/phpickerconfigurationselection/init(rawvalue:))
 - [`case ordered`](https://developer.apple.com/documentation/photosui/phpickerconfigurationselection/ordered)
-- [`case ordered`](https://developer.apple.com/documentation/photosui/phpickerconfigurationselection/ordered)
-- [`static let screenRecordings: PHPickerFilter`](https://developer.apple.com/documentation/photosui/phpickerfilter-swift.struct/screenrecordings)
-- [`static let screenRecordings: PHPickerFilter`](https://developer.apple.com/documentation/photosui/phpickerfilter-swift.struct/screenrecordings)
 - [`static let screenRecordings: PHPickerFilter`](https://developer.apple.com/documentation/photosui/phpickerfilter-swift.struct/screenrecordings)
 - [`PHPickerMetadataOptions`](https://developer.apple.com/documentation/photosui/phpickermetadataoptions)
 - [`init(rawValue: UInt)`](https://developer.apple.com/documentation/photosui/phpickermetadataoptions/init(rawvalue:))

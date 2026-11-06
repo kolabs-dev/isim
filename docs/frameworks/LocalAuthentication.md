@@ -1,7 +1,7 @@
 # LocalAuthentication
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 98.1% of Apple's iOS API (259 of 264, exact) · **Rows:** 8: 6 ✅ 2 ❌ · **iOS:** 8.0+
+**Symbols:** 97.7% of Apple's iOS API (215 of 220, exact) · **Rows:** 8: 6 ✅ 2 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Identity & security](../COVERAGE.md#security) · **Apple:** [LocalAuthentication](https://developer.apple.com/documentation/localauthentication) · **Issues:** [`area:security`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asecurity)

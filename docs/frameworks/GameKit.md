@@ -1,7 +1,7 @@
 # GameKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 97.7% of Apple's iOS API (717 of 734, exact) · **Rows:** 34: 28 ✅ 5 🟡 1 ❌ · **iOS:** 3.0+
+**Symbols:** 97.4% of Apple's iOS API (640 of 657, exact) · **Rows:** 34: 28 ✅ 5 🟡 1 ❌ · **iOS:** 3.0+
 <!-- /generated:header -->
 
 **Area:** [Games & 3D](../COVERAGE.md#games) · **Apple:** [GameKit](https://developer.apple.com/documentation/gamekit) · **Issues:** [`area:games`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agames)

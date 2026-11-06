@@ -1,7 +1,7 @@
 # FamilyControls
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 98.0% of Apple's iOS API (49 of 50, exact) · **Rows:** 6: 4 ✅ 2 🟡 · **iOS:** 15.0+
+**Symbols:** 98.0% of Apple's iOS API (48 of 49, exact) · **Rows:** 6: 4 ✅ 2 🟡 · **iOS:** 15.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [FamilyControls](https://developer.apple.com/documentation/familycontrols) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)

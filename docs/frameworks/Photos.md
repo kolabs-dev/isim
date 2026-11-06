@@ -1,7 +1,7 @@
 # Photos
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 60.1% of Apple's iOS API (421 of 700, exact) · **Rows:** 11: 7 ✅ 1 🟡 3 ❌ · **iOS:** 8.0+
+**Symbols:** 60.0% of Apple's iOS API (399 of 665, exact) · **Rows:** 11: 7 ✅ 1 🟡 3 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [Photos](https://developer.apple.com/documentation/photos) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)
@@ -30,7 +30,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-279 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+266 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -95,27 +95,16 @@
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/photos/phasseteditoperation/init(rawvalue:))
 - [`case properties`](https://developer.apple.com/documentation/photos/phasseteditoperation/properties)
 - [`PHAssetExtendedMetadata`](https://developer.apple.com/documentation/photos/phassetextendedmetadata)
-- [`PHAssetExtendedMetadata`](https://developer.apple.com/documentation/photos/phassetextendedmetadata)
-- [`var caption: String?`](https://developer.apple.com/documentation/photos/phassetextendedmetadata/caption)
 - [`var caption: String?`](https://developer.apple.com/documentation/photos/phassetextendedmetadata/caption)
 - [`var keywords: [String]`](https://developer.apple.com/documentation/photos/phassetextendedmetadata/keywords)
-- [`var keywords: [String]`](https://developer.apple.com/documentation/photos/phassetextendedmetadata/keywords)
-- [`var originalFilename: String?`](https://developer.apple.com/documentation/photos/phassetextendedmetadata/originalfilename)
 - [`var originalFilename: String?`](https://developer.apple.com/documentation/photos/phassetextendedmetadata/originalfilename)
 - [`PHAssetImageProgressHandler`](https://developer.apple.com/documentation/photos/phassetimageprogresshandler)
 - [`static var photoAnimation: PHAssetMediaSubtype`](https://developer.apple.com/documentation/photos/phassetmediasubtype/photoanimation)
-- [`static var photoAnimation: PHAssetMediaSubtype`](https://developer.apple.com/documentation/photos/phassetmediasubtype/photoanimation)
-- [`static var spatialMedia: PHAssetMediaSubtype`](https://developer.apple.com/documentation/photos/phassetmediasubtype/spatialmedia)
 - [`static var spatialMedia: PHAssetMediaSubtype`](https://developer.apple.com/documentation/photos/phassetmediasubtype/spatialmedia)
 - [`static var videoCinematic: PHAssetMediaSubtype`](https://developer.apple.com/documentation/photos/phassetmediasubtype/videocinematic)
-- [`static var videoCinematic: PHAssetMediaSubtype`](https://developer.apple.com/documentation/photos/phassetmediasubtype/videocinematic)
-- [`static var videoHighFrameRate: PHAssetMediaSubtype`](https://developer.apple.com/documentation/photos/phassetmediasubtype/videohighframerate)
 - [`static var videoHighFrameRate: PHAssetMediaSubtype`](https://developer.apple.com/documentation/photos/phassetmediasubtype/videohighframerate)
 - [`static var videoScreenRecording: PHAssetMediaSubtype`](https://developer.apple.com/documentation/photos/phassetmediasubtype/videoscreenrecording)
-- [`static var videoScreenRecording: PHAssetMediaSubtype`](https://developer.apple.com/documentation/photos/phassetmediasubtype/videoscreenrecording)
 - [`static var videoStreamed: PHAssetMediaSubtype`](https://developer.apple.com/documentation/photos/phassetmediasubtype/videostreamed)
-- [`static var videoStreamed: PHAssetMediaSubtype`](https://developer.apple.com/documentation/photos/phassetmediasubtype/videostreamed)
-- [`static var videoTimelapse: PHAssetMediaSubtype`](https://developer.apple.com/documentation/photos/phassetmediasubtype/videotimelapse)
 - [`static var videoTimelapse: PHAssetMediaSubtype`](https://developer.apple.com/documentation/photos/phassetmediasubtype/videotimelapse)
 - [`class func assetResource(forUploadJob: PHAssetResourceUploadJob) -> PHAssetResource?`](https://developer.apple.com/documentation/photos/phassetresource/assetresource(foruploadjob:))
 - [`var contentType: UTType`](https://developer.apple.com/documentation/photos/phassetresource/contenttype)
@@ -266,8 +255,6 @@
 - [`var changeToken: PHPersistentChangeToken`](https://developer.apple.com/documentation/photos/phpersistentchange/changetoken)
 - [`PHPersistentChangeFetchResult`](https://developer.apple.com/documentation/photos/phpersistentchangefetchresult)
 - [`PHPersistentChangeToken`](https://developer.apple.com/documentation/photos/phpersistentchangetoken)
-- [`PHPersistentChangeToken`](https://developer.apple.com/documentation/photos/phpersistentchangetoken)
-- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/photos/phpersistentchangetoken/init(coder:))
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/photos/phpersistentchangetoken/init(coder:))
 - [`PHPersistentObjectChangeDetails`](https://developer.apple.com/documentation/photos/phpersistentobjectchangedetails)
 - [`var deletedLocalIdentifiers: Set<String>`](https://developer.apple.com/documentation/photos/phpersistentobjectchangedetails/deletedlocalidentifiers)
