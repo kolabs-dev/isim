@@ -1113,3 +1113,18 @@ usr/lib/swift/libswiftUIKit.dylib _$s5UIKit15UICellAccessoryV9PlacementO7leading
 usr/lib/swift/libswiftUIKit.dylib _$s5UIKit15UICellAccessoryV9PlacementO8trailingyAESo0bC14DisplayedStateV_tcAEmFWC
 usr/lib/swift/libswiftUIKit.dylib _$s5UIKit15UICellAccessoryV9checkmark9displayed7optionsACSo0bC14DisplayedStateV_AC8_OptionsVtFZ
 usr/lib/swift/libswiftUIKit.dylib _$s5UIKit15UICellAccessoryV9popUpMenu_9displayed7options31selectedElementDidChangeHandlerACSo6UIMenuC_So0bC14DisplayedStateVAC8_OptionsVyAIcSgtFZ
+
+# 0.35.0 (issue #876): AVCaptureFileOutput.isRecording, as on iOS (it was declared on AVCaptureMovieFileOutput only).
+# The movie output's isRecording now overrides it: calls from older apps keep working (its dispatch thunk stays), but
+# its method and property descriptors are gone. Swift apps built with 0.34 or earlier that subclass
+# AVCaptureMovieFileOutput and override isRecording, or use the \AVCaptureMovieFileOutput.isRecording key path, must
+# be rebuilt. AVCaptureDeviceInput.multichannelAudioMode has Apple's type, AVCaptureMultichannelAudioMode (it was Int):
+# its Int getter and setter stay for older apps; apps that subclass AVCaptureDeviceInput, modify the property in place
+# (+=) or use its key path must be rebuilt.
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation20AVCaptureDeviceInputC21multichannelAudioModeSivMTj
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation20AVCaptureDeviceInputC21multichannelAudioModeSivMTq
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation20AVCaptureDeviceInputC21multichannelAudioModeSivgTq
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation20AVCaptureDeviceInputC21multichannelAudioModeSivpMV
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation20AVCaptureDeviceInputC21multichannelAudioModeSivsTq
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation24AVCaptureMovieFileOutputC11isRecordingSbvgTq
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation24AVCaptureMovieFileOutputC11isRecordingSbvpMV

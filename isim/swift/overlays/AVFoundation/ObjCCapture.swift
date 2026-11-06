@@ -99,6 +99,12 @@ final class _ObjCRecordingDelegate: NSObject, AVCaptureFileOutputRecordingDelega
     func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {
         _isimSend(target, "captureOutput:didStartRecordingToOutputFileAtURL:fromConnections:", [output, fileURL as NSURL, connections as NSArray])
     }
+    func fileOutput(_ output: AVCaptureFileOutput, didPauseRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {
+        _isimSend(target, "captureOutput:didPauseRecordingToOutputFileAtURL:fromConnections:", [output, fileURL as NSURL, connections as NSArray])
+    }
+    func fileOutput(_ output: AVCaptureFileOutput, didResumeRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {
+        _isimSend(target, "captureOutput:didResumeRecordingToOutputFileAtURL:fromConnections:", [output, fileURL as NSURL, connections as NSArray])
+    }
     func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo url: URL, from connections: [AVCaptureConnection], error: Error?) {
         _isimSend(target, "captureOutput:didFinishRecordingToOutputFileAtURL:fromConnections:error:",
                   [output, url as NSURL, connections as NSArray, error.map { $0 as NSError }])
@@ -402,6 +408,7 @@ extension AVCaptureFileOutput {
     @objc(stopRecording) func _objc_stop() { stopRecording() }
     @objc(outputFileURL) var _objc_url: URL? { outputFileURL }
     @objc(isRecordingPaused) var _objc_paused: Bool { isRecordingPaused }
+    @objc(isRecording) var _objc_recording: Bool { isRecording }
     @objc(pauseRecording) func _objc_pause() { pauseRecording() }
     @objc(resumeRecording) func _objc_resume() { resumeRecording() }
     @objc(recordedFileSize) var _objc_size: Int64 { recordedFileSize }
@@ -411,10 +418,34 @@ extension AVCaptureFileOutput {
     @objc(_isim_setMaxRecordedDuration:) func _isimSetMax(_ p: UnsafeRawPointer) { maxRecordedDuration = CMTime(_isimRaw: p) }
 }
 extension AVCaptureMovieFileOutput {
-    @objc(isRecording) var _objc_recording: Bool { isRecording }
     @objc(availableVideoCodecTypes) var _objc_codecs: [String] { availableVideoCodecTypes.map(\.rawValue) }
     @objc(outputSettingsForConnection:) func _objc_settings(_ c: AVCaptureConnection) -> [String: Any] { outputSettings(for: c) }
     @objc(setOutputSettings:forConnection:) func _objc_setSettings(_ s: [String: Any]?, _ c: AVCaptureConnection) { setOutputSettings(s, for: c) }
+}
+
+// issue #876 (CaptureOutputsExtras.swift)
+extension AVCaptureDeviceInput {
+    @available(iOS 18.0, *) @objc(multichannelAudioMode) var _objc_multichannel: AVCaptureMultichannelAudioMode {
+        get { multichannelAudioMode } set { multichannelAudioMode = newValue }
+    }
+    @available(iOS 18.0, *) @objc(isMultichannelAudioModeSupported:) func _objc_multichannelSupported(_ m: AVCaptureMultichannelAudioMode) -> Bool { isMultichannelAudioModeSupported(m) }
+    @available(iOS 18.0, *) @objc(isWindNoiseRemovalSupported) var _objc_windSupported: Bool { isWindNoiseRemovalSupported }
+    @available(iOS 18.0, *) @objc(isWindNoiseRemovalEnabled) var _objc_wind: Bool { isWindNoiseRemovalEnabled }
+    @available(iOS 18.0, *) @objc(setWindNoiseRemovalEnabled:) func _objc_setWind(_ v: Bool) { isWindNoiseRemovalEnabled = v }
+}
+extension AVCaptureOutput {
+    @available(iOS 26.0, *) @objc(isDeferredStartSupported) var _objc_deferredSupported: Bool { isDeferredStartSupported }
+    @available(iOS 26.0, *) @objc(isDeferredStartEnabled) var _objc_deferred: Bool { isDeferredStartEnabled }
+    @available(iOS 26.0, *) @objc(setDeferredStartEnabled:) func _objc_setDeferred(_ v: Bool) { isDeferredStartEnabled = v }
+}
+extension AVCapturePhotoOutput {
+    @objc(isVirtualDeviceConstituentPhotoDeliverySupported) var _objc_constituentSupported: Bool { isVirtualDeviceConstituentPhotoDeliverySupported }
+    @objc(isVirtualDeviceConstituentPhotoDeliveryEnabled) var _objc_constituent: Bool { isVirtualDeviceConstituentPhotoDeliveryEnabled }
+    @objc(setVirtualDeviceConstituentPhotoDeliveryEnabled:) func _objc_setConstituent(_ v: Bool) { isVirtualDeviceConstituentPhotoDeliveryEnabled = v }
+    @objc(isAutoRedEyeReductionSupported) var _objc_redEye: Bool { isAutoRedEyeReductionSupported }
+    @objc(preservesLivePhotoCaptureSuspendedOnSessionStop) var _objc_preservesSuspended: Bool {
+        get { preservesLivePhotoCaptureSuspendedOnSessionStop } set { preservesLivePhotoCaptureSuspendedOnSessionStop = newValue }
+    }
 }
 
 // MARK: photos

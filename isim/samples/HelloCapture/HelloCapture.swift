@@ -64,7 +64,7 @@ func pixel(_ img: CGImage, _ x: Int, _ y: Int) -> (String, Double) {
 
 final class CaptureViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate,
                                     AVCaptureMetadataOutputObjectsDelegate, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRecordingDelegate,
-                                    AVCaptureDataOutputSynchronizerDelegate, AVCaptureSessionControlsDelegate {
+                                    AVCaptureDataOutputSynchronizerDelegate, AVCaptureSessionControlsDelegate, AVCaptureSessionDeferredStartDelegate {
     let session = AVCaptureSession()
     let preview = UIView(), frontPreview = UIView()
     let previewLayer = AVCaptureVideoPreviewLayer()
@@ -184,6 +184,15 @@ final class CaptureViewController: UIViewController, AVCaptureVideoDataOutputSam
         let settings = AVCapturePhotoSettings(); settings.flashMode = .auto
         photoOutput.photoSettingsForSceneMonitoring = settings
         if #available(iOS 18.0, *) { setUpControls(camera) }
+        // #876: the metadata output starts after the preview (deferred start); the microphone's options
+        if #available(iOS 26.0, *) {
+            metadataOutput.isDeferredStartEnabled = true
+            session.setDeferredStartDelegate(self, deferredStartDelegateCallbackQueue: .main)
+        }
+        if #available(iOS 18.0, *), let micInput = session.inputs.compactMap({ $0 as? AVCaptureDeviceInput }).first(where: { $0.device == mic }) {
+            micInput.multichannelAudioMode = .stereo                        // mono microphone: not supported, stays .none
+            log("x876 mic wind \(micInput.isWindNoiseRemovalEnabled) multichannel \(micInput.multichannelAudioMode == .none) stereo \(micInput.isMultichannelAudioModeSupported(.stereo))")
+        }
         session.commitConfiguration()
         let audioConn = audioOutput.connection(with: .audio)
         log("outputs=\(session.outputs.count) metadata=\(metadataOutput.metadataObjectTypes.map(\.rawValue).joined(separator: ",")) audioChannels=\(audioConn?.audioChannels.count ?? 0) live=\(photoOutput.isLivePhotoCaptureEnabled) depth=\(photoOutput.isDepthDataDeliveryEnabled) codecs=\(photoOutput.availablePhotoCodecTypes.map(\.rawValue).joined(separator: ",")) raw=\(photoOutput.availableRawPhotoPixelFormatTypes.count) flash=\(photoOutput.supportedFlashModes.count)")
@@ -405,6 +414,20 @@ final class CaptureViewController: UIViewController, AVCaptureVideoDataOutputSam
         movieOutput.maxRecordedDuration = CMTime(value: 1, timescale: 1)
         movieOutput.startRecording(to: url, recordingDelegate: self)
     }
+    // #876: a recording pauses and resumes right after it starts (the pause does not count towards its duration)
+    func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL, startPTS: CMTime, from connections: [AVCaptureConnection]) {
+        log("recording started pts \(startPTS.isNumeric) recording \(output.isRecording)")
+        output.pauseRecording()
+    }
+    func fileOutput(_ output: AVCaptureFileOutput, didPauseRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {
+        log("recording paused \(output.isRecordingPaused)")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { output.resumeRecording() }
+    }
+    func fileOutput(_ output: AVCaptureFileOutput, didResumeRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {
+        log("recording resumed \(output.isRecordingPaused)")
+    }
+    nonisolated func sessionWillRunDeferredStart(_ session: AVCaptureSession) { log("deferred start will run") }
+    nonisolated func sessionDidRunDeferredStart(_ session: AVCaptureSession) { log("deferred start did run") }
     func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
         let a = AVURLAsset(url: outputFileURL)
         let finished = (error as NSError?)?.userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool ?? (error == nil)
