@@ -545,3 +545,45 @@ extension AVCameraCalibrationData {
     @objc(lensDistortionLookupTable) var _objc_lut: Data? { lensDistortionLookupTable }
     @objc(inverseLensDistortionLookupTable) var _objc_invLut: Data? { inverseLensDistortionLookupTable }
 }
+
+// MARK: issue #876, part 3 (CaptureTimecode.swift)
+@available(iOS 27.0, *)
+extension AVCaptureAncillaryDataEncoder {
+    @objc(isEnabled) var _objc_enabled: Bool { isEnabled }
+    @objc(setEnabled:) func _objc_setEnabled(_ v: Bool) { isEnabled = v }
+    @objc(userDefinedAncillaryDataSizeRemaining) var _objc_remaining: Int16 { userDefinedAncillaryDataSizeRemaining }
+    @objc(setRDD18AncillaryData:forTag:error:) func _objc_set(_ d: Data, _ tag: UInt16) throws { try setRDD18AncillaryData(d, forTag: tag) }
+    @objc(setRDD18AncillaryDataString:forTag:error:) func _objc_setString(_ s: String, _ tag: UInt16) throws { try setRDD18AncillaryDataString(s, forTag: tag) }
+    @objc(removeRDD18AncillaryDataForTag:) func _objc_remove(_ tag: UInt16) { removeRDD18AncillaryData(forTag: tag) }
+}
+@available(iOS 27.0, *)
+extension AVCaptureBroadcastVideoOutput {
+    @objc(maxSupportedBufferedFrameCount) class var _objc_maxSupported: Int { maxSupportedBufferedFrameCount }
+    @objc(maxBufferedFrameCount) var _objc_maxBuffered: Int { get { maxBufferedFrameCount } set { maxBufferedFrameCount = newValue } }
+    @objc(droppedFrameReplacementPolicy) var _objc_policy: DroppedFrameReplacementPolicy {
+        get { droppedFrameReplacementPolicy } set { droppedFrameReplacementPolicy = newValue }
+    }
+    @objc(videoSettings) var _objc_videoSettings: [String: Any]? { get { videoSettings } set { videoSettings = newValue } }
+    @objc(ancillaryDataEncoder) var _objc_encoder: AVCaptureAncillaryDataEncoder { ancillaryDataEncoder }
+    @objc(resetFrameBuffer) func _objc_reset() { resetFrameBuffer() }
+}
+@available(iOS 26.0, *)
+extension AVCaptureExternalDisplayConfiguration {
+    @objc(shouldMatchFrameRate) var _objc_match: Bool { get { shouldMatchFrameRate } set { shouldMatchFrameRate = newValue } }
+    @objc(bypassColorSpaceConversion) var _objc_bypass: Bool { get { bypassColorSpaceConversion } set { bypassColorSpaceConversion = newValue } }
+}
+@available(iOS 26.0, *)
+extension AVCaptureExternalDisplayConfigurator {
+    @objc(initWithDevice:previewLayer:configuration:) convenience init(_objc d: AVCaptureDevice, _ l: CALayer, _ c: AVCaptureExternalDisplayConfiguration) {
+        self.init(device: d, previewLayer: l, configuration: c)
+    }
+    @objc(activeExternalDisplayFrameRate) var _objc_rate: Double { activeExternalDisplayFrameRate }
+    @objc(stop) func _objc_stop() { stop() }
+}
+@available(iOS 26.0, *)
+extension AVCaptureSpatialAudioMetadataSampleGenerator {
+    @objc(analyzeAudioSample:) func _objc_analyze(_ p: UnsafeMutableRawPointer) -> OSStatus {
+        analyzeAudioSample(Unmanaged<CMSampleBuffer>.fromOpaque(p).takeUnretainedValue())
+    }
+    @objc(resetAnalyzer) func _objc_resetAnalyzer() { resetAnalyzer() }
+}

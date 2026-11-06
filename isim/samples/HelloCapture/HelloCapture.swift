@@ -73,6 +73,7 @@ final class CaptureViewController: UIViewController, AVCaptureVideoDataOutputSam
     let audioOutput = AVCaptureAudioDataOutput()
     let metadataOutput = AVCaptureMetadataOutput()
     let movieOutput = AVCaptureMovieFileOutput()
+    nonisolated(unsafe) var pro: AnyObject?               // #876: ProCapture (iOS 26)
     let depthOutput = AVCaptureDepthDataOutput()
     let syncVideoOutput = AVCaptureVideoDataOutput()
     var synchronizer: AVCaptureDataOutputSynchronizer?
@@ -185,6 +186,7 @@ final class CaptureViewController: UIViewController, AVCaptureVideoDataOutputSam
         photoOutput.photoSettingsForSceneMonitoring = settings
         if #available(iOS 18.0, *) { setUpControls(camera) }
         // #876: the metadata output starts after the preview (deferred start); the microphone's options
+        if #available(iOS 26.0, *) { pro = ProCapture(session: session, camera: camera) }
         if #available(iOS 26.0, *) {
             metadataOutput.isDeferredStartEnabled = true
             session.setDeferredStartDelegate(self, deferredStartDelegateCallbackQueue: .main)
@@ -252,6 +254,7 @@ final class CaptureViewController: UIViewController, AVCaptureVideoDataOutputSam
         var samples = [Int16](repeating: 0, count: n)
         _ = samples.withUnsafeMutableBytes { CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: min($0.count, CMBlockBufferGetDataLength(block)), destination: $0.baseAddress!) }
         audioPeak = max(audioPeak, Double(samples.map { abs(Int($0)) }.max() ?? 0) / 32767)
+        if #available(iOS 26.0, *), let p = pro as? ProCapture { p.audio(sb) }
         if audioBuffers == 1 { log("audio \(asbd.mChannelsPerFrame)ch \(Int(asbd.mSampleRate))Hz \(asbd.mBitsPerChannel)bit frames=\(n)") }
         if audioBuffers == 60 {
             let level = connection.audioChannels.first?.averagePowerLevel ?? -160
@@ -494,6 +497,54 @@ final class CaptureViewController: UIViewController, AVCaptureVideoDataOutputSam
         sessionQueue.async {
             self.session.stopRunning(); self.multi?.stopRunning()
             log("stopped running=\(self.session.isRunning)")
+        }
+    }
+}
+
+// #876: timecode for the camera's frames, the spatial audio analyzer, an external display configurator, and (iOS 27)
+// a broadcast output with RDD 18 ancillary data
+@available(iOS 26.0, *)
+final class ProCapture: NSObject, AVCaptureTimecodeGeneratorDelegate, @unchecked Sendable {
+    let generator = AVCaptureTimecodeGenerator()
+    let spatial = AVCaptureSpatialAudioMetadataSampleGenerator()
+    var updates = 0, analyzed = 0
+    var broadcast: AnyObject?
+    init(session: AVCaptureSession, camera: AVCaptureDevice) {
+        super.init()
+        if session.canAddOutput(generator) { session.addOutput(generator) }
+        generator.setDelegate(self, queue: .main)
+        generator.startSynchronization(source: AVCaptureTimecodeGenerator.frameCountSource)
+        var t = AVCaptureTimecode(hours: 23, minutes: 59, seconds: 59, frames: 29, userBits: 7, frameDuration: CMTime(value: 1, timescale: 30), sourceType: .frameCount)
+        t = AVCaptureTimecode.advanced(t, by: 2)                     // wraps at midnight: 00:00:00:01
+        let sb = AVCaptureTimecode.createMetadataSampleBuffer(from: t, associatedWithPresentationTimeStamp: CMTime(value: 5, timescale: 1))?.takeRetainedValue()
+        let shown = AVCaptureExternalDisplayConfigurator(device: camera, previewLayer: CALayer(), configuration: AVCaptureExternalDisplayConfiguration())
+        log("x876 timecode wrap \(t.hours):\(t.minutes):\(t.seconds):\(t.frames) buffer \(sb.map { CMSampleBufferGetNumSamples($0) } ?? 0) external \(shown.isActive)")
+        if #available(iOS 27.0, *) {
+            let out = AVCaptureBroadcastVideoOutput()
+            if session.canAddOutput(out) { session.addOutput(out) }
+            let e = out.ancillaryDataEncoder
+            try? e.setRDD18AncillaryDataString("Camera A", forTag: 1)
+            var tooBig = false
+            do { try e.setRDD18AncillaryData(Data(count: 300), forTag: 2) } catch { tooBig = true }
+            log("x876 broadcast remaining \(e.userDefinedAncillaryDataSizeRemaining) too big \(tooBig) max \(AVCaptureBroadcastVideoOutput.maxSupportedBufferedFrameCount)")
+            broadcast = out
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { log("x876 broadcast sent \(out._isimFramesSent > 0)") }
+        }
+    }
+    func timecodeGenerator(_ generator: AVCaptureTimecodeGenerator, didReceiveUpdate timecode: AVCaptureTimecode, from source: AVCaptureTimecode.Source) {
+        updates += 1
+        if updates == 10 { log("x876 timecode update \(source.displayName) frames \(timecode.seconds * 30 + timecode.frames) fps \(timecode.frameDuration.timescale)") }
+    }
+    func timecodeGenerator(_ generator: AVCaptureTimecodeGenerator, transitionedTo status: AVCaptureTimecodeGenerator.SynchronizationStatus, for source: AVCaptureTimecode.Source) {
+        if status == .notRequired { log("x876 timecode source \(source.displayName) not required") }
+    }
+    func audio(_ sb: CMSampleBuffer) {
+        _ = spatial.analyzeAudioSample(sb)
+        analyzed += 1
+        if analyzed == 20, let m = spatial.newTimedMetadataSampleBufferAndResetAnalyzer()?.takeRetainedValue(), let block = m.dataBuffer {
+            var levels = [Float](repeating: 0, count: 2)
+            _ = levels.withUnsafeMutableBytes { CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: 8, destination: $0.baseAddress!) }
+            log("x876 spatial peak \(levels[0] > 0.3) rms \(levels[1] > 0.15) reset \(spatial.newTimedMetadataSampleBufferAndResetAnalyzer() == nil)")
         }
     }
 }

@@ -588,5 +588,49 @@ typedef NS_ENUM(NSInteger, AVCaptureOutputDataDroppedReason) {
 @property (nonatomic, readonly, nullable) id<AVCaptureDataOutputSynchronizerDelegate> delegate;
 @property (nonatomic, readonly, nullable) dispatch_queue_t delegateCallbackQueue;
 @end
+
+/* issue #876, part 3 (the overlay's CaptureTimecode.swift): RDD 18 ancillary data, the broadcast output, the external
+   display configurator, spatial audio metadata. AVCaptureTimecode and the timecode generator are Swift-only in isim. */
+typedef NSString *AVCaptureAncillaryDataUserKey NS_TYPED_ENUM API_AVAILABLE(ios(27.0));
+API_AVAILABLE(ios(27.0))
+@interface AVCaptureAncillaryDataEncoder : NSObject
+@property (nonatomic, getter=isEnabled) BOOL enabled;
+@property (nonatomic, readonly) int16_t userDefinedAncillaryDataSizeRemaining;
+- (BOOL)setRDD18AncillaryData:(NSData *)data forTag:(uint16_t)tag error:(NSError * _Nullable * _Nullable)outError;
+- (BOOL)setRDD18AncillaryDataString:(NSString *)string forTag:(uint16_t)tag error:(NSError * _Nullable * _Nullable)outError;
+- (void)removeRDD18AncillaryDataForTag:(uint16_t)tag;
+@end
+typedef NS_ENUM(NSInteger, AVCaptureBroadcastVideoOutputDroppedFrameReplacementPolicy) {
+    AVCaptureBroadcastVideoOutputDroppedFrameReplacementPolicyRepeatPreviousFrame = 0,
+    AVCaptureBroadcastVideoOutputDroppedFrameReplacementPolicyBlackFrame = 1 } API_AVAILABLE(ios(27.0));
+API_AVAILABLE(ios(27.0))
+@interface AVCaptureBroadcastVideoOutput : AVCaptureOutput
+- (instancetype)init;
+@property (class, nonatomic, readonly) NSInteger maxSupportedBufferedFrameCount;
+@property (nonatomic) NSInteger maxBufferedFrameCount;
+@property (nonatomic) AVCaptureBroadcastVideoOutputDroppedFrameReplacementPolicy droppedFrameReplacementPolicy;
+@property (nonatomic, copy, nullable) NSDictionary<NSString *, id> *videoSettings;
+@property (nonatomic, readonly) AVCaptureAncillaryDataEncoder *ancillaryDataEncoder;
+- (void)resetFrameBuffer;
+@end
+API_AVAILABLE(ios(26.0))
+@interface AVCaptureExternalDisplayConfiguration : NSObject
+- (instancetype)init;
+@property (nonatomic) BOOL shouldMatchFrameRate;
+@property (nonatomic) BOOL bypassColorSpaceConversion;
+@end
+API_AVAILABLE(ios(26.0))
+@interface AVCaptureExternalDisplayConfigurator : NSObject
+- (instancetype)initWithDevice:(AVCaptureDevice *)device previewLayer:(CALayer *)previewLayer configuration:(AVCaptureExternalDisplayConfiguration *)configuration;
+@property (nonatomic, readonly, getter=isActive) BOOL active;
+@property (nonatomic, readonly) double activeExternalDisplayFrameRate;
+- (void)stop;
+@end
+API_AVAILABLE(ios(26.0))
+@interface AVCaptureSpatialAudioMetadataSampleGenerator : NSObject
+- (instancetype)init;
+- (OSStatus)analyzeAudioSample:(CMSampleBufferRef)sbuf;
+- (void)resetAnalyzer;
+@end
 NS_ASSUME_NONNULL_END
 #endif

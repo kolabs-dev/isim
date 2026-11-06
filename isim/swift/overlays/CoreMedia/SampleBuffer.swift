@@ -98,6 +98,10 @@ public final class CMFormatDescription: @unchecked Sendable, Hashable {
     public init(_audio asbd: AudioStreamBasicDescription) {
         mediaType = kCMMediaType_Audio; mediaSubType = asbd.mFormatID; _dimensions = CMVideoDimensions(width: 0, height: 0); _asbd = asbd
     }
+    /// isim: a timed metadata format (e.g. 'mebx', boxed metadata)
+    public init(_metadata subType: FourCharCode) {
+        mediaType = kCMMediaType_Metadata; mediaSubType = subType; _dimensions = CMVideoDimensions(width: 0, height: 0); _asbd = AudioStreamBasicDescription()
+    }
     public var dimensions: CMVideoDimensions { _dimensions }
     public var audioStreamBasicDescription: AudioStreamBasicDescription? { mediaType == kCMMediaType_Audio ? _asbd : nil }
 }

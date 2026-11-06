@@ -286,6 +286,15 @@ def test_capture_device_extras(launch, media, ios):
     assert app.wait_log(r"x876 presets.*$").group(0) == want
     if v >= 18:
         app.wait_log(r"x876 mic wind true multichannel true stereo false")  # the mono microphone: no stereo mode
+    if v >= 26:                                                           # part 3: timecode, external display, spatial audio
+        app.wait_log(r"x876 timecode wrap 0:0:0:1 buffer 1 external false")
+        app.wait_log(r"x876 timecode source Frame Count not required")
+        m = app.wait_log(r"x876 timecode update Frame Count frames (\d+) fps 30")
+        assert int(m.group(1)) == 9, "the frame-count source counts frames from 00:00:00:00"
+        app.wait_log(r"x876 spatial peak true rms true reset true", timeout=20)
+    if v >= 27:                                                           # the broadcast output and its RDD 18 data
+        app.wait_log(r"x876 broadcast remaining 244 too big true max 8")
+        app.wait_log(r"x876 broadcast sent true")
     if v >= 26:
         app.wait_log(r"deferred start will run")                          # the metadata output's deferred start
         app.wait_log(r"deferred start did run")
