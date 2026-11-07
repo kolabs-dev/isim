@@ -227,7 +227,7 @@ static const struct { const char *sf, *adw; } symbol_map[] = {
     { "personalhotspot", "status/network-wireless-hotspot-symbolic" },
     { "antenna.radiowaves.left.and.right", "status/network-wireless-hotspot-symbolic" },
     { "star.leadinghalf.filled", "status/semi-starred-symbolic" }, { "lock.rotation", "status/rotation-locked-symbolic" },
-    { "hand.raised", "status/changes-prevent-symbolic" }, { "calculator", "legacy/accessories-calculator-symbolic" },
+    { "calculator", "legacy/accessories-calculator-symbolic" },
     { "questionmark.app", "legacy/help-browser-symbolic" }, { "doc.richtext", "mimetypes/x-office-document-symbolic" },
     { "newspaper", "mimetypes/x-office-document-symbolic" }, { "tray", "places/folder-symbolic" },
     { "tray.full", "places/folder-documents-symbolic" }, { "cpu", "devices/media-flash-symbolic" },
