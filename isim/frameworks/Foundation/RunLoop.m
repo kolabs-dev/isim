@@ -577,18 +577,7 @@ static void *thread_entry(void *p) {
 }
 + (double)threadPriority { return self.currentThread.threadPriority; }
 + (BOOL)setThreadPriority:(double)p { self.currentThread.threadPriority = p; return YES; }   /* adapted: recorded, not applied */
-+ (NSArray<NSNumber *> *)callStackReturnAddresses {
-    NSMutableArray *a = [NSMutableArray array];
-    void **fp = __builtin_frame_address(0);
-    for (int i = 0; i < 128 && fp && !((uintptr_t)fp & 7); i++) {
-        void **next = fp[0]; void *ret = fp[1];
-        if (!ret) break;
-        [a addObject:@((uintptr_t)ret)];
-        if (next <= fp) break;
-        fp = next;
-    }
-    return a;
-}
++ (NSArray<NSNumber *> *)callStackReturnAddresses { return isim_return_addresses(__builtin_frame_address(0)); }
 + (NSArray<NSString *> *)callStackSymbols { return isim_symbolicate(self.callStackReturnAddresses); }
 @end
 

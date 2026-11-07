@@ -243,4 +243,10 @@ final class ExpectedFailureTests: XCTestCase {
         let e = expectation(description: "never fulfilled")
         wait(for: [e], timeout: 0.2)
     }
+
+    /// Resumes on a Swift concurrency thread, where recording the issue walks an async call stack (issue #917).
+    func testAsyncFailureAfterAwait() async {
+        try? await Task.sleep(nanoseconds: 10_000_000)
+        XCTFail("failure after an await")
+    }
 }
