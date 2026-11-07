@@ -675,9 +675,30 @@ extension View {
     public func tracking(_ tracking: CGFloat) -> some View { _env { $0._textStyle.kerning = tracking } }
     public func baselineOffset(_ offset: CGFloat) -> some View { _env { $0._textStyle.baseline = offset } }
     public func lineSpacing(_ spacing: CGFloat) -> some View { environment(\.lineSpacing, spacing) }
-    public func textSelection<S>(_ selectability: S) -> some View { self }
+    /// adapted: accepted; isim draws no selection handles or copy menu on Text
+    public func textSelection<S: TextSelectability>(_ selectability: S) -> some View { self }
+    /// the unconstrained form earlier releases exported, kept for apps built with them (ABI only: source uses the one above)
+    @_disfavoredOverload @usableFromInline func textSelection<S>(_ selectability: S) -> some View { self }
     public func dynamicTypeSize(_ size: DynamicTypeSize) -> some View { _env { $0.dynamicTypeSize = size } }
     public func dynamicTypeSize<T: RangeExpression>(_ range: T) -> some View where T.Bound == DynamicTypeSize { self }
+}
+
+// MARK: - Text selectability
+
+public protocol TextSelectability {
+    static var allowsSelection: Bool { get }
+}
+public struct EnabledTextSelectability: TextSelectability {
+    public static var allowsSelection: Bool { true }
+}
+public struct DisabledTextSelectability: TextSelectability {
+    public static var allowsSelection: Bool { false }
+}
+extension TextSelectability where Self == EnabledTextSelectability {
+    public static var enabled: EnabledTextSelectability { EnabledTextSelectability() }
+}
+extension TextSelectability where Self == DisabledTextSelectability {
+    public static var disabled: DisabledTextSelectability { DisabledTextSelectability() }
 }
 
 // MARK: - SF Symbol modifiers
