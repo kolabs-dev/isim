@@ -9,41 +9,78 @@
 # - status: posts the commit status "ci / build and test" once the four test jobs are done (success only if the build
 #   and all four passed): the check main's ruleset requires (runs started from the Actions tab are not counted as a
 #   pull request's checks; commit statuses are).
-# Pull requests: manual only (Actions -> CI -> Run workflow, on the PR's branch). Pushes to main run automatically, so
+# Pull requests: manual only (Actions -> CI -> Run workflow). A PR from a branch of this repository: run it on that
+# branch. A PR from a fork (whose branch is not in this repository): run it on main with the PR's number (`pr`); the
+# run checks out the PR's head commit as it was when the run started, builds and tests it with main's workflow, and
+# posts the status on that commit, so it shows on the PR. Pushes to main run automatically, so
 # main always has a fresh build cache: a branch's first run starts from it. The build is cached: build.py ci gives
 # unchanged sources their cached timestamps back, so Ninja rebuilds only what the pull request touched since the
 # branch's (or main's) last cached build.
+# A PR's code is not trusted: it runs only inside the CI container, which gets no token (the checkouts keep no
+# credentials, and GH_TOKEN is set only on the steps that post statuses or look the PR up); a run with `pr` saves no
+# shared cache other than its own build (third-party sources, the Swift toolchain and the image's layers are saved
+# only by runs of this repository's own code), and its build cache is keyed by the PR, so no other branch restores it.
 name: CI
+run-name: ${{ inputs.pr && format('CI (PR #{0})', inputs.pr) || '' }}
 on:
   workflow_dispatch:
+    inputs:
+      pr:
+        description: "Pull request number, for a PR from a fork (run on main); empty to test the selected branch"
+        required: false
+        type: string
   push:
     branches: [main]
 permissions:
   contents: read
   statuses: write
-# a newer run cancels an older one on the same PR branch; on main every commit gets its own group, so no run there is
-# cancelled (a cancelled run would show as failing on the README badge) and each merge gets its own result
+# a newer run cancels an older one on the same PR branch (or for the same `pr`); on main every commit gets its own
+# group, so no run there is cancelled (a cancelled run would show as failing on the README badge) and each merge gets
+# its own result
 concurrency:
-  group: ci-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: ci-${{ inputs.pr && format('pr-{0}', inputs.pr) || (github.ref == 'refs/heads/main' && github.sha || github.ref) }}
+  cancel-in-progress: ${{ inputs.pr != '' || github.ref != 'refs/heads/main' }}
 env:
-  GH_TOKEN: ${{ github.token }}
-  STATUS: repos/${{ github.repository }}/statuses/${{ github.sha }}
+  PR: ${{ inputs.pr }}
   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-  BUILD_KEY: build-${{ github.ref_name }}-${{ github.sha }}-${{ github.run_id }}
+  # a run with `pr` keys its build by the PR (pr-N), never by the branch it was started on (main)
+  BUILD_PREFIX: build-${{ inputs.pr && format('pr-{0}', inputs.pr) || github.ref_name }}
+  BUILD_KEY: build-${{ inputs.pr && format('pr-{0}', inputs.pr) || github.ref_name }}-${{ github.sha }}-${{ github.run_id }}
   SWIFT_KEY: swift-6.2.4-ubuntu24.04          # isim/ci/swift-toolchain.sh's toolchain (release.yml uses the same key)
 jobs:
   build:
     name: build
     runs-on: ubuntu-24.04
     timeout-minutes: 90          # a cold build (no cache yet) takes much longer than the usual cached run
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
     steps:
+      # the commit under test: the selected branch's, or with `pr` the PR's head now (every job checks out this
+      # commit, so a push to the PR during the run does not mix two commits)
+      - name: Commit
+        id: commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -z "$PR" ]; then echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"; exit 0; fi
+          [[ "$PR" =~ ^[0-9]+$ ]] || { echo "::error::pr must be a pull request number, not '$PR'"; exit 1; }
+          info=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq '[.state, .head.sha, .head.repo.full_name] | @tsv')
+          read -r state sha head <<< "$info"
+          [ "$state" = open ] || { echo "::error::pull request #$PR is $state"; exit 1; }
+          echo "Testing pull request #$PR: $head at $sha" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
       # the commit status is for pull requests (a manual run's job does not count as a PR's check); on main the jobs'
       # own checks are enough
       - name: Status (pending)
         if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS: repos/${{ github.repository }}/statuses/${{ steps.commit.outputs.sha }}
         run: gh api "$STATUS" -f state=pending -f context="ci / build and test" -f description="running" -f target_url="$RUN_URL" >/dev/null
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.commit.outputs.sha }}
+          persist-credentials: false
       - uses: docker/setup-buildx-action@v4
       - name: CI image (Ubuntu 24.04)
         uses: docker/build-push-action@v7
@@ -52,7 +89,7 @@ jobs:
           load: true
           tags: isim-ci
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: ${{ !inputs.pr && 'type=gha,mode=max' || '' }}
       # restore and save as separate steps: the combined action saves only when the whole job succeeds
       - name: Pinned third-party sources (restore)
         id: third-party
@@ -69,7 +106,7 @@ jobs:
             !isim/out/test-*
           key: ${{ env.BUILD_KEY }}
           restore-keys: |
-            build-${{ github.ref_name }}-
+            ${{ env.BUILD_PREFIX }}-
             build-main-
       # Swift 6.2.4 from swift.org, checked against its signing keys (isim/ci/swift-toolchain.sh): the build and the
       # tests compile with it (ISIM_SWIFT_TOOLCHAIN); cached once per toolchain
@@ -83,7 +120,7 @@ jobs:
         if: steps.swift-toolchain.outputs.cache-hit != 'true'
         run: isim/ci/swift-toolchain.sh ~/swift-toolchain
       - name: Swift toolchain (save)
-        if: steps.swift-toolchain.outputs.cache-hit != 'true'
+        if: ${{ steps.swift-toolchain.outputs.cache-hit != 'true' && !inputs.pr }}
         uses: actions/cache/save@v5
         with:
           path: ~/swift-toolchain
@@ -98,7 +135,7 @@ jobs:
         if: always()
         run: sudo chown -R "$(id -u):$(id -g)" isim/out third_party
       - name: Pinned third-party sources (save)
-        if: ${{ !cancelled() && steps.third-party.outputs.cache-hit != 'true' }}
+        if: ${{ !cancelled() && steps.third-party.outputs.cache-hit != 'true' && !inputs.pr }}
         uses: actions/cache/save@v5
         with:
           path: third_party
@@ -140,6 +177,9 @@ jobs:
           - { ios: "27", args: "-m os_matrix --os 27 --device iphone17" }
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.build.outputs.sha }}
+          persist-credentials: false
       - uses: docker/setup-buildx-action@v4
       - name: CI image (Ubuntu 24.04)
         uses: docker/build-push-action@v7
@@ -201,9 +241,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       # one summary for the four test jobs: totals and failures per iOS version, the os_matrix tests side by side
+      # (report.py from the branch the run was started on, never a PR's: this job's steps have the token)
       - uses: actions/checkout@v5
         with:
           sparse-checkout: isim/buildlib
+          persist-credentials: false
       - uses: actions/download-artifact@v7
         with:
           pattern: test-results-ios*
@@ -215,7 +257,10 @@ jobs:
           python3 isim/buildlib/report.py matrix matrix.md $args
           cat matrix.md >> "$GITHUB_STEP_SUMMARY"
       - name: Status (result)
-        if: github.event_name == 'workflow_dispatch'
+        if: ${{ github.event_name == 'workflow_dispatch' && needs.build.outputs.sha != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS: repos/${{ github.repository }}/statuses/${{ needs.build.outputs.sha }}
         run: |
           b="${{ needs.build.result }}" t="${{ needs.test.result }}"
           if [ "$b" = success ] && [ "$t" = success ]; then state=success
