@@ -11,7 +11,8 @@ typedef NS_OPTIONS(NSUInteger, NSDataWritingOptions) {
     NSDataWritingAtomic NS_SWIFT_NAME(atomic) = 1UL << 0, NSDataWritingWithoutOverwriting NS_SWIFT_NAME(withoutOverwriting) = 1UL << 1,
     NSDataWritingFileProtectionNone NS_SWIFT_NAME(noFileProtection) = 0x10000000, NSDataWritingFileProtectionComplete NS_SWIFT_NAME(completeFileProtection) = 0x20000000,
     NSDataWritingFileProtectionCompleteUnlessOpen NS_SWIFT_NAME(completeFileProtectionUnlessOpen) = 0x30000000,
-    NSDataWritingFileProtectionCompleteUntilFirstUserAuthentication NS_SWIFT_NAME(completeFileProtectionUntilFirstUserAuthentication) = 0x40000000
+    NSDataWritingFileProtectionCompleteUntilFirstUserAuthentication NS_SWIFT_NAME(completeFileProtectionUntilFirstUserAuthentication) = 0x40000000,
+    NSDataWritingFileProtectionMask NS_SWIFT_NAME(fileProtectionMask) = 0xf0000000
 } NS_SWIFT_NAME(NSData.WritingOptions);
 typedef NS_OPTIONS(NSUInteger, NSDataSearchOptions) {
     NSDataSearchBackwards NS_SWIFT_NAME(backwards) = 1UL << 0, NSDataSearchAnchored NS_SWIFT_NAME(anchored) = 1UL << 1

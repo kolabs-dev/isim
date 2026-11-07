@@ -95,6 +95,16 @@
     close(fd);
     if (off != _length) { if (e) *e = [NSError errorWithDomain:NSCocoaErrorDomain code:512 userInfo:@{ @"NSFilePath": path }]; return NO; }
     if (target != path && rename(target.UTF8String, path.UTF8String) != 0) { unlink(target.UTF8String); if (e) *e = [NSError errorWithDomain:NSCocoaErrorDomain code:512 userInfo:@{ @"NSFilePath": path }]; return NO; }
+    /* adapted: the file's protection class is recorded (NSURLFileProtectionKey reads it back), not enforced */
+    NSURLFileProtectionType protection = nil;
+    switch (opts & NSDataWritingFileProtectionMask) {
+    case NSDataWritingFileProtectionNone: protection = NSURLFileProtectionNone; break;
+    case NSDataWritingFileProtectionComplete: protection = NSURLFileProtectionComplete; break;
+    case NSDataWritingFileProtectionCompleteUnlessOpen: protection = NSURLFileProtectionCompleteUnlessOpen; break;
+    case NSDataWritingFileProtectionCompleteUntilFirstUserAuthentication: protection = NSURLFileProtectionCompleteUntilFirstUserAuthentication; break;
+    default: break;
+    }
+    if (protection) [[NSURL fileURLWithPath:path] setResourceValue:protection forKey:NSURLFileProtectionKey error:NULL];
     return YES;
 }
 - (BOOL)writeToURL:(NSURL *)url atomically:(BOOL)atomic { return url.isFileURL && [self writeToFile:url.path atomically:atomic]; }

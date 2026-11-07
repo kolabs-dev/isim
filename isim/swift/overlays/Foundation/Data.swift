@@ -115,6 +115,9 @@ public struct Data: Hashable, Sendable, RandomAccessCollection, MutableCollectio
         public static let withoutOverwriting = WritingOptions(rawValue: 2)
         public static let noFileProtection = WritingOptions(rawValue: 0x10000000)
         public static let completeFileProtection = WritingOptions(rawValue: 0x20000000)
+        public static let completeFileProtectionUnlessOpen = WritingOptions(rawValue: 0x30000000)
+        public static let completeFileProtectionUntilFirstUserAuthentication = WritingOptions(rawValue: 0x40000000)
+        public static let fileProtectionMask = WritingOptions(rawValue: 0xf0000000)
     }
     public init(contentsOf url: URL, options: ReadingOptions = []) throws {
         guard url.isFileURL || url.scheme == nil else { throw _fileError(256, url.absoluteString, "Only file URLs can be read on isim") }
@@ -130,6 +133,19 @@ public struct Data: Hashable, Sendable, RandomAccessCollection, MutableCollectio
         fclose(f)
         guard written == count else { unlink(target); throw _fileError(640, path, "The file couldn’t be saved.") }
         if options.contains(.atomic), rename(target, path) != 0 { unlink(target); throw _fileError(640, path, "The file couldn’t be saved.") }
+        // adapted: the file's protection class is recorded (URLResourceValues.fileProtection reads it back), not enforced
+        let protection: URLFileProtection? = switch options.rawValue & WritingOptions.fileProtectionMask.rawValue {
+        case WritingOptions.noFileProtection.rawValue: URLFileProtection.none
+        case WritingOptions.completeFileProtection.rawValue: .complete
+        case WritingOptions.completeFileProtectionUnlessOpen.rawValue: .completeUnlessOpen
+        case WritingOptions.completeFileProtectionUntilFirstUserAuthentication.rawValue: .completeUntilFirstUserAuthentication
+        default: nil
+        }
+        if let protection {
+            var values = URLResourceValues(), file = url
+            values.fileProtection = protection
+            try? file.setResourceValues(values)
+        }
     }
 }
 
