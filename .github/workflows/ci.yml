@@ -21,7 +21,7 @@
 # shared cache other than its own build (third-party sources, the Swift toolchain and the image's layers are saved
 # only by runs of this repository's own code), and its build cache is keyed by the PR, so no other branch restores it.
 name: CI
-run-name: ${{ inputs.pr && format('CI (PR #{0})', inputs.pr) || '' }}
+run-name: "${{ inputs.pr && format('CI (PR #{0})', inputs.pr) || '' }}"
 on:
   workflow_dispatch:
     inputs:
