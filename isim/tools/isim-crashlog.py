@@ -13,6 +13,8 @@ then the JSON report).
 import glob
 import json
 import os
+import shutil
+import subprocess
 import sys
 
 DATA = os.environ.get("ISIM_DATA") or os.path.expanduser("~/.local/share/isim")
@@ -39,8 +41,46 @@ def summary(body):
     return s
 
 
+HOST_DIR = os.path.dirname(os.path.realpath(__file__))     # isim-runtime and the host binaries next to this script
+
+
+def host_symbols(frames, images):
+    """{frame index: "function (file:line)"} for frames in isim's own host binaries that have no symbol (static
+    functions of isim-runtime, which ships with debug info), resolved with addr2line; inlined calls are joined with
+    " <- " (innermost first). Empty when addr2line is not installed."""
+    tool = shutil.which("addr2line") or shutil.which("llvm-addr2line")
+    wanted = {}
+    for i, f in enumerate(frames):
+        if f.get("symbol") or "imageIndex" in f:
+            continue
+        path = os.path.join(HOST_DIR, f.get("imageName", ""))
+        if tool and f.get("imageName") and os.path.isfile(path):
+            off = f.get("imageOffset", 0) - (1 if i else 0)         # a return address: the call is the byte before
+            wanted.setdefault(path, []).append((i, off))
+    out = {}
+    for path, items in wanted.items():
+        try:
+            r = subprocess.run([tool, "-a", "-f", "-i", "-C", "-e", path] + [hex(o) for _, o in items],
+                               capture_output=True, text=True, timeout=30)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        groups, cur = [], None
+        for line in r.stdout.splitlines():
+            if line.startswith("0x"):
+                cur = []
+                groups.append(cur)
+            elif cur is not None:
+                cur.append(line.strip())
+        for (i, _), g in zip(items, groups):
+            pairs = [(g[k], os.path.basename(g[k + 1])) for k in range(0, len(g) - 1, 2) if g[k] != "??"]
+            if pairs:
+                out[i] = " <- ".join(f"{fn} ({loc})" for fn, loc in pairs)
+    return out
+
+
 def frame_lines(frames, images):
     out = []
+    resolved = host_symbols(frames, images)
     for i, f in enumerate(frames):
         if "imageIndex" in f and f["imageIndex"] < len(images):
             img = images[f["imageIndex"]]
@@ -48,7 +88,7 @@ def frame_lines(frames, images):
         else:
             name, base = f.get("imageName", "???"), 0
         addr = base + f.get("imageOffset", 0) if base else f.get("imageOffset", 0)
-        sym = f"{f['symbol']} + {f.get('symbolLocation', 0)}" if f.get("symbol") else f"{name} + {f.get('imageOffset', 0)}"
+        sym = f"{f['symbol']} + {f.get('symbolLocation', 0)}" if f.get("symbol") else resolved.get(i) or f"{name} + {f.get('imageOffset', 0)}"
         out.append(f"{i:<4}{name:<32}\t0x{addr:x} {sym}")
     return out
 

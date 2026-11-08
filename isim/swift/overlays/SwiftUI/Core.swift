@@ -320,9 +320,17 @@ public struct Environment<Value>: DynamicProperty, _DynamicProperty {
     }
     public var wrappedValue: Value {
         if let v = box.value { return v }
-        return read(EnvironmentValues())
+        return read(_uninstalledEnvironment())
     }
     func _install(_ ctx: _Context, label: String) { box.value = read(ctx.environment) }
+}
+/// What an @Environment outside a view reads: in an App struct's body (`@Environment(\.scenePhase)` there), the
+/// system's values (scene phase, size classes, display scale, layout direction); elsewhere the defaults, as on iOS.
+nonisolated(unsafe) var _evaluatingAppBody = false
+func _uninstalledEnvironment() -> EnvironmentValues {
+    var env = EnvironmentValues()
+    if _evaluatingAppBody, Thread.isMainThread { MainActor.assumeIsolated { _systemEnvironment(&env, traits: UIScreen.main.traitCollection) } }
+    return env
 }
 
 struct _ColorSchemeKey: EnvironmentKey { static var defaultValue: ColorScheme { .light } }

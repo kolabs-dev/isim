@@ -166,3 +166,12 @@ def test_avkit_pip_system(launch):
     dev.wait_log(r"long rate 0\.0")
     assert dev.quit() == 0
     assert over_app and home and controls
+
+
+def test_player_churn(launch):
+    """Players created, played, paused and dropped in quick succession (issue #918: a SIGSEGV in objc_retain while
+    a test suite did this): every one is torn down cleanly, and the app keeps running."""
+    app = launch("HelloVideo", args=["-churn"])
+    app.wait_log(r"HelloVideo: churn done", timeout=60)
+    assert "guest crashed" not in app.log
+    assert app.quit() == 0

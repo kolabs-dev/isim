@@ -102,16 +102,31 @@ struct ScrollPage: View {
 @available(iOS 18.0, *)
 struct AnchorPage: View {
     @State var messages = (1...20).map { "Message \($0)" }
+    @State var lines = 20
     var body: some View {
         VStack(spacing: 8) {
-            Button("Add") { messages.append("Message \(messages.count + 1)") }.accessibilityIdentifier("add")
+            HStack {
+                Button("Add") { messages.append("Message \(messages.count + 1)") }.accessibilityIdentifier("add")
+                Button("Grow") { lines += 3 }.accessibilityIdentifier("grow")
+            }
+            // starts at the bottom only (.initialOffset): growing content leaves the offset where it was
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(0..<lines, id: \.self) { Text("Line \($0)").frame(height: 20) }
+                }
+            }
+            .frame(height: 100)
+            .defaultScrollAnchor(.bottom, for: .initialOffset)
+            .onScrollGeometryChange(for: Int.self, of: { Int(($0.contentSize.height - $0.contentOffset.y - $0.containerSize.height).rounded()) }) { _, d in
+                print("initial-only from bottom \(d)")
+            }
             // a chat: starts at the bottom and stays there as messages arrive
             ScrollView {
                 VStack(spacing: 0) {
                     ForEach(messages, id: \.self) { m in Text(m).frame(maxWidth: .infinity, minHeight: 40) }
                 }
             }
-            .frame(height: 300)
+            .frame(height: 200)
             .defaultScrollAnchor(.bottom)
             .onScrollGeometryChange(for: Int.self, of: { Int(($0.contentSize.height - $0.contentOffset.y - $0.containerSize.height).rounded()) }) { _, d in
                 print("from bottom \(d)")

@@ -116,6 +116,7 @@ def test_run_loop_tracking_mode(launch):
     app = launch("HelloScrollAndLists")
     app.wait_tap_id("runloop")
     app.wait_log(r"^run loop modes ready, mode kCFRunLoopDefaultMode$")
+    app.wait_log(r"^offset on pixel grid 100\.0000 scale 3 stable true$")   # contentOffset on the 1/3 pt grid (#921)
     scroll = app.wait_for(id="modes-scroll")
     app.wait_still()
     x = scroll.x + scroll.w / 2

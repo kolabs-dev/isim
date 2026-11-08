@@ -881,7 +881,10 @@ static void print_frame(int i, uintptr_t pc) {
     } else {
         Dl_info hi;
         if (dladdr((void *)pc, &hi) && hi.dli_sname) fprintf(stderr, "  #%-2d 0x%012lx [host] %s + %lu\n", i, (unsigned long)pc, hi.dli_sname, (unsigned long)(pc - (uintptr_t)hi.dli_saddr));
-        else fprintf(stderr, "  #%-2d 0x%012lx [host]%s%s\n", i, (unsigned long)pc, hi.dli_fname ? " " : "", hi.dli_fname ? hi.dli_fname : "");
+        else if (hi.dli_fname) {                           /* static function: module + offset (for addr2line) */
+            const char *base = strrchr(hi.dli_fname, '/');
+            fprintf(stderr, "  #%-2d 0x%012lx [host] %s+0x%lx\n", i, (unsigned long)pc, base ? base + 1 : hi.dli_fname, (unsigned long)(pc - (uintptr_t)hi.dli_fbase));
+        } else fprintf(stderr, "  #%-2d 0x%012lx [host]\n", i, (unsigned long)pc);
     }
 }
 /* backtrace from a frame pointer (used for fatal Objective-C errors) */
@@ -937,23 +940,14 @@ static void d_backtrace_symbols_fd(void *const *pcs, int n, int fd) {
         if (write(fd, line, (size_t)l) < 0) break;
     }
 }
-static void write_crash_report(int sig, siginfo_t *si, ucontext_t *uc);
+static void write_crash_report(int sig, siginfo_t *si, ucontext_t *uc, const uintptr_t *pcs, int n);
+static int crash_pcs(ucontext_t *uc, uintptr_t *pcs, int max);
 static void crash_handler(int sig, siginfo_t *si, void *ctx) {
     ucontext_t *uc = ctx;
-    write_crash_report(sig, si, uc);
-    uintptr_t pc = uc->uc_mcontext.gregs[REG_RIP], fp = uc->uc_mcontext.gregs[REG_RBP], sp = uc->uc_mcontext.gregs[REG_RSP];
+    uintptr_t pcs[64]; int n = crash_pcs(uc, pcs, 64);
+    write_crash_report(sig, si, uc, pcs, n);
     fprintf(stderr, "\nisim: guest crashed: %s at address %p\n", strsignal(sig), si->si_addr);
-    print_frame(0, pc);
-    /* the return address is at [rsp] if the crash happened before the frame was set up (e.g. in a leaf) */
-    uintptr_t ret0 = 0; if (sp && !(sp & 7)) ret0 = *(uintptr_t *)sp;
-    if (ret0 && image_for_address((void *)ret0)) print_frame(1, ret0);
-    for (int i = 2; i < 64 && fp && !(fp & 7); i++) {
-        uintptr_t next = ((uintptr_t *)fp)[0], ret = ((uintptr_t *)fp)[1];
-        if (!ret) break;
-        print_frame(i, ret);
-        if (next <= fp) break;
-        fp = next;
-    }
+    for (int i = 0; i < n; i++) print_frame(i, pcs[i]);
     signal(sig, SIG_DFL);
     raise(sig);
 }
@@ -1013,6 +1007,26 @@ static int collect_pcs(ucontext_t *uc, uintptr_t *pcs, int max, int safe) {
     }
     #undef READW
     return n;
+}
+/* the crashing thread's pcs. A crash in guest code: its frame-pointer chain. A crash in the host (isim-runtime and
+   the host libraries keep no frame pointers, so the chain would end at frame #0): a DWARF unwind through the signal
+   frame, which also covers the guest frames above it (their images are registered with the unwinder); the chain
+   when that finds nothing. The return addresses stay as they are (the .ips format and `isim crashlog` expect them). */
+static int crash_pcs(ucontext_t *uc, uintptr_t *pcs, int max) {
+    uintptr_t pc = uc->uc_mcontext.gregs[REG_RIP];
+    if (!image_for_address((void *)pc)) {
+        struct dump_pcs d = { .n = 0 };
+        isim_unwind_backtrace(dump_collect, &d);
+        int first = -1;
+        for (int i = 0; i < d.n; i++) if (d.pc[i] == pc || d.pc[i] == pc + 1) { first = i; break; }
+        if (first >= 0 && d.n - first > 1) {
+            int n = 0;
+            pcs[n++] = pc;
+            for (int i = first + 1; i < d.n && n < max; i++) pcs[n++] = d.pc[i];
+            return n;
+        }
+    }
+    return collect_pcs(uc, pcs, max, dump_pipe[0] >= 0);
 }
 static volatile int capture_tid, capture_n;
 static uintptr_t capture_pcs[64];
@@ -1207,7 +1221,7 @@ static void put_frames(const uintptr_t *pcs, int n) {
     }
     put("]");
 }
-static void write_crash_report(int sig, siginfo_t *si, ucontext_t *uc) {
+static void write_crash_report(int sig, siginfo_t *si, ucontext_t *uc, const uintptr_t *pcs, int n) {
     static int writing;
     if (writing++ || getenv("ISIM_NO_CRASH_REPORT")) return;
     const char *data = getenv("ISIM_DATA"), *home = getenv("HOME");
@@ -1270,7 +1284,7 @@ static void write_crash_report(int sig, siginfo_t *si, ucontext_t *uc) {
         put(",\"className\":"); put_str(exc_class[0] ? exc_class : "NSException"); put("},\n");
         put("  \"lastExceptionBacktrace\" : "); put_frames(exc_pcs, exc_n); put(",\n");
     }
-    uintptr_t pcs[64]; int n = collect_pcs(uc, pcs, 64, dump_pipe[0] >= 0);
+    (void)uc;
     put("  \"faultingThread\" : 0,\n  \"threads\" : [{\"triggered\":true,\"id\":%ld,%s\"frames\":", (long)syscall(SYS_gettid),
         syscall(SYS_gettid) == getpid() ? "\"queue\":\"com.apple.main-thread\"," : "");
     put_frames(pcs, n);
@@ -1295,7 +1309,14 @@ static void write_crash_report(int sig, siginfo_t *si, ucontext_t *uc) {
 void isim_write_crash_report_here(int sig) {
     ucontext_t uc; getcontext(&uc);
     siginfo_t si; memset(&si, 0, sizeof si); si.si_signo = sig;
-    write_crash_report(sig, &si, &uc);
+    /* the frames above this one: a DWARF unwind (the uncaught-exception path runs in the host, which keeps no frame
+       pointers), else the frame-pointer chain */
+    struct dump_pcs d = { .n = 0 };
+    isim_unwind_backtrace(dump_collect, &d);
+    uintptr_t pcs[64]; int n = 0;
+    for (int i = 1; i < d.n && n < 64; i++) pcs[n++] = d.pc[i];
+    if (n < 2) n = collect_pcs(&uc, pcs, 64, dump_pipe[0] >= 0);
+    write_crash_report(sig, &si, &uc, pcs, n);
 }
 
 static void install_crash_handler(void) {

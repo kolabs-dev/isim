@@ -151,16 +151,24 @@ extension UITraitBridgedEnvironmentKey {
     static func _isimRead(_ t: UITraitCollection) -> Any { read(from: t) }
 }
 
+/// The scene phase: from the application's state, and between the lifecycle notifications (Graph.swift sets
+/// `_scenePhaseOverride`) the inactive step UIKit passes through: active -> inactive -> background on the way out,
+/// background -> inactive -> active on the way back, as SwiftUI reports on iOS.
+@MainActor var _scenePhaseOverride: ScenePhase?
+@MainActor func _currentScenePhase() -> ScenePhase {
+    if let p = _scenePhaseOverride { return p }
+    switch UIApplication.shared.applicationState {
+    case .active: return .active
+    case .inactive: return .inactive
+    default: return .background
+    }
+}
 @MainActor func _systemEnvironment(_ env: inout EnvironmentValues, traits: UITraitCollection) {
     env._traits = traits
     env.horizontalSizeClass = traits.horizontalSizeClass == .regular ? .regular : .compact
     env.verticalSizeClass = traits.verticalSizeClass == .compact ? .compact : .regular
     env.displayScale = UIScreen.main.scale
-    switch UIApplication.shared.applicationState {
-    case .active: env.scenePhase = .active
-    case .inactive: env.scenePhase = .inactive
-    default: env.scenePhase = .background
-    }
+    env.scenePhase = _currentScenePhase()
     // the app's direction (its localization, Xcode's right-to-left pseudolanguage, ISIM_LAYOUT_DIRECTION), like UIKit's
     env.layoutDirection = UIApplication.shared.userInterfaceLayoutDirection == .rightToLeft ? .rightToLeft : .leftToRight
 }

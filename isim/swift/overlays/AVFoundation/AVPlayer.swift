@@ -154,7 +154,11 @@ final class _AVTicker: NSObject {
     nonisolated(unsafe) static let shared = _AVTicker()
     var players: [ObjectIdentifier: AVPlayer] = [:]
     var link: CADisplayLink?
+    /// Players start and stop on any thread (an `async` XCTest method plays them off the main actor), but the
+    /// table is only touched on the main thread, where the display link iterates it (issue #918: a player released
+    /// while the tick copied the table could crash in objc_retain).
     func add(_ p: AVPlayer) {
+        guard Thread.isMainThread else { DispatchQueue.main.async { self.add(p) }; return }
         players[ObjectIdentifier(p)] = p
         if link == nil {
             let l = CADisplayLink(_isimWeakTarget: self, selector: #selector(tick))
@@ -163,6 +167,7 @@ final class _AVTicker: NSObject {
         }
     }
     func remove(_ p: AVPlayer) {
+        guard Thread.isMainThread else { DispatchQueue.main.async { self.remove(p) }; return }
         players[ObjectIdentifier(p)] = nil
         if players.isEmpty { link?.invalidate(); link = nil }
     }

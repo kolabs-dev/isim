@@ -4,8 +4,9 @@
 //                     them back from OSLogStore, emits MetricKit signposts and hangs the main thread 0.6 s (a hang
 //                     diagnostic); `metrickit deliver` then brings this run's measured metric payload
 //   HELLODIAG=segv    crashes in C (SIGSEGV) a second after launch; =exception: an uncaught NSRangeException;
-//                     =fatal: a Swift fatalError. The next launch gets the crash as an MXCrashDiagnostic and the
-//                     crashed run's metrics (with its exit) in a metric payload
+//                     =fatal: a Swift fatalError; =retain: objc_retain of a bad pointer (a crash in host code).
+//                     The next launch gets the crash as an MXCrashDiagnostic and the crashed run's metrics (with its
+//                     exit) in a metric payload
 //   HELLODIAG=slowlaunch  takes 2.5 s to launch (an MXAppLaunchDiagnostic)
 // A main run loop observer (CFRunLoopObserver, like crash and hang SDKs add) times the loop's work between waits and
 // reports the hang too; a CFRunLoopTimer and a CFRunLoopPerformBlock block run on the main loop.
@@ -15,6 +16,7 @@ import MetricKit
 
 @_silgen_name("cdiag_log_and_signpost") func cdiagLogAndSignpost()
 @_silgen_name("cdiag_crash_segv") func cdiagCrashSegv()
+@_silgen_name("cdiag_crash_retain") func cdiagCrashRetain()
 
 let mode = ProcessInfo.processInfo.environment["HELLODIAG"] ?? ""
 let subsystem = "dev.isim.diag"
@@ -45,6 +47,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, MXMetricManagerSubs
     func run() {
         switch mode {
         case "segv": crashSoon { cdiagCrashSegv() }
+        case "retain": crashSoon { cdiagCrashRetain() }
         case "exception": crashSoon { _ = (NSArray(array: [1, 2]) as NSArray).object(at: 3) }
         case "fatal": crashSoon { fatalError("diag fatal error") }
         default: logging(); signposts(); readBack(); metricKit(); if #available(iOS 27.0, *) { reports() }

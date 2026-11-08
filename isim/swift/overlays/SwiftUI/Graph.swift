@@ -110,7 +110,18 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
                      UIApplication.didEnterBackgroundNotification, UIApplication.willEnterForegroundNotification]
         for n in names {
             appObservers.append(NotificationCenter.default.addObserver(forName: n, object: nil, queue: nil, using: { [weak self] (_: NSNotification) in
-                MainActor.assumeIsolated { self?.invalidate() }
+                // entering inactive renders at once: willResignActive and didEnterBackground (willEnterForeground and
+                // didBecomeActive) come one after the other, and each phase is seen, as on iOS
+                MainActor.assumeIsolated {
+                    switch n {
+                    case UIApplication.willResignActiveNotification, UIApplication.willEnterForegroundNotification:
+                        _scenePhaseOverride = .inactive
+                        self?.invalidate(); self?.hostView?.layoutIfNeeded()   // seen before the next notification
+                    default:
+                        _scenePhaseOverride = nil                       // active / background: the application's state
+                        self?.invalidate()
+                    }
+                }
             }))
         }
     }

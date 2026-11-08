@@ -39,4 +39,13 @@ def test_source_compat(launch):
     app.wait_for(id="haptic").tap()
     app.wait_log(r"^compat haptic")                                     # impactOccurred(intensity:)
     assert "compat drag 2" not in app.log, "gesture(nil) installs nothing"
+
+    # an App-level @Environment(\.scenePhase) follows the app (issue #919): Scene.onChange sees each change
+    app.send("home")
+    app.wait_log(r"^compat scene phase background")
+    app.send("activate")
+    app.wait_log(r"^compat scene phase active", count=2)
+    log = app.log
+    i = log.index("compat scene phase background")
+    assert "compat scene phase inactive" in log[:i], "active -> inactive -> background, as on iOS"
     assert app.quit() == 0
