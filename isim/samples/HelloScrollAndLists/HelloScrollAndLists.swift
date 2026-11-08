@@ -80,6 +80,13 @@ final class RunLoopModesViewController: UIViewController, UIScrollViewDelegate {
         }
         RunLoop.main.add(common, forMode: .common)
         timers.append(common)
+        // a set offset lands on the pixel grid, as on iOS (issue #921): set and read back can differ
+        let grid = UIScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+        grid.contentSize = CGSize(width: 100, height: 1000)
+        grid.contentOffset = CGPoint(x: 0, y: 100.1234)
+        let first = grid.contentOffset
+        grid.contentOffset = first                                  // setting what was read back changes nothing
+        print(String(format: "offset on pixel grid %.4f scale %.0f stable %@", first.y, UIScreen.main.scale, grid.contentOffset == first ? "true" : "false"))
         print("run loop modes ready, mode \(RunLoop.main.currentMode?.rawValue ?? "none")")
     }
     override func viewDidDisappear(_ animated: Bool) { super.viewDidDisappear(animated); timers.forEach { $0.invalidate() } }

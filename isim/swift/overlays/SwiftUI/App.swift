@@ -56,6 +56,8 @@ public struct SceneBuilder {
 @MainActor func _rootView<A: App>(_ app: A) -> AnyView {
     let c = _collectScenes(app)
     _SUIWindows.groups = c.groups
+    _SUIWindows.collectedState = _currentScenePhase()
+    _SUIWindows.recollect = { _collectScenes(app).groups }
     _SUIWindows.stack = [c.groups.first?.id ?? nil]
     return c.groups.first?.make() ?? AnyView(EmptyView())
 }

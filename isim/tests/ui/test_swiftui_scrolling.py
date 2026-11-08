@@ -54,9 +54,14 @@ def test_default_anchor_and_clipping(launch):
     app = launch("HelloSwiftUIScrolling", env={"PAGE": "anchor"})
     tree = app.wait_view(r"id=centred")
     app.wait_log(r"^from bottom 0$")                                    # defaultScrollAnchor(.bottom): starts at the end
-    assert re.search(r"_SUIScrollView \(0 0; 402 x 300\) text=offset 500,", tree), tree
+    assert re.search(r"_SUIScrollView \(0 0; 402 x 200\) text=offset 600,", tree), tree
     app.wait_tap_id("add")
     app.wait_log(r"^from bottom 0$", count=2)                           # ... and stays there as content grows
+    # .defaultScrollAnchor(.bottom, for: .initialOffset) only (issue #921): it starts at the bottom, but three new
+    # rows (60 pt) leave the offset where it was, as on iOS
+    app.wait_log(r"^initial-only from bottom 0$")
+    app.wait_tap_id("grow")
+    app.wait_log(r"^initial-only from bottom 60$")
     f = screen_frames(tree)
     sx, sy, sw, sh = f["small"]
     cx, cy, cw, ch = f["centred"]

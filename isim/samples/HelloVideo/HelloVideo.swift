@@ -5,6 +5,7 @@
 // clip.mp4 (made by the build with ffmpeg, buildlib/apps.py): 3 s, 320x180 — red for 1 s, then green, then blue — with a 440 Hz tone.
 // -outputs (Outputs.swift): media selection, player item outputs, access / error logs and rate change reasons.
 // -streaming [-hls URL] (Streaming.swift): AVAssetResourceLoader for a custom URL scheme, and HLS from a URL.
+// -churn: 50 players created, played for 50 ms, paused and dropped in a row (issue #918: player teardown races).
 import UIKit
 import AVFoundation
 import AVKit
@@ -16,7 +17,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = CommandLine.arguments.contains("-outputs") ? OutputsViewController()
+        window?.rootViewController = CommandLine.arguments.contains("-churn") ? ChurnViewController()
+            : CommandLine.arguments.contains("-outputs") ? OutputsViewController()
             : CommandLine.arguments.contains("-streaming") ? StreamingViewController() : VideoViewController()
         window?.makeKeyAndVisible()
         return true
@@ -24,6 +26,44 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 }
 
 func log(_ s: String) { NSLog("HelloVideo: %@", s) }
+
+/// Players that come and go quickly: each is created on the clip (copied to Caches, like an app's downloaded media),
+/// plays briefly, pauses and is dropped while its item is still loading and decoding.
+final class ChurnViewController: UIViewController {
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .systemBackground
+        let source = Bundle.main.url(forResource: "clip", withExtension: "mp4")!
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        let clip = caches.appendingPathComponent("churn.mp4")
+        try? FileManager.default.removeItem(at: clip)
+        try? FileManager.default.copyItem(at: source, to: clip)
+        Task { @MainActor in
+            for i in 0..<50 {
+                let player = AVPlayer(url: clip)
+                let layer = AVPlayerLayer(player: player)
+                layer.frame = CGRect(x: 0, y: 100, width: 320, height: 180)
+                self.view.layer.addSublayer(layer)
+                player.play()
+                try? await Task.sleep(nanoseconds: 50_000_000)
+                player.pause()
+                layer.removeFromSuperlayer()
+                if i % 10 == 9 { log("churn \(i + 1)") }
+            }
+            // the same off the main thread, as an `async` XCTest method does (it runs on the cooperative pool)
+            let done = await Task.detached {
+                for _ in 0..<50 {
+                    let player = AVPlayer(url: clip)
+                    player.play()
+                    try? await Task.sleep(nanoseconds: 20_000_000)
+                    player.pause()
+                }
+                return true
+            }.value
+            log("churn done \(done)")
+        }
+    }
+}
 
 /// A view backed by an AVPlayerLayer (the layerClass pattern).
 final class PlayerView: UIView {

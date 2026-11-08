@@ -82,8 +82,22 @@ static void update_tracking(UIScrollView *s, BOOL active) {
 
 /* ---- geometry ---- */
 - (CGPoint)contentOffset { return self.bounds.origin; }
+/* nonzero while the scrolling physics (a drag, deceleration, a bounce, an animation's frames) sets the offset: those
+   steps keep exact values (rounding each one would stall a bounce a pixel short of its rest); still through
+   -setContentOffset:, so KVO and subclasses see every step, as on iOS */
+static int physics_offset;
+- (void)_isim_physicsOffset:(CGPoint)o { physics_offset++; self.contentOffset = o; physics_offset--; }
+- (CGPoint)_isim_pixelAligned:(CGPoint)o {
+    CGFloat scale = self.traitCollection.displayScale;
+    if (!(scale > 0)) scale = UIScreen.mainScreen.scale;
+    if (!(scale > 0) || !isfinite(o.x) || !isfinite(o.y)) return o;
+    return CGPointMake(round(o.x * scale) / scale, round(o.y * scale) / scale);
+}
 - (void)setContentOffset:(CGPoint)o {
     _userScrolled = YES;                       /* an explicit position sticks (only an untouched view rests at the top) */
+    /* as on iOS, a set offset lands on the device's pixel grid (1/3 pt at 3x), so reading it back can differ from the
+       value set */
+    if (!physics_offset) o = [self _isim_pixelAligned:o];
     [self _isim_applyOffset:o];
 }
 - (void)_isim_applyOffset:(CGPoint)o {
@@ -99,13 +113,14 @@ static void update_tracking(UIScrollView *s, BOOL active) {
 - (void)setContentOffset:(CGPoint)o animated:(BOOL)animated {
     [self _stopAnimation];
     if (!animated) { self.contentOffset = o; return; }
+    o = [self _isim_pixelAligned:o];                    /* the animation ends on the pixel grid */
     CGPoint from = self.contentOffset; double start = isim_time();
     __weak UIScrollView *weakSelf = self;
     ex(self).scrollAnimating = YES;
     _anim = [NSTimer timerWithTimeInterval:1.0 / 60 repeats:YES block:^(NSTimer *t) {
         UIScrollView *s = weakSelf;
         double k = fmin(1, (isim_time() - start) / 0.3); k = 1 - pow(1 - k, 3);
-        s.contentOffset = CGPointMake(from.x + (o.x - from.x) * k, from.y + (o.y - from.y) * k);
+        [s _isim_physicsOffset:CGPointMake(from.x + (o.x - from.x) * k, from.y + (o.y - from.y) * k)];
         if (k >= 1) {
             BOOL toTop = ex(s).toTop; ex(s).toTop = NO;
             [s _stopAnimation];
@@ -157,7 +172,7 @@ static void update_tracking(UIScrollView *s, BOOL active) {
     if (_dragging || _decelerating || _anim) return;
     if (!_userScrolled) { [self _isim_applyOffset:[self _clamped:[self _minOffset]]]; return; }     /* rest at the top until scrolled or positioned */
     CGPoint c = [self _clamped:self.contentOffset];
-    if (!CGPointEqualToPoint(c, self.contentOffset)) self.contentOffset = c;
+    if (!CGPointEqualToPoint(c, self.contentOffset)) [self _isim_physicsOffset:c];     /* clamped to the content's edge, exactly */
 }
 - (void)layoutSubviews {
     [super layoutSubviews];
@@ -226,7 +241,7 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
             if (x.lockAxis == 1) t.y = 0; else if (x.lockAxis == 2) t.x = 0; else if (!x.lockAxis) t = CGPointZero;
         }
         CGPoint o = CGPointMake(_dragStart.x - ([self _canScrollX] ? t.x : 0), _dragStart.y - ([self _canScrollY] ? t.y : 0));
-        self.contentOffset = [self _rubberBanded:o];
+        [self _isim_physicsOffset:[self _rubberBanded:o]];
         _indicatorUntil = isim_time() + 0.5;
         break; }
     case UIGestureRecognizerStateEnded: case UIGestureRecognizerStateCancelled: {
@@ -290,7 +305,7 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
             if (*p != clim && (!_bounces || (axis ? ex_if(self).noBounceY : ex_if(self).noBounceX))) { *p = clim; *v = 0; }
         }
     }
-    self.contentOffset = o;
+    [self _isim_physicsOffset:o];
     _indicatorUntil = now + 0.5;
     CGPoint nc = [self _clamped:o];
     if (hypot(_velocity.x, _velocity.y) < 8 && CGPointEqualToPoint(nc, o)) {

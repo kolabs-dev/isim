@@ -95,6 +95,16 @@ def test_crash_reports(launch):
     app.wait_log(r"diag metric payload .*badAccess=1")
     app.quit()
 
+    # a crash inside the runtime (objc_retain of a bad pointer, issue #918): the whole stack, the host frames
+    # symbolized, down to the app's frame that called it
+    app = launch(APP, env={"HELLODIAG": "retain"})
+    app.wait_log(r"crash report written")
+    app.wait_exit()
+    assert "cdiag_crash_retain" in app.log, "the console backtrace goes past the host frame"
+    report = crashlog(app.data, "show")
+    assert "KERN_INVALID_ADDRESS at 0x0000000000000081" in report, report
+    assert "objc_retain" in report and "cdiag_crash_retain" in report, report
+
     # an uncaught Objective-C exception
     app = launch(APP, env={"HELLODIAG": "exception"})
     app.wait_log(r"crash report written")
@@ -117,8 +127,8 @@ def test_crash_reports(launch):
     app.wait_log(r"diag crash signal=4 type=2 ")
     app.wait_log(r"diag metric payload .*illegal=1")
     app.quit()
-    assert len(crashlog(app.data, "list").splitlines()) == 3
-    assert "removed 3 crash report(s)" in crashlog(app.data, "clear")
+    assert len(crashlog(app.data, "list").splitlines()) == 4
+    assert "removed 4 crash report(s)" in crashlog(app.data, "clear")
 
 
 def test_slow_launch(launch):

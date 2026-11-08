@@ -65,7 +65,9 @@ public struct _OptionalScene<S: Scene>: Scene, _SceneNode {
 
 @MainActor func _collectScenes<A: App>(_ app: A) -> _SceneCollector {
     let c = _SceneCollector()
+    _evaluatingAppBody = true
     let body = app.body
+    _evaluatingAppBody = false
     if let n = body as? _SceneNode { n._collect(c) } else if let r = body as? _SceneRoot { c.groups.append((nil, { r._rootView })) }
     return c
 }
@@ -198,15 +200,30 @@ final class _WindowValueBox { var data: Data?; var changed: (() -> Void)?; init(
     static var currentBox: _WindowValueBox?
     /// The root view of a window: its group (by id; else the first) with its value.
     static func root(id: String?, value: Data?, session: UISceneSession?) -> (make: () -> AnyView, box: _WindowValueBox) {
-        let g = groups.first(where: { $0.id == id && id != nil }) ?? groups.first
-        let make = g?.make ?? { AnyView(EmptyView()) }
+        func group(_ gs: [(id: String?, make: () -> AnyView)]) -> (() -> AnyView)? { (gs.first(where: { $0.id == id && id != nil }) ?? gs.first)?.make }
         let box = _WindowValueBox(value), weak = _WeakSession(session)
         return ({
             let saved = currentBox
             currentBox = box
             defer { currentBox = saved }
+            let make = group(currentGroups()) ?? { AnyView(EmptyView()) }
             return AnyView(make().environment(\._dismissWindow, DismissWindowAction(session: weak)))
         }, box)
+    }
+    /// App.body again (`recollect`) when the app's state changed since it was last read: what App.body reads from
+    /// the environment (`@Environment(\.scenePhase)` in the App, for `Scene.onChange(of: phase)`) is current, as on
+    /// iOS, where App.body is re-evaluated when what it reads changes.
+    static var recollect: (() -> [(id: String?, make: () -> AnyView)])?
+    static var collectedState: ScenePhase?
+    static func currentGroups() -> [(id: String?, make: () -> AnyView)] {
+        let state = _currentScenePhase()
+        if let recollect, let last = collectedState, last != state {
+            collectedState = state
+            groups = recollect()
+        } else if collectedState == nil {
+            collectedState = state
+        }
+        return groups
     }
     static func sessionInfo(_ s: UISceneSession) -> (id: String?, value: Data?)? {
         guard let info = s.userInfo?["isim.window"] as? [String: Any] else { return nil }
