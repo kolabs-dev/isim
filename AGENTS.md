@@ -98,7 +98,9 @@ python3 isim/tools/portability-check.py   # host code stays portable (docs/BUILD
     own branch (the squash merge would put them in `main`).
 - **CI.** CI runs a stock Ubuntu 24.04 image: one build job (build, ABI check), then four test jobs in parallel, one
   per iOS version (iOS 18 runs every test; 17, 26 and 27 the `os_matrix` tests), then the status.
-  - On a PR, start it by hand: Actions → CI → Run workflow, on the PR's branch.
+  - On a PR, start it by hand: Actions → CI → Run workflow, on the PR's branch. For a PR from a fork, run it on
+    `main` with the PR's number (`gh workflow run CI --ref main -f pr=N`); read the PR's diff first, since it runs the
+    contributor's code.
   - Its commit status `ci / build and test` is required to merge.
   - Pushes to `main` run it automatically.
 - **When you add or change an API:**

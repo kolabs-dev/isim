@@ -96,7 +96,11 @@ jobs restore that build and run in parallel: iOS 18 (iPhone 16 Pro, the default)
 26 and 27 (iPhone 17) run the `os_matrix` tests (`build.py ci test -- -m os_matrix --os 26 --device iphone17`). Each
 puts its results in the run's summary and its own artifact. **status** posts the commit status `ci / build and test`
 when all four are done: success only if the build and every version passed. For pull requests it runs only on demand: Actions → CI → Run
-workflow on the PR's branch. Pushes to `main` run it automatically, which keeps `main`'s build cache fresh: a
+workflow on the PR's branch. A pull request from a fork has no branch in this repository: run the workflow on `main`
+with the PR's number (`pr`), or `gh workflow run CI --ref main -f pr=123`. The run builds and tests the PR's head commit
+(as it was when the run started) with `main`'s workflow and posts the status on that commit, so it shows on the PR. The
+PR's code runs only inside the CI container, without a token, and such a run saves no cache other runs restore apart from
+its own build (keyed `build-pr-N-…`). Pushes to `main` run it automatically, which keeps `main`'s build cache fresh: a
 branch's first run starts from it. The build directory is cached; `build.py ci` gives sources whose content is unchanged
 their cached timestamps back (a checkout gives every file a new one), so Ninja rebuilds only what the branch changed; JUnit results and failure screenshots are uploaded as artifacts.
 
