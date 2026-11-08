@@ -25,6 +25,7 @@ let symbolNames: [String] = [
     "battery.100", "battery.25", "sparkles", "wand.and.stars", "bell.slash", "doc", "doc.fill", "folder", "folder.fill", "book",
     "video", "video.fill", "message", "bubble.left.fill", "globe", "lock.open", "key", "power", "chart.bar.fill", "slider.horizontal.3",
     "airplane", "keyboard", "printer", "paperclip", "link", "dollarsign.circle", "a.circle", "heart.circle.fill", "star.square", "wifi.slash",
+    "checklist", "calendar.badge.clock", "questionmark.bubble", "questionmark.bubble.fill", "hand.raised", "hand.raised.fill",
 ]
 
 final class SymbolsViewController: UIViewController {
