@@ -674,7 +674,7 @@ public struct ButtonStyleConfiguration {
     public let label: Label
     public let isPressed: Bool
 }
-public protocol ButtonStyle {
+@MainActor @preconcurrency public protocol ButtonStyle {
     associatedtype Body: View
     typealias Configuration = ButtonStyleConfiguration
     @ViewBuilder @MainActor func makeBody(configuration: Configuration) -> Body
@@ -687,31 +687,52 @@ extension View {
         _env { $0._buttonStyle = _AnyButtonStyle(make: { style.makeBody(configuration: $0) }) }
     }
 }
-public struct PlainButtonStyle: ButtonStyle {
-    public init() {}
-    public func makeBody(configuration: Configuration) -> some View { configuration.label.opacity(configuration.isPressed ? 0.25 : 1) }
+/// The built-in styles are primitive styles, as on iOS. Applied with `.buttonStyle(_:)` they draw through the
+/// ButtonStyle path (`_look`), so the button keeps its pressed state; called directly (`makeBody(configuration:)`,
+/// from an app's own PrimitiveButtonStyle) they build a Button that draws the same way.
+protocol _BuiltinButtonStyle { var _look: _AnyButtonStyle? { get } }
+extension _BuiltinButtonStyle {
+    func _button(_ c: PrimitiveButtonStyleConfiguration) -> _LookButton { _LookButton(configuration: c, look: _look) }
 }
-public struct BorderlessButtonStyle: ButtonStyle {
-    public init() {}
-    public func makeBody(configuration: Configuration) -> some View { configuration.label.opacity(configuration.isPressed ? 0.25 : 1) }
+struct _LookButton: View {
+    let configuration: PrimitiveButtonStyleConfiguration, look: _AnyButtonStyle?
+    var body: some View {
+        let c = configuration, look = look
+        Button(role: c.role, action: c.trigger) { c.label }._env { $0._buttonStyle = look }   // nil: the default button
+    }
 }
-public struct DefaultButtonStyle: ButtonStyle {
+/// The plain and borderless look: the label, dimmed while pressed.
+@MainActor func _dimmedLabel(_ c: ButtonStyleConfiguration) -> some View { c.label.opacity(c.isPressed ? 0.25 : 1) }
+public struct PlainButtonStyle: PrimitiveButtonStyle, _BuiltinButtonStyle {
     public init() {}
-    public func makeBody(configuration: Configuration) -> some View { configuration.label.opacity(configuration.isPressed ? 0.25 : 1) }
+    public func makeBody(configuration: Configuration) -> some View { _button(configuration) }
+    var _look: _AnyButtonStyle? { _AnyButtonStyle(make: { _dimmedLabel($0) }) }
 }
-public struct BorderedButtonStyle: ButtonStyle {
+public struct BorderlessButtonStyle: PrimitiveButtonStyle, _BuiltinButtonStyle {
     public init() {}
-    public func makeBody(configuration: Configuration) -> some View { _BorderedButtonBody(configuration: configuration, prominent: false) }
+    public func makeBody(configuration: Configuration) -> some View { _button(configuration) }
+    var _look: _AnyButtonStyle? { _AnyButtonStyle(make: { _dimmedLabel($0) }) }
 }
-public struct BorderedProminentButtonStyle: ButtonStyle {
+public struct DefaultButtonStyle: PrimitiveButtonStyle, _BuiltinButtonStyle {
     public init() {}
-    public func makeBody(configuration: Configuration) -> some View { _BorderedButtonBody(configuration: configuration, prominent: true) }
+    public func makeBody(configuration: Configuration) -> some View { _button(configuration) }
+    var _look: _AnyButtonStyle? { nil }
 }
-extension ButtonStyle where Self == PlainButtonStyle { public static var plain: PlainButtonStyle { PlainButtonStyle() } }
-extension ButtonStyle where Self == BorderlessButtonStyle { public static var borderless: BorderlessButtonStyle { BorderlessButtonStyle() } }
-extension ButtonStyle where Self == DefaultButtonStyle { public static var automatic: DefaultButtonStyle { DefaultButtonStyle() } }
-extension ButtonStyle where Self == BorderedButtonStyle { public static var bordered: BorderedButtonStyle { BorderedButtonStyle() } }
-extension ButtonStyle where Self == BorderedProminentButtonStyle { public static var borderedProminent: BorderedProminentButtonStyle { BorderedProminentButtonStyle() } }
+public struct BorderedButtonStyle: PrimitiveButtonStyle, _BuiltinButtonStyle {
+    public init() {}
+    public func makeBody(configuration: Configuration) -> some View { _button(configuration) }
+    var _look: _AnyButtonStyle? { _AnyButtonStyle(make: { _BorderedButtonBody(configuration: $0, prominent: false) }) }
+}
+public struct BorderedProminentButtonStyle: PrimitiveButtonStyle, _BuiltinButtonStyle {
+    public init() {}
+    public func makeBody(configuration: Configuration) -> some View { _button(configuration) }
+    var _look: _AnyButtonStyle? { _AnyButtonStyle(make: { _BorderedButtonBody(configuration: $0, prominent: true) }) }
+}
+extension PrimitiveButtonStyle where Self == PlainButtonStyle { public static var plain: PlainButtonStyle { PlainButtonStyle() } }
+extension PrimitiveButtonStyle where Self == BorderlessButtonStyle { public static var borderless: BorderlessButtonStyle { BorderlessButtonStyle() } }
+extension PrimitiveButtonStyle where Self == DefaultButtonStyle { public static var automatic: DefaultButtonStyle { DefaultButtonStyle() } }
+extension PrimitiveButtonStyle where Self == BorderedButtonStyle { public static var bordered: BorderedButtonStyle { BorderedButtonStyle() } }
+extension PrimitiveButtonStyle where Self == BorderedProminentButtonStyle { public static var borderedProminent: BorderedProminentButtonStyle { BorderedProminentButtonStyle() } }
 
 // MARK: - UIViewRepresentable
 

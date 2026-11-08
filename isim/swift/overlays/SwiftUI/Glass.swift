@@ -428,20 +428,22 @@ public struct ToolbarMinimizationBehavior: Hashable, Sendable {
 
 /// `.buttonStyle(.glass)`: the label on an interactive glass capsule (adapted).
 @available(iOS 26.0, *)
-public struct GlassButtonStyle: ButtonStyle {
+public struct GlassButtonStyle: PrimitiveButtonStyle, _BuiltinButtonStyle {
     public init() {}
-    public func makeBody(configuration: Configuration) -> some View { _GlassButtonBody(configuration: configuration, prominent: false) }
+    public func makeBody(configuration: Configuration) -> some View { _button(configuration) }
+    var _look: _AnyButtonStyle? { _AnyButtonStyle(make: { _GlassButtonBody(configuration: $0, prominent: false) }) }
 }
 /// `.buttonStyle(.glassProminent)`: tinted glass with a white label (adapted).
 @available(iOS 26.0, *)
-public struct GlassProminentButtonStyle: ButtonStyle {
+public struct GlassProminentButtonStyle: PrimitiveButtonStyle, _BuiltinButtonStyle {
     public init() {}
-    public func makeBody(configuration: Configuration) -> some View { _GlassButtonBody(configuration: configuration, prominent: true) }
+    public func makeBody(configuration: Configuration) -> some View { _button(configuration) }
+    var _look: _AnyButtonStyle? { _AnyButtonStyle(make: { _GlassButtonBody(configuration: $0, prominent: true) }) }
 }
 @available(iOS 26.0, *)
-extension ButtonStyle where Self == GlassButtonStyle { public static var glass: GlassButtonStyle { GlassButtonStyle() } }
+extension PrimitiveButtonStyle where Self == GlassButtonStyle { public static var glass: GlassButtonStyle { GlassButtonStyle() } }
 @available(iOS 26.0, *)
-extension ButtonStyle where Self == GlassProminentButtonStyle { public static var glassProminent: GlassProminentButtonStyle { GlassProminentButtonStyle() } }
+extension PrimitiveButtonStyle where Self == GlassProminentButtonStyle { public static var glassProminent: GlassProminentButtonStyle { GlassProminentButtonStyle() } }
 
 @available(iOS 26.0, *)
 struct _GlassButtonBody: View {
