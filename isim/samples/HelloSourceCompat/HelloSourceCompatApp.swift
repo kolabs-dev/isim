@@ -10,6 +10,12 @@ enum Palette {
 }
 /// Bundle is Sendable (like the `Bundle.module` accessor Swift packages generate)
 enum Resources { static let bundle: Bundle = .main }
+/// a type-erased style over PrimitiveButtonStyle: the built-in styles are primitive styles with leading-dot statics
+struct AnyButtonStyle: PrimitiveButtonStyle {
+    let make: (Configuration) -> AnyView
+    init<S: PrimitiveButtonStyle>(_ s: S) { make = { AnyView(s.makeBody(configuration: $0)) } }
+    func makeBody(configuration: Configuration) -> some View { make(configuration) }
+}
 
 struct ContentView: View {
     @State private var dragEnabled = true
@@ -32,6 +38,12 @@ struct ContentView: View {
                 .gesture(dragEnabled ? DragGesture().onEnded { _ in drags += 1; print("compat drag \(drags)") } : nil)
                 .accessibilityIdentifier("drag-area")
             Button("Disable drag") { dragEnabled = false; print("compat drag disabled") }.accessibilityIdentifier("disable")
+            HStack {
+                Button("Wrapped") { print("compat wrapped style tapped") }.buttonStyle(AnyButtonStyle(.borderedProminent))
+                    .accessibilityIdentifier("wrapped")
+                Button("Bordered") { print("compat bordered tapped") }.buttonStyle(BorderedButtonStyle())
+                    .accessibilityIdentifier("bordered")
+            }
             Button("Haptic") { haptic.impactOccurred(intensity: 0.5); print("compat haptic") }.accessibilityIdentifier("haptic")
         }
         .onAppear { print("compat statics \(Palette.ink == Palette.ink) bundle=\(Resources.bundle.bundleIdentifier ?? "-")") }

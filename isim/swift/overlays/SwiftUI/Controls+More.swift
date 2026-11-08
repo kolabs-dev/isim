@@ -872,7 +872,7 @@ public struct PrimitiveButtonStyleConfiguration {
     /// Runs the button's action.
     public func trigger() { action() }
 }
-public protocol PrimitiveButtonStyle {
+@MainActor @preconcurrency public protocol PrimitiveButtonStyle {
     associatedtype Body: View
     typealias Configuration = PrimitiveButtonStyleConfiguration
     @ViewBuilder @MainActor func makeBody(configuration: Configuration) -> Body
@@ -885,7 +885,11 @@ extension EnvironmentValues {
 extension View {
     /// A style that builds the whole button, including how it is triggered (`configuration.trigger()`).
     public func buttonStyle<S: PrimitiveButtonStyle>(_ style: S) -> some View {
-        _env { $0._primitiveButtonStyle = _AnyPrimitiveButtonStyle(make: { style.makeBody(configuration: $0) }); $0._buttonStyle = nil }
+        if let builtin = style as? _BuiltinButtonStyle {        // .plain, .bordered, ...: drawn as a ButtonStyle
+            let look = builtin._look
+            return _env { $0._primitiveButtonStyle = nil; $0._buttonStyle = look }
+        }
+        return _env { $0._primitiveButtonStyle = _AnyPrimitiveButtonStyle(make: { style.makeBody(configuration: $0) }); $0._buttonStyle = nil }
     }
 }
 /// Called by Button: a primitive style in the environment builds the button.
