@@ -20,6 +20,8 @@ struct ContentView: View {
             Text(Image(systemName: "star.fill")).font(.system(size: 40)).foregroundStyle(Palette.ink)
                 .accessibilityIdentifier("star-text")
             (Text(Image(systemName: "star.fill")) + Text(" Favorites")).accessibilityIdentifier("favorites")
+            Text("Selectable").textSelection(.enabled).accessibilityIdentifier("selectable")   // TextSelectability statics
+            Text("Not selectable").textSelection(.disabled).accessibilityIdentifier("not-selectable")
             Divider().overlay(Palette.rule).frame(width: 200)
             Canvas { ctx, size in
                 ctx.draw(Text(Image(systemName: "star.fill")).font(.system(size: 30, weight: .heavy)).foregroundStyle(Palette.ink),

@@ -16,6 +16,8 @@ def test_source_compat(launch):
     favorites = app.find(id="favorites")
     assert favorites and favorites.label.endswith("Favorites")        # Text(Image) + Text: one label
     canvas = app.find(id="canvas")
+    assert app.find(id="selectable").label == "Selectable", "textSelection(.enabled) compiles and keeps the text"
+    assert app.find(id="not-selectable").label == "Not selectable", "textSelection(.disabled)"
     shot = app.screenshot()
     assert is_red(shot.getpixel(tuple(map(int, star.center)))), "Text(Image) symbol in the text colour"
     assert is_red(shot.getpixel(tuple(map(int, canvas.center)))), "Canvas draws Text(Image)"
