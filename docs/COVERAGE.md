@@ -54,14 +54,14 @@ so pull requests don't conflict on them (AGENTS.md, "Coverage").
 | Area | Symbols | ✅ | 🟡 | 🧩 | ❌ | ⛔ | Frameworks in isim |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | [UIKit](#uikit) | 95% | 324 | 17 | 0 | 2 | 1 | 2 of 2 |
-| [SwiftUI & Charts](#swiftui) | 76% | 314 | 10 | 0 | 5 | 0 | 2 of 2 |
+| [SwiftUI & Charts](#swiftui) | 77% | 315 | 10 | 0 | 5 | 0 | 2 of 2 |
 | [Developer tools](#devtools) | 56% | 83 | 11 | 0 | 9 | 0 | 5 of 6 |
 | [Foundation & CoreFoundation](#foundation) | 59% | 152 | 24 | 0 | 7 | 0 | 7 of 8 |
 | [Swift, Darwin & runtimes](#runtime) | 89% | 122 | 7 | 0 | 7 | 0 | 15 of 16 |
 | [Graphics & text](#graphics) | 44% | 122 | 23 | 0 | 13 | 0 | 9 of 12 |
 | [GPU](#gpu) | 26% | 41 | 8 | 0 | 6 | 0 | 5 of 7 |
 | [Imaging, photos & ML](#ml) | 58% | 125 | 62 | 7 | 16 | 0 | 17 of 30 |
-| [Media](#media) | 61% | 150 | 23 | 0 | 23 | 0 | 15 of 27 |
+| [Media](#media) | 63% | 150 | 25 | 0 | 23 | 0 | 15 of 27 |
 | [Games & 3D](#games) | 36% | 138 | 46 | 0 | 6 | 0 | 9 of 13 |
 | [Commerce & privacy](#commerce) | 57% | 79 | 7 | 2 | 9 | 0 | 13 of 14 |
 | [Data & persistence](#data) | 77% | 41 | 1 | 0 | 4 | 0 | 3 of 3 |
@@ -70,9 +70,9 @@ so pull requests don't conflict on them (AGENTS.md, "Coverage").
 | [Location, personal data & sensors](#location) | 22% | 58 | 17 | 17 | 17 | 0 | 17 of 27 |
 | [Web, network & communication](#web) | 73% | 48 | 2 | 6 | 13 | 0 | 11 of 12 |
 | [Accessibility & Info.plist](#a11y) | 79% | 21 | 1 | 0 | 5 | 0 | 2 of 2 |
-| **All areas** | **57%** | **2008** | **299** | **32** | **161** | **1** | **166 of 249** |
+| **All areas** | **57%** | **2009** | **301** | **32** | **161** | **1** | **166 of 249** |
 
-Symbols: 105344 of 184030 Apple iOS symbols in the frameworks isim has or tracks (exact; isim 70531ad9, Apple snapshot 2026-10-14).
+Symbols: 105706 of 184034 Apple iOS symbols in the frameworks isim has or tracks (exact; isim 8cb74913, Apple snapshot 2026-10-14).
 <!-- /generated:summary -->
 
 ### Per iOS version
@@ -84,14 +84,14 @@ N (iOS 17 when the snapshot does not say).
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
 | UIKit | 95% | 95% | 95% | 95% |
-| SwiftUI & Charts | 84% | 80% | 77% | 76% |
+| SwiftUI & Charts | 85% | 80% | 77% | 77% |
 | Developer tools | 57% | 57% | 57% | 56% |
 | Foundation & CoreFoundation | 58% | 58% | 59% | 59% |
 | Swift, Darwin & runtimes | 90% | 90% | 90% | 89% |
 | Graphics & text | 46% | 46% | 45% | 44% |
 | GPU | 30% | 30% | 26% | 26% |
 | Imaging, photos & ML | 54% | 57% | 57% | 58% |
-| Media | 66% | 65% | 62% | 61% |
+| Media | 67% | 67% | 64% | 63% |
 | Games & 3D | 48% | 41% | 41% | 36% |
 | Commerce & privacy | 60% | 57% | 58% | 57% |
 | Data & persistence | 81% | 81% | 80% | 77% |
@@ -126,7 +126,7 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | Framework | iOS | In isim | Symbols | Rows | Page |
 |---|---|---|---:|---|---|
 | [Swift Charts](https://developer.apple.com/documentation/charts) | 16.0 | ✅ | 81.2% | 21: 20 ✅ 1 ❌ | [Charts](frameworks/Charts.md) |
-| [SwiftUI](https://developer.apple.com/documentation/swiftui) | 13.0 | ✅ | 76.0% | 308: 294 ✅ 10 🟡 4 ❌ | [SwiftUI](frameworks/SwiftUI.md) |
+| [SwiftUI](https://developer.apple.com/documentation/swiftui) | 13.0 | ✅ | 76.2% | 309: 295 ✅ 10 🟡 4 ❌ | [SwiftUI](frameworks/SwiftUI.md) |
 
 ### Developer tools
 
@@ -263,7 +263,7 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | [Audio Toolbox](https://developer.apple.com/documentation/audiotoolbox) | 2.0 | ✅ | 99.6% | 18: 12 ✅ 4 🟡 2 ❌ | [AudioToolbox](frameworks/AudioToolbox.md) |
 | [Audio Unit](https://developer.apple.com/documentation/audiounit) | 2.0 | ✅ | 0.0% | 2: 2 ✅ | [AudioUnit](frameworks/AudioUnit.md) |
 | [AVFAudio](https://developer.apple.com/documentation/avfaudio) | 14.5 | ✅ | 73.7% | 15: 13 ✅ 2 ❌ | [AVFAudio](frameworks/AVFAudio.md) |
-| [AVFoundation](https://developer.apple.com/documentation/avfoundation) | 2.2 | ✅ | 63.7% | 65: 55 ✅ 5 🟡 5 ❌ | [AVFoundation](frameworks/AVFoundation.md) |
+| [AVFoundation](https://developer.apple.com/documentation/avfoundation) | 2.2 | ✅ | 70.7% | 67: 55 ✅ 7 🟡 5 ❌ | [AVFoundation](frameworks/AVFoundation.md) |
 | [AVKit](https://developer.apple.com/documentation/avkit) | 8.0 | ✅ | 41.3% | 9: 5 ✅ 1 🟡 3 ❌ | [AVKit](frameworks/AVKit.md) |
 | [AVRouting](https://developer.apple.com/documentation/avrouting) | 16.0 | ❌ | 0.0%* | – | – |
 | [AVSystemRouting](https://developer.apple.com/documentation/avsystemrouting) | 27.0 | ❌ | 0.0%* | – | – |
