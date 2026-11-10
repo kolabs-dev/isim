@@ -1,7 +1,7 @@
 # AVFoundation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 63.7% of Apple's iOS API (3160 of 4959, exact) · **Rows:** 65: 55 ✅ 5 🟡 5 ❌ · **iOS:** 2.2+
+**Symbols:** 70.7% of Apple's iOS API (3509 of 4963, exact) · **Rows:** 67: 55 ✅ 7 🟡 5 ❌ · **iOS:** 2.2+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [AVFoundation](https://developer.apple.com/documentation/avfoundation) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -87,7 +87,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-1799 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+1454 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -296,9 +296,6 @@
 - [`init(mediaType: AVMediaType, segmentConfigurations: [AVPlannedSegmentConfiguration], assemblyTrackID: CMPersistentTrackID)`](https://developer.apple.com/documentation/avfoundation/avassettrackplan/init(mediatype:segmentconfigurations:assemblytrackid:))
 - [`var mediaType: AVMediaType`](https://developer.apple.com/documentation/avfoundation/avassettrackplan/mediatype)
 - [`var segmentConfigurations: [AVPlannedSegmentConfiguration]`](https://developer.apple.com/documentation/avfoundation/avassettrackplan/segmentconfigurations)
-- [`AVAssetTrackSegment`](https://developer.apple.com/documentation/avfoundation/avassettracksegment)
-- [`var isEmpty: Bool`](https://developer.apple.com/documentation/avfoundation/avassettracksegment/isempty)
-- [`var timeMapping: CMTimeMapping`](https://developer.apple.com/documentation/avfoundation/avassettracksegment/timemapping)
 - [`AVAssetVariant`](https://developer.apple.com/documentation/avfoundation/avassetvariant)
 - [`AVAssetVariant.AudioAttributes`](https://developer.apple.com/documentation/avfoundation/avassetvariant/audioattributes-swift.class)
 - [`var formatIDs: [AudioFormatID]`](https://developer.apple.com/documentation/avfoundation/avassetvariant/audioattributes-swift.class/formatids)
@@ -392,7 +389,10 @@
 - [`func appendImmediately(AVTimedMetadataGroup) throws -> Bool`](https://developer.apple.com/documentation/avfoundation/avassetwriterinput/metadatareceiver/appendimmediately(_:))
 - [`func finish()`](https://developer.apple.com/documentation/avfoundation/avassetwriterinput/metadatareceiver/finish())
 - [`AVAssetWriterInput.MultiPassController`](https://developer.apple.com/documentation/avfoundation/avassetwriterinput/multipasscontroller)
-- … and 1499 more (`isim/data/api-coverage.json.gz`)
+- [`var passDescriptions: (some AsyncSequence<AVAssetWriterInputPassDescription, Never>)?`](https://developer.apple.com/documentation/avfoundation/avassetwriterinput/multipasscontroller/passdescriptions)
+- [`AVAssetWriterInput.PixelBufferReceiver`](https://developer.apple.com/documentation/avfoundation/avassetwriterinput/pixelbufferreceiver)
+- [`func append(CVReadOnlyPixelBuffer, with: CMTime) async throws`](https://developer.apple.com/documentation/avfoundation/avassetwriterinput/pixelbufferreceiver/append(_:with:))
+- … and 1154 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->
