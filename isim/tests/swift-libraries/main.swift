@@ -197,6 +197,18 @@ final class Note: NSObject, NSSecureCoding {
         do {
             try d.write(to: url, options: .atomic)
             check(try Data(contentsOf: url) == d && FileManager.default.contents(atPath: url.path) == d, "Data write/read (atomic)")
+            // a write's file protection class is the file's protection (recorded, not enforced, on isim)
+            let classes: [(Data.WritingOptions, URLFileProtection)] = [
+                (.noFileProtection, .none), (.completeFileProtection, .complete),
+                (.completeFileProtectionUnlessOpen, .completeUnlessOpen),
+                (.completeFileProtectionUntilFirstUserAuthentication, .completeUntilFirstUserAuthentication),
+            ]
+            for (option, protection) in classes {
+                try d.write(to: url, options: [.atomic, option])
+                let recorded = try url.resourceValues(forKeys: [.fileProtectionKey]).fileProtection
+                check(try Data(contentsOf: url) == d && recorded == protection && Data.WritingOptions.fileProtectionMask.contains(option),
+                      "Data write with file protection \(protection.rawValue)")
+            }
             try FileManager.default.removeItem(at: url)
             check(!FileManager.default.fileExists(atPath: url.path), "FileManager.removeItem(at:)")
         } catch { check(false, "Data file I/O: \(error)") }
