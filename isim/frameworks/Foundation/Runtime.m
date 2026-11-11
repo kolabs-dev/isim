@@ -37,16 +37,7 @@ NSExceptionName const NSInternalInconsistencyException = @"NSInternalInconsisten
 /* exception preprocessor (libobjc): records the throw site's return addresses (frame pointer chain) */
 static id isim_exception_preprocessor(id e) {
     if ([e isKindOfClass:[NSException class]] && !((NSException *)e)->_isimCallStack) {
-        NSMutableArray *a = [NSMutableArray array];
-        void **fp = __builtin_frame_address(0);
-        for (int i = 0; i < 128 && fp && !((uintptr_t)fp & 7); i++) {
-            void **next = fp[0]; void *ret = fp[1];
-            if (!ret) break;
-            [a addObject:@((uintptr_t)ret)];
-            if (next <= fp) break;
-            fp = next;
-        }
-        ((NSException *)e)->_isimCallStack = [a copy];
+        ((NSException *)e)->_isimCallStack = [isim_return_addresses(__builtin_frame_address(0)) copy];
     }
     return e;
 }
@@ -59,6 +50,27 @@ void NSSetUncaughtExceptionHandler(NSUncaughtExceptionHandler *h) {
 __attribute__((constructor)) static void isim_install_exception_preprocessor(void) { objc_setExceptionPreprocessor(isim_exception_preprocessor); }
 
 /* "0   Image   0x...  symbol + offset" lines, like -[NSException callStackSymbols] */
+/* The walk stays inside the thread's stack: a Swift async function's frame record holds its caller's frame pointer
+   with bit 60 set (the async frame marker), and the chain of a Swift concurrency thread ends in frames that are not
+   on the thread's stack, so following it blindly faults (an XCTAssert after an await, issue #917). */
+NSArray<NSNumber *> *isim_return_addresses(void **fp) {
+    NSMutableArray *a = [NSMutableArray array];
+    pthread_t me = pthread_self();
+    uintptr_t top = (uintptr_t)pthread_get_stackaddr_np(me), size = pthread_get_stacksize_np(me);
+    uintptr_t bottom = size < top ? top - size : 0;
+    for (int i = 0; i < 128 && fp; i++) {
+        uintptr_t f = (uintptr_t)fp;
+        if ((f & 7) || f < bottom || f > top - 2 * sizeof(void *)) break;
+        void *ret = fp[1];
+        if (!ret) break;
+        [a addObject:@((uintptr_t)ret)];
+        void **next = (void **)((uintptr_t)fp[0] & ~(1ULL << 60));
+        if (next <= fp) break;
+        fp = next;
+    }
+    return a;
+}
+
 NSArray<NSString *> *isim_symbolicate(NSArray<NSNumber *> *addresses) {
     NSMutableArray *out = [NSMutableArray array];
     NSUInteger i = 0;

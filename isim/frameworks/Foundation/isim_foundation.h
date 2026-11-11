@@ -32,6 +32,8 @@ extern struct isim_const_dict __NSDictionary0__struct;
 void isim_schedule_perform(id target, SEL sel, id arg, NSTimeInterval delay);
 void isim_cancel_performs(id target);
 NSArray<NSString *> *isim_symbolicate(NSArray<NSNumber *> *addresses);   /* Runtime.m */
+/* return addresses along the frame-pointer chain from fp, within the calling thread's stack (Runtime.m) */
+NSArray<NSNumber *> *isim_return_addresses(void **fp);
 const char *isim_process_name(void);
 
 /* property list parsing (NSBundle.m) */

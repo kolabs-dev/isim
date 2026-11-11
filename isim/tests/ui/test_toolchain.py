@@ -144,7 +144,9 @@ def test_failing_tests(device_data):
         and not has(r"not reached"), "uncaught NSException recorded"
     assert has(r"testUnmatchedExpectedFailure\] : Failed due to unmatched expected failure: a bug that is fixed"), \
         "a strict XCTExpectFailure that matches nothing fails"
-    assert has(r"Executed 6 tests, with 6 failures") and not has(r"testLinkedLibraries"), "only the selected tests ran"
+    assert has(r"testAsyncFailureAfterAwait\] : failed - failure after an await") and \
+        has(r"testAsyncFailureAfterAwait\]. failed"), "a failure recorded after an await (issue #917)"
+    assert has(r"Executed 7 tests, with 7 failures") and not has(r"testLinkedLibraries"), "only the selected tests ran"
     assert has(r"Expectation failed: \(Units\.convert\(1\) → 10000\) == 1") and has(r"Test deliberateFailure\(\) failed"), \
         "Swift Testing failure reported"
     assert has(r"Failed to tap: No matches found") and has(r"ExpectedUIFailureTests testMissingButton\]. failed"), \
